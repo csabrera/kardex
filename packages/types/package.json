@@ -40,8 +40,8 @@
     "clean": "rm -rf dist"
   },
   "devDependencies": {
-    "@kardex/eslint-config": "workspace:*",
-    "@kardex/tsconfig": "workspace:*",
+    "@kardex/eslint-config": "*",
+    "@kardex/tsconfig": "*",
     "tsup": "^8.2.0",
     "typescript": "^5.5.0"
   }
