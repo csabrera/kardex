@@ -1,34 +1,61 @@
 {
-  "$schema": "https://turbo.build/json-schema.json",
-  "globalDependencies": [".env", ".env.local"],
-  "pipeline": {
+  "$schema": "https://turbo.build/schema.json",
+  "globalDependencies": [".env", ".env.local", ".env.example"],
+  "globalEnv": ["NODE_ENV", "CI"],
+  "tasks": {
     "build": {
       "dependsOn": ["^build"],
-      "outputs": ["dist/**", ".next/**", "build/**"]
+      "outputs": ["dist/**", ".next/**", "!.next/cache/**", "build/**"],
+      "inputs": [
+        "src/**",
+        "prisma/**",
+        "public/**",
+        "*.config.*",
+        "tsconfig*.json",
+        "package.json"
+      ]
     },
     "lint": {
+      "dependsOn": ["^build"],
       "outputs": []
     },
     "type-check": {
+      "dependsOn": ["^build"],
       "outputs": []
     },
     "test": {
+      "dependsOn": ["^build"],
+      "outputs": ["coverage/**"],
+      "cache": false
+    },
+    "test:coverage": {
+      "dependsOn": ["^build"],
       "outputs": ["coverage/**"],
       "cache": false
     },
     "test:e2e": {
-      "outputs": ["test-results/**"],
-      "cache": false
-    },
-    "test:coverage": {
-      "outputs": ["coverage/**"],
+      "dependsOn": ["^build"],
+      "outputs": ["playwright-report/**", "test-results/**"],
       "cache": false
     },
     "dev": {
+      "dependsOn": ["^build"],
       "cache": false,
       "persistent": true
     },
     "clean": {
+      "cache": false
+    },
+    "prisma:generate": {
+      "cache": false,
+      "outputs": ["node_modules/.prisma/**", "node_modules/@prisma/client/**"]
+    },
+    "prisma:migrate": {
+      "cache": false,
+      "persistent": false
+    },
+    "prisma:seed": {
+      "dependsOn": ["prisma:generate"],
       "cache": false
     }
   }

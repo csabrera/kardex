@@ -13,8 +13,9 @@
 | **1B** | Config Compartida | ✅ **COMPLETA** | 100% | 2026-04-21 | 2026-04-21 |
 | **1C** | NestJS + Prisma | ✅ **COMPLETA** | 100% | 2026-04-21 | 2026-04-21 |
 | **1D** | Next.js + Design System | ✅ **COMPLETA** | 100% | 2026-04-21 | 2026-04-21 |
-| **1E** | CI/CD + Testing Infra Completa | 🔄 Siguiente | 0% | - | - |
-| **2A-2D** | Autenticación | ⏳ Pendiente | 0% | - | - |
+| **1E** | CI/CD + Testing Infra Completa | ✅ **COMPLETA** | 100% | 2026-04-22 | 2026-04-22 |
+| **FASE 1** | **TOTAL INFRAESTRUCTURA** | ✅ **COMPLETA** | 100% | 2026-04-21 | 2026-04-22 |
+| **2A-2D** | Autenticación | 🔄 Siguiente | 0% | - | - |
 | **3A-3B** | Maestros | ⏳ Pendiente | 0% | - | - |
 | Resto | Fases 4-8 | ⏳ Pendiente | 0% | - | - |
 
@@ -158,6 +159,55 @@
 - [x] lib/api-client.ts — Axios con withCredentials + getErrorCode/Message helpers
 - [x] lib/constants.ts — APP_NAME, API_URL, DATE_FORMATS
 - [x] hooks/use-debounce.ts — Hook para search/autocomplete
+
+### Entregables Fase 1E ✅
+
+**testing/ workspace (Playwright):**
+- [x] package.json con scripts (test:e2e, test:e2e:ui, test:e2e:debug, test:e2e:headed)
+- [x] tsconfig.json con path aliases (@testing, @fixtures, @helpers)
+- [x] playwright.config.ts completo:
+  - Timeout 30s, expect 5s, action 10s, nav 15s
+  - Chromium por default; Firefox + WebKit solo en CI
+  - Mobile project opt-in (`*.mobile.spec.ts`)
+  - Retries 2x solo en CI (nunca local)
+  - Reporters: HTML + JSON + JUnit
+  - Auto-spawn dev servers localmente, confía en workflow en CI
+  - Locale es-PE + timezone America/Lima
+  - Traces on-first-retry, screenshots on-failure, video retain-on-failure
+
+**helpers/ (4 archivos):**
+- [x] `api.helper.ts` — apiClient + apiGet/Post/Patch/Delete + unwrap() del envelope
+- [x] `auth.helper.ts` — loginViaApi (fast), loginViaUi (flow), logoutViaUi, setTokenCookie
+- [x] `db.helper.ts` — Prisma client + resetDatabase + assertTableEmpty
+- [x] `wait.helper.ts` — waitForApi, waitForElement, sleep (uso excepcional)
+- [x] `index.ts` — Barrel export
+
+**fixtures/ (3 archivos):**
+- [x] `user.fixture.ts` — seedUser() + seedSystemRoles() + generateDocumentNumber() (DNI/CE/PASAPORTE únicos)
+- [x] `warehouse.fixture.ts` — Placeholder marcado para Fase 3A
+- [x] `item.fixture.ts` — Placeholder marcado para Fase 3A
+
+**Smoke tests E2E (2 specs):**
+- [x] `home-loads.spec.ts` — Home renderiza, 404 funciona, fonts cargan, theme class presente
+- [x] `health-endpoints.spec.ts` — /health/live + /health con DB check
+
+**Infraestructura dev mejorada:**
+- [x] `.gitattributes` — Normalización LF end-of-line (evita warnings CRLF en Windows)
+- [x] `.vscode/settings.json` — Format on save, ESLint autofix, Tailwind class regex, paths
+- [x] `.vscode/extensions.json` — Recomendaciones (ESLint, Prettier, Tailwind, Prisma, Playwright, ErrorLens, etc.)
+- [x] `.vscode/launch.json` — Debug configs (API, attach, Playwright)
+- [x] `turbo.json` actualizado a formato Turborepo 2.x (`tasks` en vez de `pipeline`) + inputs granulares + prisma tasks
+
+**Scripts npm mejorados (root package.json):**
+- [x] `dev:api`, `dev:web` — Iniciar apps individuales
+- [x] `docker:up`, `docker:down`, `docker:logs`, `docker:reset` — Shortcuts Docker
+- [x] `db:migrate`, `db:seed`, `db:studio`, `db:reset` — Shortcuts Prisma
+- [x] `setup` — Comando único: install + docker + migrate + seed
+- [x] `test:e2e:ui` — Playwright UI mode
+
+**Documentación:**
+- [x] `docs/testing.md` — Strategy completa (niveles, cobertura por fase, debugging)
+- [x] `docs/error-codes.md` — Catálogo human-readable de BusinessErrorCode con ejemplos
 
 ---
 
@@ -1808,13 +1858,13 @@ Este plan refactorizado **incorpora 10 mejoras clave:**
 
 **Duración estimada:** 72-96 días (3-5 devs full-time) = ~4 meses calendario.
 
-**Estado del proyecto:** 🚀 **EN EJECUCIÓN** — Fases 0, 1A-1D completadas. Siguiente: Fase 1E (CI/CD + Testing Infra completa).
+**Estado del proyecto:** 🎉 **FASE 1 COMPLETA** — Infraestructura 100% lista. Siguiente: Fase 2A (Auth Core).
 
 ---
 
-> **Versión del plan:** 4.4 (En Ejecución)  
-> **Fecha de Actualización:** 2026-04-22 00:00  
-> **Estado:** ✅ Fases 0, 1A, 1B, 1C, 1D Completadas | 🔄 Fase 1E Siguiente  
+> **Versión del plan:** 4.5 (Fase 1 Completa)  
+> **Fecha de Actualización:** 2026-04-22 01:00  
+> **Estado:** ✅ FASE 1 (INFRAESTRUCTURA) COMPLETADA | 🔄 Fase 2A Siguiente  
 >
 > **Progreso:**
 > - ✅ Fase 0 (Decisiones Arquitectónicas): 100% — 5 ADRs documentados
@@ -1822,18 +1872,22 @@ Este plan refactorizado **incorpora 10 mejoras clave:**
 > - ✅ Fase 1B (Config Compartida): 100%
 > - ✅ Fase 1C (NestJS + Prisma): 100%
 > - ✅ Fase 1D (Next.js + Design System): 100%
-> - 🔄 Fase 1E (CI/CD + Testing Infra): Siguiente
-> - ⏳ Fases 2-8: Pendientes
+> - ✅ Fase 1E (CI/CD + Testing Infra): 100%
+> - 🎯 **FASE 1 TOTAL: 100%** (6 sub-fases completadas)
+> - 🔄 Fase 2A (Auth Core): Siguiente
+> - ⏳ Fases 2B-8: Pendientes
 >
-> **Artefactos creados en Fase 1D:**
-> - Next.js 14 App Router con TypeScript strict + path aliases
-> - TailwindCSS + shadcn/ui (new-york style) + paleta slate/blue + dark mode
-> - Fuentes Inter + JetBrains Mono via next/font (sin FOUC)
-> - 5 componentes shadcn/ui core: Button, Input, Label, Card (+ subcomponents), Skeleton
-> - 4 providers: Theme, Query, Socket (placeholder), Toast
-> - 3 stores Zustand: UI, Auth, Warehouse (con persist)
-> - App Router pages: layout, home, not-found, error, loading (skeleton)
-> - lib/: cn, api-client, constants + hooks/: use-debounce
+> **Artefactos creados en Fase 1E (cierre de Fase 1):**
+> - Playwright workspace completo (`testing/`) con config Chromium + Firefox + WebKit (CI)
+> - 4 helpers: api, auth (via API + UI), db (Prisma + reset), wait
+> - Fixtures: seedUser + seedSystemRoles + generador de documentos únicos
+> - 2 smoke tests E2E: home page + health endpoints
+> - `.gitattributes` para normalización LF (fin de warnings CRLF)
+> - `.vscode/` con settings + extensions + launch configs
+> - `turbo.json` migrado a Turborepo 2.x (`tasks` format)
+> - Scripts npm root: dev:api, dev:web, docker:*, db:*, setup (one-shot)
+> - `docs/testing.md` — strategy completa por fase
+> - `docs/error-codes.md` — catálogo human-readable de BusinessErrorCode
 >
 > **Stack completo a este punto:**
 > - Backend: NestJS 10 + Prisma 5 + PostgreSQL 16 + Redis (via Docker)
@@ -1841,8 +1895,19 @@ Este plan refactorizado **incorpora 10 mejoras clave:**
 > - Shared: 4 packages (types, utils, eslint-config, tsconfig)
 > - Tooling: Turborepo + Prettier + Husky + Commitlint + GitHub Actions CI
 >
-> **Comando para arrancar full-stack (después de npm install):**
+> **Comando one-shot para arrancar el stack completo:**
 > ```bash
+> # Desde la raíz del repo:
+> npm run setup        # install + docker + migrate + seed (una sola vez)
+> npm run dev          # Levanta api (4000) + web (3000) en paralelo
+>
+> # En otra terminal, correr tests E2E:
+> npm run test:e2e     # Smoke tests (home + health)
+> ```
+>
+> **Comando tradicional (paso a paso):**
+> ```bash
+> npm install
 > docker-compose up -d              # PostgreSQL + Redis
 >
 > # Terminal 1: Backend
@@ -1859,5 +1924,5 @@ Este plan refactorizado **incorpora 10 mejoras clave:**
 > npm run dev                       # http://localhost:3000
 > ```
 >
-> **Última actualización:** 2026-04-22 — 1 dev en ejecución
+> **Última actualización:** 2026-04-22 — Fase 1 completada 🎉
 
