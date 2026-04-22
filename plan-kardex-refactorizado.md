@@ -12,8 +12,8 @@
 | **1A** | Setup Docker + Infraestructura | ✅ **COMPLETA** | 100% | 2026-04-21 | 2026-04-21 |
 | **1B** | Config Compartida | ✅ **COMPLETA** | 100% | 2026-04-21 | 2026-04-21 |
 | **1C** | NestJS + Prisma | ✅ **COMPLETA** | 100% | 2026-04-21 | 2026-04-21 |
-| **1D** | Next.js + Design System | 🔄 Siguiente | 0% | - | - |
-| **1E** | CI/CD + Testing Infra Completa | ⏳ Pendiente | 0% | - | - |
+| **1D** | Next.js + Design System | ✅ **COMPLETA** | 100% | 2026-04-21 | 2026-04-21 |
+| **1E** | CI/CD + Testing Infra Completa | 🔄 Siguiente | 0% | - | - |
 | **2A-2D** | Autenticación | ⏳ Pendiente | 0% | - | - |
 | **3A-3B** | Maestros | ⏳ Pendiente | 0% | - | - |
 | Resto | Fases 4-8 | ⏳ Pendiente | 0% | - | - |
@@ -110,6 +110,54 @@
 - [x] Configurado en `/docs` (solo en dev/staging, no prod)
 - [x] Tags predefinidos (auth, users, roles, warehouses, items, stock, movements, transfers, health)
 - [x] Bearer auth configurado para futuros endpoints protegidos
+
+### Entregables Fase 1D ✅
+
+**apps/web/ — Next.js 14 skeleton:**
+- [x] package.json — Next 14.2 + React 18 + TanStack Query + shadcn/ui + Zustand + Sonner
+- [x] next.config.mjs — typedRoutes + transpilePackages + rewrites dev proxy
+- [x] tsconfig.json — Path aliases (@, @/components, @/features, @/hooks, @/lib, @/stores, @/providers)
+- [x] .eslintrc.js — Extiende @kardex/eslint-config/next
+- [x] .env.example + README.md completo
+
+**Design System (TailwindCSS + shadcn/ui):**
+- [x] tailwind.config.ts — Paleta slate + accent blue + colores semánticos (success/warning/info)
+- [x] components.json — shadcn/ui config (new-york style, lucide icons, slate base)
+- [x] postcss.config.mjs
+- [x] globals.css — CSS variables para light/dark, tipografía, scrollbar custom, text-balance utility
+- [x] Fuentes: Inter (sans) + JetBrains Mono (mono) vía next/font (sin FOUC)
+
+**Componentes shadcn/ui core:**
+- [x] Button (6 variants: default, destructive, outline, secondary, ghost, link + 4 sizes)
+- [x] Input (focus ring, disabled state)
+- [x] Label (Radix UI)
+- [x] Card + CardHeader + CardTitle + CardDescription + CardContent + CardFooter
+- [x] Skeleton (animated placeholder para loading states)
+
+**Providers (composición en orden):**
+- [x] ThemeProvider (next-themes, system default, attribute=class)
+- [x] QueryProvider (TanStack Query con retry inteligente en 4xx + DevTools en dev)
+- [x] SocketProvider (placeholder para Fase 5B)
+- [x] ToastProvider (Sonner con tema sincronizado + richColors)
+- [x] Providers root compuesto en src/providers/providers.tsx
+
+**Stores Zustand (con persist middleware):**
+- [x] use-ui-store — sidebar, commandPalette (⌘K), globalLoading
+- [x] use-auth-store — user + accessToken en memoria, user persistido
+- [x] use-warehouse-store — activeWarehouseId persistido
+
+**App Router pages:**
+- [x] layout.tsx — Metadata + viewport + Providers + fuentes
+- [x] page.tsx — Home profesional con hero + features cards + status
+- [x] not-found.tsx — 404 con CTA
+- [x] error.tsx — Error boundary con stack en dev, redacted en prod
+- [x] loading.tsx — Skeleton loading con shadcn
+
+**lib/ & hooks/:**
+- [x] lib/cn.ts — clsx + tailwind-merge
+- [x] lib/api-client.ts — Axios con withCredentials + getErrorCode/Message helpers
+- [x] lib/constants.ts — APP_NAME, API_URL, DATE_FORMATS
+- [x] hooks/use-debounce.ts — Hook para search/autocomplete
 
 ---
 
@@ -1760,42 +1808,56 @@ Este plan refactorizado **incorpora 10 mejoras clave:**
 
 **Duración estimada:** 72-96 días (3-5 devs full-time) = ~4 meses calendario.
 
-**Estado del proyecto:** 🚀 **EN EJECUCIÓN** — Fases 0 + 1A + 1B + 1C completadas, siguiente Fase 1D (Next.js + Design System).
+**Estado del proyecto:** 🚀 **EN EJECUCIÓN** — Fases 0, 1A-1D completadas. Siguiente: Fase 1E (CI/CD + Testing Infra completa).
 
 ---
 
-> **Versión del plan:** 4.3 (En Ejecución)  
-> **Fecha de Actualización:** 2026-04-21 23:30  
-> **Estado:** ✅ Fases 0, 1A, 1B, 1C Completadas | 🔄 Fase 1D Siguiente  
+> **Versión del plan:** 4.4 (En Ejecución)  
+> **Fecha de Actualización:** 2026-04-22 00:00  
+> **Estado:** ✅ Fases 0, 1A, 1B, 1C, 1D Completadas | 🔄 Fase 1E Siguiente  
 >
 > **Progreso:**
 > - ✅ Fase 0 (Decisiones Arquitectónicas): 100% — 5 ADRs documentados
-> - ✅ Fase 1A (Setup Docker): 100% — docker-compose.yml + .env.example + estructura base
-> - ✅ Fase 1B (Config Compartida): 100% — packages/tsconfig, eslint-config, utils, types + Prettier + Husky + CI
-> - ✅ Fase 1C (NestJS + Prisma): 100% — apps/api con NestJS + Prisma + Swagger + Health
-> - 🔄 Fase 1D (Next.js + Design System): Siguiente
-> - ⏳ Fase 1E: Pendiente
+> - ✅ Fase 1A (Setup Docker): 100%
+> - ✅ Fase 1B (Config Compartida): 100%
+> - ✅ Fase 1C (NestJS + Prisma): 100%
+> - ✅ Fase 1D (Next.js + Design System): 100%
+> - 🔄 Fase 1E (CI/CD + Testing Infra): Siguiente
 > - ⏳ Fases 2-8: Pendientes
 >
-> **Artefactos creados en Fase 1C:**
-> - NestJS app skeleton con estructura modular
-> - Prisma schema: User, Role, Permission, RolePermission, SystemSetting
-> - Seed script: 4 roles base + 8 permisos + admin bootstrap opcional
-> - Global: AllExceptionsFilter + TransformInterceptor + LoggingInterceptor + BusinessException
-> - Health endpoints: /health (DB check) + /health/live (liveness)
-> - Swagger configurado en /docs con bearer auth
-> - Validación de env vars con class-validator (falla al boot si faltan)
+> **Artefactos creados en Fase 1D:**
+> - Next.js 14 App Router con TypeScript strict + path aliases
+> - TailwindCSS + shadcn/ui (new-york style) + paleta slate/blue + dark mode
+> - Fuentes Inter + JetBrains Mono via next/font (sin FOUC)
+> - 5 componentes shadcn/ui core: Button, Input, Label, Card (+ subcomponents), Skeleton
+> - 4 providers: Theme, Query, Socket (placeholder), Toast
+> - 3 stores Zustand: UI, Auth, Warehouse (con persist)
+> - App Router pages: layout, home, not-found, error, loading (skeleton)
+> - lib/: cn, api-client, constants + hooks/: use-debounce
 >
-> **Comando para arrancar (después de npm install):**
+> **Stack completo a este punto:**
+> - Backend: NestJS 10 + Prisma 5 + PostgreSQL 16 + Redis (via Docker)
+> - Frontend: Next.js 14 + React 18 + TailwindCSS + shadcn/ui + TanStack Query + Zustand
+> - Shared: 4 packages (types, utils, eslint-config, tsconfig)
+> - Tooling: Turborepo + Prettier + Husky + Commitlint + GitHub Actions CI
+>
+> **Comando para arrancar full-stack (después de npm install):**
 > ```bash
 > docker-compose up -d              # PostgreSQL + Redis
+>
+> # Terminal 1: Backend
 > cd apps/api
 > cp .env.example .env
 > npm run prisma:generate
 > npm run prisma:migrate -- --name init
 > npm run prisma:seed
-> npm run dev                       # API en http://localhost:4000
+> npm run dev                       # http://localhost:4000
+>
+> # Terminal 2: Frontend
+> cd apps/web
+> cp .env.example .env.local
+> npm run dev                       # http://localhost:3000
 > ```
 >
-> **Última actualización:** 2026-04-21 — 1 dev en ejecución
+> **Última actualización:** 2026-04-22 — 1 dev en ejecución
 
