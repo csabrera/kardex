@@ -1,0 +1,41 @@
+{
+  "name": "@kardex/utils",
+  "version": "0.1.0",
+  "description": "Shared utilities for Kardex monorepo",
+  "private": true,
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.mjs",
+      "require": "./dist/index.js"
+    },
+    "./validators": {
+      "types": "./dist/validators.d.ts",
+      "import": "./dist/validators.mjs",
+      "require": "./dist/validators.js"
+    },
+    "./formatters": {
+      "types": "./dist/formatters.d.ts",
+      "import": "./dist/formatters.mjs",
+      "require": "./dist/formatters.js"
+    }
+  },
+  "scripts": {
+    "build": "tsup src/index.ts src/validators.ts src/formatters.ts --format cjs,esm --dts",
+    "dev": "tsup src/index.ts src/validators.ts src/formatters.ts --format cjs,esm --dts --watch",
+    "lint": "eslint src --ext .ts",
+    "type-check": "tsc --noEmit",
+    "test": "vitest run",
+    "clean": "rm -rf dist"
+  },
+  "devDependencies": {
+    "@kardex/eslint-config": "workspace:*",
+    "@kardex/tsconfig": "workspace:*",
+    "@types/node": "^20.14.0",
+    "tsup": "^8.2.0",
+    "typescript": "^5.5.0",
+    "vitest": "^2.0.0"
+  }
+}

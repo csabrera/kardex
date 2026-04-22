@@ -6,14 +6,14 @@
 
 ## 📊 Status Actual del Proyecto
 
-| Fase | Nombre | Status | Progreso | Inicio | Fin Est. |
-|------|--------|--------|----------|--------|----------|
+| Fase | Nombre | Status | Progreso | Inicio | Fin |
+|------|--------|--------|----------|--------|-----|
 | **0** | Decisiones Arquitectónicas | ✅ **COMPLETA** | 100% | 2026-04-21 | 2026-04-21 |
 | **1A** | Setup Docker + Infraestructura | ✅ **COMPLETA** | 100% | 2026-04-21 | 2026-04-21 |
-| **1B** | Config Compartida | ⏳ Pendiente | 0% | - | - |
-| **1C** | NestJS + Prisma | ⏳ Pendiente | 0% | - | - |
+| **1B** | Config Compartida | ✅ **COMPLETA** | 100% | 2026-04-21 | 2026-04-21 |
+| **1C** | NestJS + Prisma | 🔄 Siguiente | 0% | - | - |
 | **1D** | Next.js + Design System | ⏳ Pendiente | 0% | - | - |
-| **1E** | CI/CD + Testing Infra | ⏳ Pendiente | 0% | - | - |
+| **1E** | CI/CD + Testing Infra Completa | ⏳ Pendiente | 0% | - | - |
 | **2A-2D** | Autenticación | ⏳ Pendiente | 0% | - | - |
 | **3A-3B** | Maestros | ⏳ Pendiente | 0% | - | - |
 | Resto | Fases 4-8 | ⏳ Pendiente | 0% | - | - |
@@ -37,6 +37,43 @@
 - [x] docker/postgres/init.sql
 - [x] .gitignore + .dockerignore
 - [x] Estructura de carpetas base (apps, packages, testing, docker, docs/adr)
+
+### Entregables Fase 1B ✅
+
+**packages/tsconfig/:**
+- [x] base.json — Config TypeScript estricta base
+- [x] nextjs.json — Config para Next.js (JSX, DOM)
+- [x] nestjs.json — Config para NestJS (decorators, CJS)
+
+**packages/eslint-config/:**
+- [x] base.js — Reglas ESLint + TypeScript + imports
+- [x] next.js — Reglas para Next.js + React + a11y
+- [x] nest.js — Reglas para NestJS (Node.js, Jest)
+
+**packages/utils/:**
+- [x] validators.ts — `validateDocument`, `isValidEmail`, `isStrongPassword`, etc.
+- [x] formatters.ts — `formatCurrency`, `formatDate`, `formatMovementCode`, etc.
+- [x] Tests con Vitest (validators.spec.ts — 11 casos)
+- [x] tsup para build CJS + ESM
+
+**packages/types/:**
+- [x] enums/ — DocumentType, UserRole, MovementType, TransferStatus, ItemType, WarehouseType, AlertType, WS_EVENTS (8 archivos)
+- [x] entities/ — User, Warehouse, Item, Stock, Movement, Transfer, Category, Unit, Role, Permission
+- [x] dto/ — LoginDto, SetupDto, ForgotPasswordDto, CreateMovementDto, PaginationDto
+- [x] errors/ — BusinessErrorCode (40+ códigos) + ApiError shape + isApiError guard
+- [x] tsup config para build separado por módulo
+
+**Prettier + Husky + lint-staged:**
+- [x] .prettierrc — Config consistente (90 cols, single quotes, trailing comma)
+- [x] .prettierignore — Ignorar dist, build, lock files
+- [x] .lintstagedrc.json — Lint + format en pre-commit
+- [x] .husky/pre-commit — Hook para lint-staged
+- [x] .husky/commit-msg — Hook para commitlint
+- [x] commitlint.config.js — Conventional Commits enforced
+
+**GitHub Actions CI:**
+- [x] .github/workflows/ci.yml — Lint + typecheck + build + unit tests
+- [x] .github/workflows/e2e-tests.yml — Playwright con PostgreSQL + Redis services
 
 ---
 
@@ -1687,33 +1724,29 @@ Este plan refactorizado **incorpora 10 mejoras clave:**
 
 **Duración estimada:** 72-96 días (3-5 devs full-time) = ~4 meses calendario.
 
-**Estado del proyecto:** 🚀 **EN EJECUCIÓN** — Fases 0 + 1A completadas, iniciando Fase 1B.
+**Estado del proyecto:** 🚀 **EN EJECUCIÓN** — Fases 0 + 1A + 1B completadas, iniciando Fase 1C (NestJS + Prisma).
 
 ---
 
-> **Versión del plan:** 4.1 (En Ejecución)  
-> **Fecha de Actualización:** 2026-04-21 22:30  
-> **Estado:** ✅ Fase 0 + 1A Completadas | 🔄 Fase 1B En Progreso  
+> **Versión del plan:** 4.2 (En Ejecución)  
+> **Fecha de Actualización:** 2026-04-21 23:00  
+> **Estado:** ✅ Fases 0, 1A, 1B Completadas | 🔄 Fase 1C Siguiente  
 >
 > **Progreso:**
 > - ✅ Fase 0 (Decisiones Arquitectónicas): 100% — 5 ADRs documentados
 > - ✅ Fase 1A (Setup Docker): 100% — docker-compose.yml + .env.example + estructura base
-> - 🔄 Fase 1B (Config Compartida): 0% — Próxima (estimado 2-3 días)
-> - ⏳ Fases 1C-1E: Pendientes
+> - ✅ Fase 1B (Config Compartida): 100% — packages/tsconfig, eslint-config, utils, types + Prettier + Husky + CI
+> - 🔄 Fase 1C (NestJS + Prisma): Siguiente
+> - ⏳ Fase 1D-1E: Pendientes
 > - ⏳ Fases 2-8: Pendientes
 >
-> **Cambios vs original (v3):**  
-> - 10 fases granulares + sub-fases (de 8)  
-> - webapp-testing integrado en cada fase  
-> - Testing desde Fase 2 (no Fase 8)  
-> - Optimistic locking detallado (ADR)  
-> - Redis adapter detallado (ADR)  
-> - Async PDFs (BullMQ) detallado  
-> - Estructura compartida (packages/types) clarificada  
-> - Catálogo de BusinessErrorCode  
-> - 7-10 ADRs iniciales  
-> - Estimaciones por fase (referencia)  
-> - Fase 9 opcional para post-presentación
+> **Artefactos creados en Fase 1B:**
+> - 4 packages compartidos: tsconfig, eslint-config, utils, types
+> - BusinessErrorCode con 40+ códigos de error
+> - WS_EVENTS + helpers de rooms (wsRoomForUser, etc.)
+> - 30+ archivos de tipos (entities, enums, dto, errors)
+> - CI/CD: ci.yml + e2e-tests.yml con services PostgreSQL + Redis
+> - Conventional Commits enforced (commitlint)
 >
-> **Última actualización:** 2026-04-21 — Ejecutando plan refactorizado con 1 dev
+> **Última actualización:** 2026-04-21 — 1 dev en ejecución
 

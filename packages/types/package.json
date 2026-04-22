@@ -1,0 +1,48 @@
+{
+  "name": "@kardex/types",
+  "version": "0.1.0",
+  "description": "Shared TypeScript types for Kardex monorepo (entities, DTOs, enums, errors)",
+  "private": true,
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.mjs",
+      "require": "./dist/index.js"
+    },
+    "./entities": {
+      "types": "./dist/entities/index.d.ts",
+      "import": "./dist/entities/index.mjs",
+      "require": "./dist/entities/index.js"
+    },
+    "./enums": {
+      "types": "./dist/enums/index.d.ts",
+      "import": "./dist/enums/index.mjs",
+      "require": "./dist/enums/index.js"
+    },
+    "./errors": {
+      "types": "./dist/errors/index.d.ts",
+      "import": "./dist/errors/index.mjs",
+      "require": "./dist/errors/index.js"
+    },
+    "./dto": {
+      "types": "./dist/dto/index.d.ts",
+      "import": "./dist/dto/index.mjs",
+      "require": "./dist/dto/index.js"
+    }
+  },
+  "scripts": {
+    "build": "tsup",
+    "dev": "tsup --watch",
+    "lint": "eslint src --ext .ts",
+    "type-check": "tsc --noEmit",
+    "clean": "rm -rf dist"
+  },
+  "devDependencies": {
+    "@kardex/eslint-config": "workspace:*",
+    "@kardex/tsconfig": "workspace:*",
+    "tsup": "^8.2.0",
+    "typescript": "^5.5.0"
+  }
+}
