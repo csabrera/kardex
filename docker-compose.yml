@@ -1,0 +1,62 @@
+version: '3.8'
+
+services:
+  # PostgreSQL - Database
+  postgres:
+    image: postgres:16-alpine
+    container_name: kardex-postgres
+    environment:
+      POSTGRES_USER: kardex_user
+      POSTGRES_PASSWORD: kardex_password
+      POSTGRES_DB: kardex_db
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./docker/postgres/init.sql:/docker-entrypoint-initdb.d/init.sql
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U kardex_user"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - kardex-network
+
+  # Redis - Cache & Queue
+  redis:
+    image: redis:7-alpine
+    container_name: kardex-redis
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - kardex-network
+
+  # pgAdmin - PostgreSQL UI (optional, for debugging)
+  pgadmin:
+    image: dpage/pgadmin4:latest
+    container_name: kardex-pgadmin
+    environment:
+      PGADMIN_DEFAULT_EMAIL: admin@kardex.local
+      PGADMIN_DEFAULT_PASSWORD: admin
+    ports:
+      - "5050:80"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks:
+      - kardex-network
+
+volumes:
+  postgres_data:
+  redis_data:
+
+networks:
+  kardex-network:
+    driver: bridge

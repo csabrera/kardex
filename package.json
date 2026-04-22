@@ -1,0 +1,31 @@
+{
+  "name": "kardex-constructora",
+  "version": "0.1.0",
+  "description": "Sistema de Kardex para Empresa Constructora",
+  "private": true,
+  "workspaces": [
+    "apps/*",
+    "packages/*",
+    "testing"
+  ],
+  "scripts": {
+    "dev": "turbo run dev --parallel",
+    "build": "turbo run build",
+    "lint": "turbo run lint",
+    "type-check": "turbo run type-check",
+    "test": "turbo run test",
+    "test:e2e": "turbo run test:e2e",
+    "test:coverage": "turbo run test:coverage",
+    "clean": "turbo run clean && rm -rf node_modules",
+    "prepare": "husky install"
+  },
+  "devDependencies": {
+    "turbo": "^2.1.0",
+    "husky": "^9.1.4",
+    "lint-staged": "^15.2.10"
+  },
+  "engines": {
+    "node": ">=20.0.0",
+    "npm": ">=11.0.0"
+  }
+}
