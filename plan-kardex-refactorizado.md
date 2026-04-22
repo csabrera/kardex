@@ -11,8 +11,8 @@
 | **0** | Decisiones Arquitectónicas | ✅ **COMPLETA** | 100% | 2026-04-21 | 2026-04-21 |
 | **1A** | Setup Docker + Infraestructura | ✅ **COMPLETA** | 100% | 2026-04-21 | 2026-04-21 |
 | **1B** | Config Compartida | ✅ **COMPLETA** | 100% | 2026-04-21 | 2026-04-21 |
-| **1C** | NestJS + Prisma | 🔄 Siguiente | 0% | - | - |
-| **1D** | Next.js + Design System | ⏳ Pendiente | 0% | - | - |
+| **1C** | NestJS + Prisma | ✅ **COMPLETA** | 100% | 2026-04-21 | 2026-04-21 |
+| **1D** | Next.js + Design System | 🔄 Siguiente | 0% | - | - |
 | **1E** | CI/CD + Testing Infra Completa | ⏳ Pendiente | 0% | - | - |
 | **2A-2D** | Autenticación | ⏳ Pendiente | 0% | - | - |
 | **3A-3B** | Maestros | ⏳ Pendiente | 0% | - | - |
@@ -74,6 +74,42 @@
 **GitHub Actions CI:**
 - [x] .github/workflows/ci.yml — Lint + typecheck + build + unit tests
 - [x] .github/workflows/e2e-tests.yml — Playwright con PostgreSQL + Redis services
+
+### Entregables Fase 1C ✅
+
+**apps/api/ — NestJS skeleton:**
+- [x] package.json — Dependencias NestJS 10 + Prisma 5 + Terminus + Swagger + Helmet
+- [x] nest-cli.json — Config NestJS CLI
+- [x] tsconfig.json + tsconfig.build.json — Con path aliases (@common, @config, @modules)
+- [x] .eslintrc.js — Extiende @kardex/eslint-config/nest
+- [x] .env.example — Variables de entorno con defaults para dev
+- [x] README.md — Guía quick start + convenciones
+
+**Prisma schema (minimal para Fase 1C):**
+- [x] User (con DocumentType enum + unique compuesto + soft delete)
+- [x] Role (sistema + custom)
+- [x] Permission (resource + action)
+- [x] RolePermission (N:M)
+- [x] SystemSetting (key/value para feature flags, SETUP_COMPLETED)
+- [x] Seed script que crea 4 roles base + 8 permisos iniciales + admin opcional (bootstrap)
+
+**Estructura src/ (NestJS):**
+- [x] `main.ts` — Bootstrap con Helmet + CORS + Validation + Swagger + Prisma shutdown hooks
+- [x] `app.module.ts` — ConfigModule + PrismaModule + HealthModule + Global filters/interceptors
+- [x] `config/configuration.ts` — Typed config tree (app, database, redis, jwt, admin)
+- [x] `config/env.validation.ts` — Validación de env vars con class-validator
+- [x] `prisma/prisma.module.ts` + `prisma.service.ts` — Global Prisma con shutdown hooks
+- [x] `common/exceptions/business.exception.ts` — BusinessException con errorCode + details
+- [x] `common/filters/all-exceptions.filter.ts` — Error handler global (ApiError envelope)
+- [x] `common/interceptors/transform.interceptor.ts` — Response envelope (data + meta)
+- [x] `common/interceptors/logging.interceptor.ts` — HTTP request logging
+- [x] `common/dto/pagination.dto.ts` — PaginationQueryDto reutilizable
+- [x] `modules/health/` — Health check + liveness (con @nestjs/terminus)
+
+**Swagger:**
+- [x] Configurado en `/docs` (solo en dev/staging, no prod)
+- [x] Tags predefinidos (auth, users, roles, warehouses, items, stock, movements, transfers, health)
+- [x] Bearer auth configurado para futuros endpoints protegidos
 
 ---
 
@@ -1724,29 +1760,42 @@ Este plan refactorizado **incorpora 10 mejoras clave:**
 
 **Duración estimada:** 72-96 días (3-5 devs full-time) = ~4 meses calendario.
 
-**Estado del proyecto:** 🚀 **EN EJECUCIÓN** — Fases 0 + 1A + 1B completadas, iniciando Fase 1C (NestJS + Prisma).
+**Estado del proyecto:** 🚀 **EN EJECUCIÓN** — Fases 0 + 1A + 1B + 1C completadas, siguiente Fase 1D (Next.js + Design System).
 
 ---
 
-> **Versión del plan:** 4.2 (En Ejecución)  
-> **Fecha de Actualización:** 2026-04-21 23:00  
-> **Estado:** ✅ Fases 0, 1A, 1B Completadas | 🔄 Fase 1C Siguiente  
+> **Versión del plan:** 4.3 (En Ejecución)  
+> **Fecha de Actualización:** 2026-04-21 23:30  
+> **Estado:** ✅ Fases 0, 1A, 1B, 1C Completadas | 🔄 Fase 1D Siguiente  
 >
 > **Progreso:**
 > - ✅ Fase 0 (Decisiones Arquitectónicas): 100% — 5 ADRs documentados
 > - ✅ Fase 1A (Setup Docker): 100% — docker-compose.yml + .env.example + estructura base
 > - ✅ Fase 1B (Config Compartida): 100% — packages/tsconfig, eslint-config, utils, types + Prettier + Husky + CI
-> - 🔄 Fase 1C (NestJS + Prisma): Siguiente
-> - ⏳ Fase 1D-1E: Pendientes
+> - ✅ Fase 1C (NestJS + Prisma): 100% — apps/api con NestJS + Prisma + Swagger + Health
+> - 🔄 Fase 1D (Next.js + Design System): Siguiente
+> - ⏳ Fase 1E: Pendiente
 > - ⏳ Fases 2-8: Pendientes
 >
-> **Artefactos creados en Fase 1B:**
-> - 4 packages compartidos: tsconfig, eslint-config, utils, types
-> - BusinessErrorCode con 40+ códigos de error
-> - WS_EVENTS + helpers de rooms (wsRoomForUser, etc.)
-> - 30+ archivos de tipos (entities, enums, dto, errors)
-> - CI/CD: ci.yml + e2e-tests.yml con services PostgreSQL + Redis
-> - Conventional Commits enforced (commitlint)
+> **Artefactos creados en Fase 1C:**
+> - NestJS app skeleton con estructura modular
+> - Prisma schema: User, Role, Permission, RolePermission, SystemSetting
+> - Seed script: 4 roles base + 8 permisos + admin bootstrap opcional
+> - Global: AllExceptionsFilter + TransformInterceptor + LoggingInterceptor + BusinessException
+> - Health endpoints: /health (DB check) + /health/live (liveness)
+> - Swagger configurado en /docs con bearer auth
+> - Validación de env vars con class-validator (falla al boot si faltan)
+>
+> **Comando para arrancar (después de npm install):**
+> ```bash
+> docker-compose up -d              # PostgreSQL + Redis
+> cd apps/api
+> cp .env.example .env
+> npm run prisma:generate
+> npm run prisma:migrate -- --name init
+> npm run prisma:seed
+> npm run dev                       # API en http://localhost:4000
+> ```
 >
 > **Última actualización:** 2026-04-21 — 1 dev en ejecución
 
