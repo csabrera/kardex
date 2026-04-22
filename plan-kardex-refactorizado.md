@@ -4,6 +4,42 @@
 
 ---
 
+## 📊 Status Actual del Proyecto
+
+| Fase | Nombre | Status | Progreso | Inicio | Fin Est. |
+|------|--------|--------|----------|--------|----------|
+| **0** | Decisiones Arquitectónicas | ✅ **COMPLETA** | 100% | 2026-04-21 | 2026-04-21 |
+| **1A** | Setup Docker + Infraestructura | ✅ **COMPLETA** | 100% | 2026-04-21 | 2026-04-21 |
+| **1B** | Config Compartida | ⏳ Pendiente | 0% | - | - |
+| **1C** | NestJS + Prisma | ⏳ Pendiente | 0% | - | - |
+| **1D** | Next.js + Design System | ⏳ Pendiente | 0% | - | - |
+| **1E** | CI/CD + Testing Infra | ⏳ Pendiente | 0% | - | - |
+| **2A-2D** | Autenticación | ⏳ Pendiente | 0% | - | - |
+| **3A-3B** | Maestros | ⏳ Pendiente | 0% | - | - |
+| Resto | Fases 4-8 | ⏳ Pendiente | 0% | - | - |
+
+### Entregables Fase 0 ✅
+
+- [x] 5 ADRs documentados (monorepo, optimistic locking, redis, async pdfs, railway)
+- [x] Carpeta structure del monorepo
+- [x] Docker Compose con PostgreSQL + Redis + pgAdmin
+- [x] .env.example con todas las variables
+- [x] README.md con quick start
+- [x] CONTRIBUTING.md con convenciones
+- [x] testing/README.md con guía Playwright
+- [x] Git repo inicializado, primer commit
+
+### Entregables Fase 1A ✅
+
+- [x] package.json (root) con workspaces
+- [x] turbo.json con pipeline
+- [x] docker-compose.yml funcional
+- [x] docker/postgres/init.sql
+- [x] .gitignore + .dockerignore
+- [x] Estructura de carpetas base (apps, packages, testing, docker, docs/adr)
+
+---
+
 ## 🎯 Cambios Principales vs Plan Original
 
 | Área | Original | Refactorizado |
@@ -1599,13 +1635,36 @@ test(e2e): add full transfer workflow test
 
 ## 10. Próximos Pasos Inmediatos
 
-**Antes de comenzar Fase 1A:**
+### Ya Completado ✅
 
-1. ✅ Aprobación del plan refactorizado (este documento).
-2. ✅ Confirmación de equipo (¿3-5 devs?, ¿expertise en stack?).
-3. ✅ Setup de repositorio Git + tablero de gestión (Jira/Linear/GitHub Projects).
-4. ✅ Reservar instancia en Railway (crear cuenta si no existe).
-5. ✅ Primera reunión de kickoff: alineación en convenciones, arquitectura, timeline.
+1. ✅ Plan refactorizado aprobado.
+2. ✅ Equipo confirmado: 1 dev (solo).
+3. ✅ Repo Git inicializado localmente.
+4. ✅ Fase 0 completada: ADRs + estructura base.
+5. ✅ Fase 1A completada: Docker + infraestructura.
+
+### Siguientes: Fase 1B — Configuración Compartida
+
+```bash
+# 1. Instalar dependencias root
+npm install turbo
+
+# 2. Crear estructura de packages y apps
+# 3. Configurar shared configs (ESLint, TypeScript, Prettier)
+# 4. Instalar Husky + lint-staged
+
+# 5. Validar que docker está funcionando
+docker-compose up -d
+docker-compose ps
+
+# 6. Revisar docker logs
+docker-compose logs postgres
+docker-compose logs redis
+```
+
+**Duración estimada Fases 1B-1E:** 12-16 días (1 dev en paralelo)
+
+---
 
 ---
 
@@ -1628,13 +1687,21 @@ Este plan refactorizado **incorpora 10 mejoras clave:**
 
 **Duración estimada:** 72-96 días (3-5 devs full-time) = ~4 meses calendario.
 
-**Estado del proyecto:** ✅ Listo para iniciar Fase 0 + 1A en paralela.
+**Estado del proyecto:** 🚀 **EN EJECUCIÓN** — Fases 0 + 1A completadas, iniciando Fase 1B.
 
 ---
 
-> **Versión del plan:** 4.0 (Refactorizado)  
-> **Fecha:** 2026-04-21  
-> **Estado:** Listo para aprobación + inicio  
+> **Versión del plan:** 4.1 (En Ejecución)  
+> **Fecha de Actualización:** 2026-04-21 22:30  
+> **Estado:** ✅ Fase 0 + 1A Completadas | 🔄 Fase 1B En Progreso  
+>
+> **Progreso:**
+> - ✅ Fase 0 (Decisiones Arquitectónicas): 100% — 5 ADRs documentados
+> - ✅ Fase 1A (Setup Docker): 100% — docker-compose.yml + .env.example + estructura base
+> - 🔄 Fase 1B (Config Compartida): 0% — Próxima (estimado 2-3 días)
+> - ⏳ Fases 1C-1E: Pendientes
+> - ⏳ Fases 2-8: Pendientes
+>
 > **Cambios vs original (v3):**  
 > - 10 fases granulares + sub-fases (de 8)  
 > - webapp-testing integrado en cada fase  
@@ -1647,4 +1714,6 @@ Este plan refactorizado **incorpora 10 mejoras clave:**
 > - 7-10 ADRs iniciales  
 > - Estimaciones por fase (referencia)  
 > - Fase 9 opcional para post-presentación
+>
+> **Última actualización:** 2026-04-21 — Ejecutando plan refactorizado con 1 dev
 
