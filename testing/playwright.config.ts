@@ -1,9 +1,18 @@
 import { defineConfig, devices } from '@playwright/test';
+import * as dotenv from 'dotenv';
+import * as path from 'path';
+
+// Load testing/.env.local first (developer overrides), then testing/.env.example
+// (committed defaults). dotenv ignores keys already present in process.env.
+dotenv.config({ path: path.join(__dirname, '.env.local') });
+dotenv.config({ path: path.join(__dirname, '.env.example') });
 
 const WEB_URL = process.env.WEB_URL ?? 'http://localhost:3000';
 const API_URL = process.env.API_URL ?? 'http://localhost:4000';
 
 const CI = !!process.env.CI;
+
+const STORAGE_STATE = path.join(__dirname, '.auth', 'admin.json');
 
 export default defineConfig({
   testDir: './e2e',
@@ -13,6 +22,9 @@ export default defineConfig({
 
   // Per-assertion timeout (expect(...).toBe(...))
   expect: { timeout: 5_000 },
+
+  // Global setup: logs in once and saves storageState for authenticated tests.
+  globalSetup: require.resolve('./global-setup.ts'),
 
   // Run tests in files in parallel; inside a file tests run serially.
   fullyParallel: true,
@@ -63,10 +75,21 @@ export default defineConfig({
 
   // Browsers & devices to test against.
   projects: [
-    // Smoke + primary flows on Chromium (fastest).
+    // Auth-exercising tests (login/logout) — NO storageState; they start logged out.
+    {
+      name: 'auth-flows',
+      testMatch: /auth\/.*\.spec\.ts/,
+      use: { ...devices['Desktop Chrome'] },
+    },
+
+    // Smoke + primary flows on Chromium, authenticated via saved storageState.
     {
       name: 'chromium',
-      use: { ...devices['Desktop Chrome'] },
+      testIgnore: /auth\/.*\.spec\.ts/,
+      use: {
+        ...devices['Desktop Chrome'],
+        storageState: STORAGE_STATE,
+      },
     },
 
     // Full regression on Firefox + WebKit in CI only.
@@ -74,11 +97,19 @@ export default defineConfig({
       ? [
           {
             name: 'firefox',
-            use: { ...devices['Desktop Firefox'] },
+            testIgnore: /auth\/.*\.spec\.ts/,
+            use: {
+              ...devices['Desktop Firefox'],
+              storageState: STORAGE_STATE,
+            },
           },
           {
             name: 'webkit',
-            use: { ...devices['Desktop Safari'] },
+            testIgnore: /auth\/.*\.spec\.ts/,
+            use: {
+              ...devices['Desktop Safari'],
+              storageState: STORAGE_STATE,
+            },
           },
         ]
       : []),
@@ -86,7 +117,10 @@ export default defineConfig({
     // Mobile smoke (optional, opt-in with --project=mobile-chrome).
     {
       name: 'mobile-chrome',
-      use: { ...devices['Pixel 7'] },
+      use: {
+        ...devices['Pixel 7'],
+        storageState: STORAGE_STATE,
+      },
       testMatch: /.*\.mobile\.spec\.ts/,
     },
   ],

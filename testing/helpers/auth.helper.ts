@@ -19,16 +19,15 @@ export interface LoginResult {
     firstName: string;
     lastName: string;
     mustChangePassword: boolean;
+    role: { id: string; name: string };
   };
 }
 
 /**
- * Log in via the API (fast path).
+ * Log in via the API (fast path). Returns accessToken + user.
  *
- * Use this when you just need an access token for subsequent API calls,
- * and do NOT need to exercise the login UI.
- *
- * Throws if login fails — tests shouldn't proceed past a failed setup.
+ * Use this when you just need an authenticated session for subsequent API
+ * calls and do NOT need to exercise the login UI.
  */
 export async function loginViaApi(credentials: LoginCredentials): Promise<LoginResult> {
   const response = await apiPost('/auth/login', credentials);
@@ -44,39 +43,81 @@ export async function loginViaApi(credentials: LoginCredentials): Promise<LoginR
 }
 
 /**
- * Log in via the UI (complete flow).
+ * Log in via the UI, exercising the complete form flow.
  *
- * Use this when the login flow itself is under test.
- * For all other tests, prefer loginViaApi() + setTokenCookie().
+ * Uses Radix Select so we click-to-open instead of using selectOption().
+ * Waits for the /dashboard redirect on success.
  */
-export async function loginViaUi(page: Page, credentials: LoginCredentials): Promise<void> {
+export async function loginViaUi(
+  page: Page,
+  credentials: LoginCredentials,
+): Promise<void> {
   await page.goto('/login');
-  await page.selectOption('select[name="documentType"]', credentials.documentType);
-  await page.fill('input[name="documentNumber"]', credentials.documentNumber);
-  await page.fill('input[name="password"]', credentials.password);
-  await page.click('button[type="submit"]');
-  // Expect dashboard redirect
-  await page.waitForURL(/\/dashboard/, { timeout: 10_000 });
+
+  // Radix Select: open trigger then pick option by role.
+  const currentDocType = await page
+    .locator('#documentType')
+    .innerText()
+    .catch(() => '');
+  if (!currentDocType.includes(credentials.documentType)) {
+    await page.locator('#documentType').click();
+    await page
+      .getByRole('option', { name: labelForDocumentType(credentials.documentType) })
+      .click();
+  }
+
+  await page.locator('#documentNumber').fill(credentials.documentNumber);
+  await page.locator('#password').fill(credentials.password);
+  await page.getByRole('button', { name: /ingresar al sistema/i }).click();
+
+  await page.waitForURL(/\/(dashboard|cambiar-password|mi-obra)/, { timeout: 15_000 });
 }
 
 /**
- * Log out via the UI.
+ * Log out via the UI (opens user menu and clicks logout).
  */
 export async function logoutViaUi(page: Page): Promise<void> {
-  await page.click('[data-test="user-menu-trigger"]');
-  await page.click('[data-test="logout-button"]');
+  // Open user menu (topbar). The trigger is the avatar button.
+  await page
+    .getByRole('button', { name: /menú de usuario|user menu/i })
+    .click()
+    .catch(async () => {
+      // Fallback: target by avatar image alt or class
+      await page.locator('[aria-haspopup="menu"]').last().click();
+    });
+  await page.getByRole('menuitem', { name: /cerrar sesión|logout/i }).click();
   await page.waitForURL(/\/login/, { timeout: 10_000 });
 }
 
 /**
- * Attach an access token to the page context so authenticated requests
- * from the browser work immediately.
+ * Inject an access token into localStorage so the frontend's Zustand auth store
+ * picks it up on the next page load. Used by globalSetup + storageState flows.
  *
- * Wired up after Fase 2A when the actual token storage strategy is decided.
+ * The app stores the token via useAuthStore (Zustand + persist to localStorage
+ * under key 'kardex-auth'). Adjust if the store key changes.
  */
-export async function setTokenCookie(page: Page, _token: string): Promise<void> {
-  // TODO(Fase 2A): Implement once auth storage strategy is finalized.
-  // Likely: await page.context().addCookies([{ name: 'refresh_token', ... }])
-  // + set Zustand store via localStorage injection.
-  await page.goto('/'); // Placeholder
+export async function injectAuthToken(page: Page, login: LoginResult): Promise<void> {
+  await page.addInitScript((payload) => {
+    window.localStorage.setItem(
+      'kardex-auth',
+      JSON.stringify({
+        state: {
+          accessToken: payload.accessToken,
+          user: payload.user,
+        },
+        version: 0,
+      }),
+    );
+  }, login);
+}
+
+function labelForDocumentType(type: DocumentType): string {
+  switch (type) {
+    case 'DNI':
+      return 'DNI';
+    case 'CE':
+      return 'Carnet ext.';
+    case 'PASAPORTE':
+      return 'Pasaporte';
+  }
 }

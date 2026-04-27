@@ -14,7 +14,7 @@ jobs:
   e2e-tests:
     name: Playwright E2E
     runs-on: ubuntu-latest
-    timeout-minutes: 60
+    timeout-minutes: 30
 
     services:
       postgres:
@@ -42,11 +42,29 @@ jobs:
           --health-retries 5
 
     env:
+      # API runtime config — `apps/api` lee desde process.env
       DATABASE_URL: postgresql://kardex_user:kardex_password@localhost:5432/kardex_test
       REDIS_URL: redis://localhost:6379
       JWT_SECRET: test-secret-for-ci
       JWT_REFRESH_SECRET: test-refresh-secret-for-ci
-      NODE_ENV: test
+      JWT_EXPIRES_IN: 15m
+      JWT_REFRESH_EXPIRES_IN: 7d
+      NODE_ENV: development
+      API_PORT: 4000
+      API_HOST: localhost
+      CORS_ORIGIN: http://localhost:3000
+      LOG_LEVEL: error
+
+      # Admin sembrado por seed.ts (lee estas vars)
+      ADMIN_DOC_TYPE: DNI
+      ADMIN_DOC_NUMBER: '12345678'
+      ADMIN_PASSWORD: CambiarEn_PrimerLogin_2026
+      ADMIN_FIRST_NAME: Administrador
+      ADMIN_LAST_NAME: Principal
+      ADMIN_EMAIL: admin@empresa.com
+
+      # Web runtime config
+      NEXT_PUBLIC_API_URL: http://localhost:4000
 
     steps:
       - name: Checkout
@@ -61,14 +79,84 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
-      - name: Install Playwright browsers
-        run: npx playwright install --with-deps chromium firefox webkit
+      - name: Install Playwright browsers (chromium)
+        run: npx playwright install --with-deps chromium
+        working-directory: testing
 
-      - name: Build packages
+      - name: Generate Prisma client
+        run: npm run db:generate
+
+      - name: Apply Prisma migrations
+        run: npx prisma migrate deploy
+        working-directory: apps/api
+
+      - name: Seed database
+        run: npm run db:seed
+
+      # El seed crea al admin con mustChangePassword=true. Para que el global-setup
+      # de Playwright pueda loguear sin pasar por el flujo de "cambiar contraseña",
+      # se baja la flag aquí — equivalente a "el admin ya cambió la contraseña una vez".
+      - name: Disable mustChangePassword on admin
+        run: |
+          PGPASSWORD=kardex_password psql -h localhost -U kardex_user -d kardex_test -c "UPDATE users SET \"mustChangePassword\" = false WHERE \"documentNumber\" = '12345678';"
+
+      - name: Build packages (shared types/utils + API + Web)
         run: npm run build
 
-      - name: Run E2E tests
-        run: npm run test:e2e
+      - name: Start API in background (production build)
+        run: nohup npm run start:prod --workspace=@kardex/api > api.log 2>&1 &
+
+      - name: Wait for API ready
+        run: |
+          for i in {1..60}; do
+            if curl -fsS http://localhost:4000/health/live > /dev/null 2>&1; then
+              echo "API ready after ${i}× 2s"
+              exit 0
+            fi
+            sleep 2
+          done
+          echo "❌ API failed to start within 120s"
+          echo "===== api.log ====="
+          cat api.log
+          exit 1
+
+      - name: Start Web in background
+        run: nohup npm run start --workspace=@kardex/web > web.log 2>&1 &
+
+      - name: Wait for Web ready
+        run: |
+          for i in {1..60}; do
+            if curl -fsS -o /dev/null http://localhost:3000; then
+              echo "Web ready after ${i}× 2s"
+              exit 0
+            fi
+            sleep 2
+          done
+          echo "❌ Web failed to start within 120s"
+          echo "===== web.log ====="
+          cat web.log
+          exit 1
+
+      - name: Run Playwright E2E tests
+        run: npx playwright test --project=chromium --project=auth-flows
+        working-directory: testing
+        env:
+          # Credenciales que consume globalSetup + scenario.helper
+          E2E_ADMIN_DOC_TYPE: DNI
+          E2E_ADMIN_DOC_NUMBER: '12345678'
+          E2E_ADMIN_PASSWORD: CambiarEn_PrimerLogin_2026
+          # DB de la API para specs que necesitan Prisma directo (overdue-filter)
+          E2E_API_DATABASE_URL: postgresql://kardex_user:kardex_password@localhost:5432/kardex_test
+          API_URL: http://localhost:4000
+          WEB_URL: http://localhost:3000
+
+      - name: Dump server logs on failure
+        if: failure()
+        run: |
+          echo "===== api.log ====="
+          cat api.log || true
+          echo "===== web.log ====="
+          cat web.log || true
 
       - name: Upload Playwright report
         if: always()

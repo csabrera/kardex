@@ -1,6 +1,9 @@
 import { prisma } from '../helpers/db.helper';
 
-export type SystemRoleName = 'ADMIN' | 'JEFE' | 'ALMACENERO' | 'RESIDENTE';
+/**
+ * Roles tras Fase 7A (rol JEFE eliminado).
+ */
+export type SystemRoleName = 'ADMIN' | 'ALMACENERO' | 'RESIDENTE';
 
 export interface SeedUserInput {
   documentType?: 'DNI' | 'CE' | 'PASAPORTE';
@@ -42,9 +45,7 @@ export async function seedUser(input: SeedUserInput = {}): Promise<SeededUser> {
 
   const role = await prisma.role.findUnique({ where: { name: roleName } });
   if (!role) {
-    throw new Error(
-      `Role "${roleName}" not found. Did you run seedSystemRoles() first?`,
-    );
+    throw new Error(`Role "${roleName}" not found. Did you run seedSystemRoles() first?`);
   }
 
   const user = await prisma.user.create({
@@ -74,13 +75,12 @@ export async function seedUser(input: SeedUserInput = {}): Promise<SeededUser> {
 }
 
 /**
- * Seed the 4 system roles + base permissions.
+ * Seed los 3 system roles (JEFE eliminado en Fase 7A).
  * Must be called at least once before seedUser().
  */
 export async function seedSystemRoles(): Promise<void> {
   const roles = [
     { name: 'ADMIN', description: 'Administrador del sistema', systemRole: true },
-    { name: 'JEFE', description: 'Jefe de Almacén', systemRole: true },
     { name: 'ALMACENERO', description: 'Almacenero', systemRole: true },
     { name: 'RESIDENTE', description: 'Residente de Obra', systemRole: true },
   ];
@@ -106,10 +106,14 @@ export function generateDocumentNumber(type: 'DNI' | 'CE' | 'PASAPORTE'): string
   switch (type) {
     case 'DNI':
       // 8 digits
-      return String(timestamp * 10 + (random % 10)).padStart(8, '0').slice(-8);
+      return String(timestamp * 10 + (random % 10))
+        .padStart(8, '0')
+        .slice(-8);
     case 'CE':
       // 9 digits
-      return String(timestamp * 100 + (random % 100)).padStart(9, '0').slice(-9);
+      return String(timestamp * 100 + (random % 100))
+        .padStart(9, '0')
+        .slice(-9);
     case 'PASAPORTE':
       // Alphanumeric uppercase, 8 chars
       return (
