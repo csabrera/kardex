@@ -9,7 +9,7 @@
     "testing"
   ],
   "scripts": {
-    "dev": "turbo run dev --parallel",
+    "dev": "turbo run dev",
     "dev:api": "npm run dev --workspace=@kardex/api",
     "dev:web": "npm run dev --workspace=@kardex/web",
     "build": "turbo run build",
@@ -47,6 +47,7 @@
     "turbo": "^2.1.0",
     "typescript": "^5.5.0"
   },
+  "packageManager": "npm@11.6.2",
   "engines": {
     "node": ">=20.0.0",
     "npm": ">=11.0.0"
