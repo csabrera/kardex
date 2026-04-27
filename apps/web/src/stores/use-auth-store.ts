@@ -37,8 +37,7 @@ export const useAuthStore = create<AuthState>()(
       setAccessToken: (token) => set({ accessToken: token }),
       setSession: (user, token) =>
         set({ user, accessToken: token, isAuthenticated: true }),
-      clearSession: () =>
-        set({ user: null, accessToken: null, isAuthenticated: false }),
+      clearSession: () => set({ user: null, accessToken: null, isAuthenticated: false }),
     }),
     {
       name: 'kardex-auth',

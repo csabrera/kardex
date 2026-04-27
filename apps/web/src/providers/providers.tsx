@@ -1,11 +1,14 @@
 'use client';
 
-import type { ReactNode } from 'react';
+import { ConfirmProvider } from '@/components/ui/confirm-provider';
+import { TooltipProvider } from '@/components/ui/tooltip';
 
 import { QueryProvider } from './query-provider';
 import { SocketProvider } from './socket-provider';
 import { ThemeProvider } from './theme-provider';
 import { ToastProvider } from './toast-provider';
+
+import type { ReactNode } from 'react';
 
 interface ProvidersProps {
   children: ReactNode;
@@ -30,10 +33,14 @@ export function Providers({ children }: ProvidersProps): JSX.Element {
       disableTransitionOnChange
     >
       <QueryProvider>
-        <SocketProvider>
-          {children}
-          <ToastProvider />
-        </SocketProvider>
+        <TooltipProvider delayDuration={300}>
+          <SocketProvider>
+            <ConfirmProvider>
+              {children}
+              <ToastProvider />
+            </ConfirmProvider>
+          </SocketProvider>
+        </TooltipProvider>
       </QueryProvider>
     </ThemeProvider>
   );

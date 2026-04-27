@@ -4,7 +4,7 @@
 
 @layer base {
   :root {
-    /* Light mode — calibrated slate palette with blue accent */
+    /* Light mode — refined slate palette with blue accent */
     --background: 0 0% 100%;
     --foreground: 222 47% 11%;
 
@@ -14,23 +14,24 @@
     --popover: 0 0% 100%;
     --popover-foreground: 222 47% 11%;
 
-    /* Primary: slate-900 for light, slate-50 for dark buttons/text */
+    /* Primary: deep slate — used for primary buttons, CTAs */
     --primary: 222 47% 11%;
     --primary-foreground: 210 40% 98%;
 
-    /* Secondary: soft slate background */
+    /* Secondary: soft slate */
     --secondary: 210 40% 96%;
     --secondary-foreground: 222 47% 11%;
 
-    /* Muted: slightly darker than bg for dividers, hover */
+    /* Muted: slightly darker than bg */
     --muted: 210 40% 96%;
     --muted-foreground: 215 16% 47%;
 
-    /* Accent: blue-600 — corporate accent for CTAs, links */
-    --accent: 217 91% 60%;
+    /* Accent: blue — links, focus, active states (saturación bajada 91→85, lightness 60→55
+       para look profesional tipo Linear/Plain en lugar del azul "saturado gritón") */
+    --accent: 217 85% 55%;
     --accent-foreground: 210 40% 98%;
 
-    /* Semantic colors */
+    /* Semantic colors — consistent across modes */
     --destructive: 0 72% 51%;
     --destructive-foreground: 210 40% 98%;
 
@@ -40,55 +41,77 @@
     --warning: 38 92% 50%;
     --warning-foreground: 0 0% 100%;
 
-    --info: 217 91% 60%;
+    --info: 217 85% 55%;
     --info-foreground: 0 0% 100%;
 
     /* Borders & focus rings */
     --border: 214 32% 91%;
     --input: 214 32% 91%;
-    --ring: 222 84% 5%;
+    --ring: 217 85% 55%;
+
+    /* Sidebar — subtle elevation from main bg.
+       Tokens siguen el contrato de shadcn/ui v2 Sidebar (sidebar-background + primary + ring). */
+    --sidebar-background: 210 40% 98%;
+    --sidebar-foreground: 222 47% 11%;
+    --sidebar-border: 214 32% 91%;
+    --sidebar-accent: 217 85% 55%;
+    --sidebar-accent-foreground: 0 0% 100%;
+    --sidebar-primary: 222 47% 11%;
+    --sidebar-primary-foreground: 210 40% 98%;
+    --sidebar-ring: 217 85% 55%;
 
     --radius: 0.5rem;
   }
 
   .dark {
-    /* Dark mode — deep slate, high contrast */
+    /* Dark mode — deep slate with high contrast */
     --background: 222 47% 5%;
     --foreground: 210 40% 98%;
 
-    --card: 222 47% 7%;
+    --card: 222 47% 8%;
     --card-foreground: 210 40% 98%;
 
-    --popover: 222 47% 7%;
+    --popover: 222 47% 8%;
     --popover-foreground: 210 40% 98%;
 
     --primary: 210 40% 98%;
     --primary-foreground: 222 47% 11%;
 
-    --secondary: 217 33% 17%;
+    --secondary: 217 33% 15%;
     --secondary-foreground: 210 40% 98%;
 
-    --muted: 217 33% 17%;
+    --muted: 217 33% 15%;
     --muted-foreground: 215 20% 65%;
 
-    --accent: 217 91% 60%;
+    /* Dark: accent un toque más brillante para legibilidad sobre fondo oscuro */
+    --accent: 217 85% 62%;
     --accent-foreground: 210 40% 98%;
 
-    --destructive: 0 63% 45%;
+    --destructive: 0 63% 48%;
     --destructive-foreground: 210 40% 98%;
 
-    --success: 142 71% 40%;
+    --success: 142 71% 42%;
     --success-foreground: 0 0% 100%;
 
-    --warning: 38 92% 45%;
+    --warning: 38 92% 48%;
     --warning-foreground: 0 0% 100%;
 
-    --info: 217 91% 55%;
+    --info: 217 85% 62%;
     --info-foreground: 0 0% 100%;
 
     --border: 217 33% 17%;
     --input: 217 33% 17%;
-    --ring: 213 27% 84%;
+    --ring: 217 85% 62%;
+
+    /* Sidebar — slightly deeper than card */
+    --sidebar-background: 222 47% 4%;
+    --sidebar-foreground: 210 40% 98%;
+    --sidebar-border: 217 33% 13%;
+    --sidebar-accent: 217 85% 62%;
+    --sidebar-accent-foreground: 0 0% 100%;
+    --sidebar-primary: 210 40% 98%;
+    --sidebar-primary-foreground: 222 47% 11%;
+    --sidebar-ring: 217 85% 62%;
   }
 }
 
@@ -97,17 +120,36 @@
     @apply border-border;
   }
 
-  body {
-    @apply bg-background text-foreground antialiased;
-    font-feature-settings: 'rlig' 1, 'calt' 1;
+  html {
+    /* UI v11.1: vuelta a 16px base (17px en 2xl) tras feedback del usuario
+       "subirlo a 16px". Prioriza legibilidad para el público operativo del
+       sistema (oficinas de obra, monitores variados). 16px es además el
+       tamaño base recomendado por WCAG para accesibilidad. */
+    font-size: 16px;
   }
 
-  /* Smoother focus rings */
+  @media (min-width: 1536px) {
+    html {
+      font-size: 17px;
+    }
+  }
+
+  body {
+    @apply bg-background text-foreground antialiased;
+    /* Geist Sans features: tabular-nums activo por default, ss01 para alt characters */
+    font-feature-settings: 'rlig' 1, 'calt' 1, 'ss01' 1;
+    font-variant-numeric: tabular-nums;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    letter-spacing: -0.005em;
+  }
+
+  /* Smoother focus rings for keyboard users */
   :focus-visible {
     @apply outline-none ring-2 ring-ring ring-offset-2 ring-offset-background;
   }
 
-  /* Custom scrollbar (subtle) */
+  /* Custom scrollbar (subtle, only visible on hover) */
   ::-webkit-scrollbar {
     @apply h-2 w-2;
   }
@@ -115,10 +157,15 @@
     @apply bg-transparent;
   }
   ::-webkit-scrollbar-thumb {
-    @apply rounded-full bg-muted-foreground/20;
+    @apply rounded-full bg-muted-foreground/20 transition-colors;
   }
   ::-webkit-scrollbar-thumb:hover {
     @apply bg-muted-foreground/40;
+  }
+
+  /* Selection color */
+  ::selection {
+    @apply bg-accent/20 text-foreground;
   }
 }
 
@@ -129,8 +176,33 @@
 
   /* Monospace for code-like content (document numbers, IDs, codes) */
   .font-mono-tight {
-    font-family: var(--font-jetbrains-mono), ui-monospace, monospace;
+    font-family: var(--font-geist-mono), ui-monospace, monospace;
     font-feature-settings: 'ss01' 1;
     letter-spacing: -0.02em;
+  }
+
+  /* Tabular numeric — usar explícito en celdas de cantidad/fecha/código */
+  .tabular {
+    font-variant-numeric: tabular-nums;
+  }
+
+  /* Subtle grid background pattern */
+  .bg-grid-pattern {
+    background-image: radial-gradient(
+      circle at 1px 1px,
+      hsl(var(--border)) 1px,
+      transparent 0
+    );
+    background-size: 24px 24px;
+  }
+
+  /* Card hover elevation */
+  .card-hover {
+    @apply transition-all duration-200 hover:shadow-md hover:-translate-y-0.5;
+  }
+
+  /* Smooth ring transitions */
+  .ring-smooth {
+    @apply ring-1 ring-border transition-shadow;
   }
 }
