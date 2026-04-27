@@ -14,7 +14,6 @@ export interface Item {
   itemType: ItemType;
   minStock: number;
   maxStock?: number | null;
-  imageUrl?: string | null;
   active: boolean;
   createdAt: string;
   updatedAt: string;

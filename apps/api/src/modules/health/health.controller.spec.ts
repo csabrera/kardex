@@ -1,5 +1,7 @@
+import { HealthCheckService, PrismaHealthIndicator } from '@nestjs/terminus';
 import { Test, TestingModule } from '@nestjs/testing';
 
+import { PrismaService } from '../../prisma/prisma.service';
 import { HealthController } from './health.controller';
 
 describe('HealthController', () => {
@@ -9,22 +11,11 @@ describe('HealthController', () => {
     const module: TestingModule = await Test.createTestingModule({
       controllers: [HealthController],
       providers: [
-        { provide: 'HealthCheckService', useValue: {} },
-        { provide: 'PrismaHealthIndicator', useValue: {} },
-        { provide: 'PrismaService', useValue: {} },
-        { provide: 'HttpHealthIndicator', useValue: {} },
+        { provide: HealthCheckService, useValue: {} },
+        { provide: PrismaHealthIndicator, useValue: {} },
+        { provide: PrismaService, useValue: {} },
       ],
-    })
-      .overrideProvider(HealthController)
-      .useValue(
-        new HealthController(
-          {} as never,
-          {} as never,
-          {} as never,
-          {} as never,
-        ),
-      )
-      .compile();
+    }).compile();
 
     controller = module.get<HealthController>(HealthController);
   });

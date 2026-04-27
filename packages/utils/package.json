@@ -23,8 +23,8 @@
     }
   },
   "scripts": {
-    "build": "tsup src/index.ts src/validators.ts src/formatters.ts --format cjs,esm --dts",
-    "dev": "tsup src/index.ts src/validators.ts src/formatters.ts --format cjs,esm --dts --watch",
+    "build": "tsup",
+    "dev": "tsup --watch",
     "lint": "eslint src --ext .ts",
     "type-check": "tsc --noEmit",
     "test": "vitest run",

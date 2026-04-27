@@ -1,4 +1,4 @@
-import { plainToInstance } from 'class-transformer';
+import { plainToInstance, Type } from 'class-transformer';
 import {
   IsEnum,
   IsNumber,
@@ -21,6 +21,7 @@ export class EnvironmentVariables {
 
   @IsNumber()
   @IsOptional()
+  @Type(() => Number)
   API_PORT = 4000;
 
   @IsString()

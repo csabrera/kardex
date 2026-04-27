@@ -8,10 +8,7 @@ import {
 import { PrismaClient } from '@prisma/client';
 
 @Injectable()
-export class PrismaService
-  extends PrismaClient
-  implements OnModuleInit, OnModuleDestroy
-{
+export class PrismaService extends PrismaClient implements OnModuleInit, OnModuleDestroy {
   private readonly logger = new Logger(PrismaService.name);
 
   constructor() {
@@ -54,10 +51,7 @@ export class PrismaService
     }
 
     const modelNames = Reflect.ownKeys(this).filter(
-      (key) =>
-        typeof key === 'string' &&
-        !key.startsWith('_') &&
-        !key.startsWith('$'),
+      (key) => typeof key === 'string' && !key.startsWith('_') && !key.startsWith('$'),
     );
 
     // Disable foreign key constraints temporarily
@@ -65,8 +59,13 @@ export class PrismaService
 
     for (const modelName of modelNames) {
       try {
-        // @ts-expect-error - dynamic access
-        await this[modelName].deleteMany?.();
+        const model = (
+          this as unknown as Record<
+            string,
+            { deleteMany?: () => Promise<unknown> } | undefined
+          >
+        )[modelName as string];
+        await model?.deleteMany?.();
       } catch {
         // Skip non-model properties
       }

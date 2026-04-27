@@ -9,7 +9,11 @@ export default defineConfig({
     'src/dto/index.ts',
   ],
   format: ['cjs', 'esm'],
-  dts: true,
+  dts: {
+    compilerOptions: {
+      incremental: false,
+    },
+  },
   splitting: false,
   sourcemap: true,
   clean: true,

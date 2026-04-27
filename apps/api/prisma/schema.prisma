@@ -1,9 +1,3 @@
-// Prisma Schema - Kardex API
-// Documentation: https://www.prisma.io/docs/concepts/components/prisma-schema
-//
-// Minimal schema for Fase 1C.
-// Additional models (Warehouse, Item, Stock, Movement, etc.) will be added in later phases.
-
 generator client {
   provider = "prisma-client-js"
 }
@@ -23,32 +17,148 @@ enum DocumentType {
   PASAPORTE
 }
 
+enum WarehouseType {
+  CENTRAL
+  OBRA
+}
+
+enum ObraStatus {
+  PLANIFICACION
+  ACTIVA
+  SUSPENDIDA
+  FINALIZADA
+}
+
+enum ItemType {
+  MATERIAL
+  HERRAMIENTA
+  EPP
+  COMBUSTIBLE
+  EQUIPO
+  REPUESTO
+}
+
+enum MovementType {
+  ENTRADA
+  SALIDA
+  AJUSTE
+}
+
+enum MovementSource {
+  COMPRA
+  CONSUMO
+  TRANSFERENCIA
+  AJUSTE
+  INVENTARIO
+  DEVOLUCION
+  BAJA
+}
+
+enum AlertType {
+  STOCK_BAJO
+  STOCK_CRITICO
+  TRANSFER_DISCREPANCIA
+}
+
+enum TransferStatus {
+  EN_TRANSITO
+  RECIBIDA
+  RECHAZADA
+  CANCELADA
+}
+
+enum InventoryCountStatus {
+  IN_PROGRESS
+  CLOSED
+  CANCELLED
+}
+
 // ============================================================================
 // USER & AUTH
 // ============================================================================
 
 model User {
-  id                 String       @id @default(cuid())
-  documentType       DocumentType
-  documentNumber     String
-  passwordHash       String
-  firstName          String
-  lastName           String
-  email              String?      @unique
-  phone              String?
-  roleId             String
-  role               Role         @relation(fields: [roleId], references: [id])
-  active             Boolean      @default(true)
-  mustChangePassword Boolean      @default(false)
-  lastLoginAt        DateTime?
-  createdAt          DateTime     @default(now())
-  updatedAt          DateTime     @updatedAt
-  deletedAt          DateTime?
+  id                  String               @id @default(cuid())
+  documentType        DocumentType
+  documentNumber      String
+  passwordHash        String
+  firstName           String
+  lastName            String
+  email               String?              @unique
+  phone               String?
+  roleId              String
+  role                Role                 @relation(fields: [roleId], references: [id])
+  active              Boolean              @default(true)
+  mustChangePassword  Boolean              @default(false)
+  lastLoginAt         DateTime?
+  createdAt           DateTime             @default(now())
+  updatedAt           DateTime             @updatedAt
+  deletedAt           DateTime?
+  refreshTokens       RefreshToken[]
+  passwordResetTokens PasswordResetToken[]
+  movements           Movement[]
+  transfersRequested  Transfer[]           @relation("TransferRequested")
+  transfersApproved   Transfer[]           @relation("TransferApproved")
+  transfersSent       Transfer[]           @relation("TransferSent")
+  transfersReceived   Transfer[]           @relation("TransferReceived")
+  transfersRejected   Transfer[]           @relation("TransferRejected")
+  toolLoansLoaned     ToolLoan[]           @relation("ToolLoanLoanedBy")
+  toolLoansReturned   ToolLoan[]           @relation("ToolLoanReturnedBy")
+  obrasResponsible    Obra[]               @relation("ObraResponsible")
+  eppAssigned         EPPAssignment[]      @relation("EPPAssignedBy")
+  fuelDispatches      FuelDispatch[]       @relation("FuelDispatchDispatchedBy")
+  maintenancesLed     Maintenance[]        @relation("MaintenanceTechnician")
+  inventoryCountsStarted    InventoryCount[] @relation("InventoryCountStartedBy")
+  inventoryCountsClosed     InventoryCount[] @relation("InventoryCountClosedBy")
+  inventoryCountsCancelled  InventoryCount[] @relation("InventoryCountCancelledBy")
 
   @@unique([documentType, documentNumber, deletedAt])
   @@index([deletedAt])
   @@index([roleId])
   @@map("users")
+}
+
+model AuditLog {
+  id         String   @id @default(cuid())
+  userId     String?
+  userDoc    String?
+  action     String
+  resource   String
+  resourceId String?
+  changes    Json?
+  ip         String?
+  userAgent  String?
+  createdAt  DateTime @default(now())
+
+  @@index([userId])
+  @@index([resource, resourceId])
+  @@index([createdAt])
+  @@map("audit_logs")
+}
+
+model PasswordResetToken {
+  id        String   @id @default(cuid())
+  tokenHash String   @unique
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  expiresAt DateTime
+  used      Boolean  @default(false)
+  createdAt DateTime @default(now())
+
+  @@index([userId])
+  @@map("password_reset_tokens")
+}
+
+model RefreshToken {
+  id        String   @id @default(cuid())
+  tokenHash String   @unique
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  expiresAt DateTime
+  createdAt DateTime @default(now())
+
+  @@index([userId])
+  @@map("refresh_tokens")
 }
 
 model Role {
@@ -89,6 +199,282 @@ model RolePermission {
 }
 
 // ============================================================================
+// MAESTROS BASE (Fase 3A)
+// ============================================================================
+
+model Warehouse {
+  id             String          @id @default(cuid())
+  code           String          @unique
+  name           String
+  type           WarehouseType   @default(CENTRAL)
+  obraId         String?
+  obra           Obra?           @relation(fields: [obraId], references: [id])
+  location       String?
+  description    String?
+  active         Boolean         @default(true)
+  createdAt      DateTime        @default(now())
+  updatedAt      DateTime        @updatedAt
+  deletedAt      DateTime?
+  stocks         Stock[]
+  movements      Movement[]
+  alerts         Alert[]
+  transfersFrom    Transfer[]        @relation("TransferFrom")
+  transfersTo      Transfer[]        @relation("TransferTo")
+  toolLoans        ToolLoan[]
+  eppAssignments   EPPAssignment[]
+  fuelDispatches   FuelDispatch[]
+  inventoryCounts  InventoryCount[]
+  maintenanceItems MaintenanceItem[]
+
+  @@index([deletedAt])
+  @@index([type])
+  @@index([obraId])
+  @@map("warehouses")
+}
+
+model Category {
+  id          String     @id @default(cuid())
+  code        String     @unique
+  name        String
+  description String?
+  parentId    String?
+  parent      Category?  @relation("CategoryHierarchy", fields: [parentId], references: [id])
+  children    Category[] @relation("CategoryHierarchy")
+  items       Item[]
+  createdAt   DateTime   @default(now())
+  updatedAt   DateTime   @updatedAt
+  deletedAt   DateTime?
+
+  @@index([parentId])
+  @@index([deletedAt])
+  @@map("categories")
+}
+
+model Unit {
+  id           String   @id @default(cuid())
+  code         String   @unique
+  name         String
+  abbreviation String
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+  items        Item[]
+
+  @@map("units")
+}
+
+model Item {
+  id             String          @id @default(cuid())
+  code           String          @unique
+  name           String
+  description    String?
+  type           ItemType        @default(MATERIAL)
+  categoryId     String
+  category       Category        @relation(fields: [categoryId], references: [id])
+  unitId         String
+  unit           Unit            @relation(fields: [unitId], references: [id])
+  minStock       Decimal         @default(0) @db.Decimal(12, 3)
+  maxStock       Decimal?        @db.Decimal(12, 3)
+  active         Boolean         @default(true)
+  createdAt      DateTime        @default(now())
+  updatedAt      DateTime        @updatedAt
+  deletedAt      DateTime?
+  stocks           Stock[]
+  movementItems    MovementItem[]
+  alerts           Alert[]
+  transferItems    TransferItem[]
+  toolLoans        ToolLoan[]
+  eppAssignments   EPPAssignment[]
+  fuelDispatches   FuelDispatch[]
+  maintenanceItems MaintenanceItem[]
+  inventoryCountItems InventoryCountItem[]
+
+  @@index([categoryId])
+  @@index([unitId])
+  @@index([type])
+  @@index([deletedAt])
+  @@map("items")
+}
+
+// ============================================================================
+// Supplier — catálogo de proveedores. Se vincula a movimientos con
+// source=COMPRA vía Movement.supplierId (FK opcional).
+// ============================================================================
+model Supplier {
+  id           String    @id @default(cuid())
+  code         String    @unique
+  name         String
+  taxId        String?   // RUC / DNI / etc. — opcional para proveedor eventual
+  contactName  String?
+  phone        String?
+  email        String?
+  address      String?
+  notes        String?
+  active       Boolean   @default(true)
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+  deletedAt    DateTime?
+
+  movements    Movement[]
+
+  @@index([name])
+  @@index([taxId])
+  @@index([deletedAt])
+  @@map("suppliers")
+}
+
+model Stock {
+  id          String    @id @default(cuid())
+  itemId      String
+  item        Item      @relation(fields: [itemId], references: [id])
+  warehouseId String
+  warehouse   Warehouse @relation(fields: [warehouseId], references: [id])
+  quantity    Decimal   @default(0) @db.Decimal(12, 3)
+  version     Int       @default(0)
+  updatedAt   DateTime  @updatedAt
+
+  @@unique([itemId, warehouseId])
+  @@index([warehouseId])
+  @@map("stock")
+}
+
+// ============================================================================
+// MOVIMIENTOS (Fase 4A)
+// ============================================================================
+
+model MovementSequence {
+  type      MovementType @id
+  lastValue Int          @default(0)
+
+  @@map("movement_sequences")
+}
+
+model Movement {
+  id            String         @id @default(cuid())
+  code          String         @unique
+  type          MovementType
+  source        MovementSource
+  warehouseId   String
+  warehouse     Warehouse      @relation(fields: [warehouseId], references: [id])
+  userId        String
+  user          User           @relation(fields: [userId], references: [id])
+  // Proveedor (requerido solo cuando source=COMPRA, validado en el service).
+  supplierId      String?
+  supplier        Supplier?       @relation(fields: [supplierId], references: [id])
+  notes           String?
+  items           MovementItem[]
+  eppAssignment   EPPAssignment?   @relation("EPPMovement")
+  fuelDispatch    FuelDispatch?    @relation("FuelDispatchMovement")
+  maintenanceItem MaintenanceItem? @relation("MaintenanceItemMovement")
+  inventoryCount  InventoryCount?  @relation("InventoryCountAdjustment")
+  createdAt       DateTime         @default(now())
+
+  @@index([type])
+  @@index([warehouseId])
+  @@index([userId])
+  @@index([supplierId])
+  @@index([createdAt])
+  @@map("movements")
+}
+
+model MovementItem {
+  id          String   @id @default(cuid())
+  movementId  String
+  movement    Movement @relation(fields: [movementId], references: [id], onDelete: Cascade)
+  itemId      String
+  item        Item     @relation(fields: [itemId], references: [id])
+  quantity    Decimal  @db.Decimal(12, 3)
+  unitCost    Decimal? @db.Decimal(12, 2)
+  stockBefore Decimal  @db.Decimal(12, 3)
+  stockAfter  Decimal  @db.Decimal(12, 3)
+
+  @@index([movementId])
+  @@index([itemId])
+  @@map("movement_items")
+}
+
+// ============================================================================
+// TRANSFERENCIAS (Fase 5A)
+// ============================================================================
+
+model TransferSequence {
+  lastValue Int @default(0)
+  // Single-row table — use id=1
+  id        Int @id @default(1)
+
+  @@map("transfer_sequences")
+}
+
+model Transfer {
+  id              String         @id @default(cuid())
+  code            String         @unique
+  status          TransferStatus @default(EN_TRANSITO)
+  fromWarehouseId String
+  fromWarehouse   Warehouse      @relation("TransferFrom", fields: [fromWarehouseId], references: [id])
+  toWarehouseId   String
+  toWarehouse     Warehouse      @relation("TransferTo", fields: [toWarehouseId], references: [id])
+  requestedById   String
+  requestedBy     User           @relation("TransferRequested", fields: [requestedById], references: [id])
+  approvedById    String?
+  approvedBy      User?          @relation("TransferApproved", fields: [approvedById], references: [id])
+  sentById        String?
+  sentBy          User?          @relation("TransferSent", fields: [sentById], references: [id])
+  receivedById    String?
+  receivedBy      User?          @relation("TransferReceived", fields: [receivedById], references: [id])
+  rejectedById    String?
+  rejectedBy      User?          @relation("TransferRejected", fields: [rejectedById], references: [id])
+  notes           String?
+  rejectionReason String?
+  items           TransferItem[]
+  createdAt       DateTime       @default(now())
+  approvedAt      DateTime?
+  sentAt          DateTime?
+  receivedAt      DateTime?
+  rejectedAt      DateTime?
+
+  @@index([status])
+  @@index([fromWarehouseId])
+  @@index([toWarehouseId])
+  @@index([requestedById])
+  @@index([createdAt])
+  @@map("transfers")
+}
+
+model TransferItem {
+  id           String   @id @default(cuid())
+  transferId   String
+  transfer     Transfer @relation(fields: [transferId], references: [id], onDelete: Cascade)
+  itemId       String
+  item         Item     @relation(fields: [itemId], references: [id])
+  requestedQty Decimal  @db.Decimal(12, 3)
+  sentQty      Decimal? @db.Decimal(12, 3)
+  receivedQty  Decimal? @db.Decimal(12, 3)
+
+  @@index([transferId])
+  @@index([itemId])
+  @@map("transfer_items")
+}
+
+model Alert {
+  id          String    @id @default(cuid())
+  type        AlertType
+  itemId      String
+  item        Item      @relation(fields: [itemId], references: [id])
+  warehouseId String
+  warehouse   Warehouse @relation(fields: [warehouseId], references: [id])
+  message     String
+  quantity    Decimal   @db.Decimal(12, 3)
+  threshold   Decimal   @db.Decimal(12, 3)
+  read        Boolean   @default(false)
+  createdAt   DateTime  @default(now())
+
+  @@index([itemId])
+  @@index([warehouseId])
+  @@index([read])
+  @@index([createdAt])
+  @@map("alerts")
+}
+
+// ============================================================================
 // SYSTEM SETTINGS (Feature Flags, Setup Status, etc.)
 // ============================================================================
 
@@ -102,4 +488,487 @@ model SystemSetting {
 
   @@index([key])
   @@map("system_settings")
+}
+
+// ============================================================================
+// TOOL LOANS (Herramientas — Préstamos/Devoluciones)
+// ============================================================================
+
+enum ToolLoanStatus {
+  ACTIVE
+  RETURNED
+  LOST
+}
+
+enum ToolLoanCondition {
+  BUENO
+  REGULAR
+  DAMAGED
+}
+
+model ToolLoan {
+  id            String      @id @default(cuid())
+  code          String      @unique
+  itemId        String
+  item          Item        @relation(fields: [itemId], references: [id])
+  warehouseId   String
+  warehouse     Warehouse   @relation(fields: [warehouseId], references: [id])
+  workStationId String
+  workStation   WorkStation @relation(fields: [workStationId], references: [id])
+  quantity      Decimal     @db.Decimal(12, 3)
+
+  borrowerWorkerId String
+  borrowerWorker   Worker  @relation("ToolLoanBorrower", fields: [borrowerWorkerId], references: [id])
+  borrowerNotes    String?
+
+  loanedById       String
+  loanedBy         User     @relation("ToolLoanLoanedBy", fields: [loanedById], references: [id])
+  loanedAt         DateTime @default(now())
+  expectedReturnAt DateTime
+
+  returnedAt      DateTime?
+  returnedById    String?
+  returnedBy      User?              @relation("ToolLoanReturnedBy", fields: [returnedById], references: [id])
+  returnCondition ToolLoanCondition?
+  returnNotes     String?
+
+  status    ToolLoanStatus @default(ACTIVE)
+  createdAt DateTime       @default(now())
+  updatedAt DateTime       @updatedAt
+
+  @@index([itemId])
+  @@index([warehouseId])
+  @@index([workStationId])
+  @@index([borrowerWorkerId])
+  @@index([status])
+  @@index([expectedReturnAt])
+  @@map("tool_loans")
+}
+
+model ToolLoanSequence {
+  id        Int @id @default(1)
+  lastValue Int @default(0)
+
+  @@map("tool_loan_sequence")
+}
+
+// ============================================================================
+// EPP ASSIGNMENTS (Fase 6B — Entrega de EPP a empleados)
+// ============================================================================
+
+enum ReplacementReason {
+  PERDIDA
+  DANADO
+  DESGASTE
+  OTRO
+}
+
+model EPPAssignment {
+  id          String    @id @default(cuid())
+  code        String    @unique
+  workerId    String
+  worker      Worker    @relation(fields: [workerId], references: [id])
+  itemId      String
+  item        Item      @relation(fields: [itemId], references: [id])
+  warehouseId String
+  warehouse   Warehouse @relation(fields: [warehouseId], references: [id])
+  quantity    Decimal   @db.Decimal(12, 3)
+
+  assignedById String
+  assignedBy   User     @relation("EPPAssignedBy", fields: [assignedById], references: [id])
+  assignedAt   DateTime @default(now())
+
+  // Reposición: apunta a la asignación anterior que esta reemplaza
+  replacesId        String?
+  replaces          EPPAssignment?     @relation("EPPReplacement", fields: [replacesId], references: [id])
+  replacedBy        EPPAssignment[]    @relation("EPPReplacement")
+  replacementReason ReplacementReason?
+
+  // Movimiento SALIDA generado por esta asignación (para trazabilidad)
+  movementId String?   @unique
+  movement   Movement? @relation("EPPMovement", fields: [movementId], references: [id])
+
+  notes     String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([workerId])
+  @@index([itemId])
+  @@index([warehouseId])
+  @@index([assignedAt])
+  @@index([replacesId])
+  @@map("epp_assignments")
+}
+
+model EPPSequence {
+  id        Int @id @default(1)
+  lastValue Int @default(0)
+
+  @@map("epp_sequence")
+}
+
+// ============================================================================
+// EQUIPOS / MAQUINARIA (Fase 6C)
+// ============================================================================
+
+enum EquipmentType {
+  MAQUINARIA_PESADA
+  VEHICULO
+  EQUIPO_MENOR
+  HERRAMIENTA_ELECTRICA
+  OTRO
+}
+
+enum CountType {
+  HOROMETRO
+  KILOMETRAJE
+  NONE
+}
+
+enum EquipmentStatus {
+  OPERATIVO
+  EN_MANTENIMIENTO
+  AVERIADO
+  BAJA
+}
+
+model Equipment {
+  id                String                   @id @default(cuid())
+  code              String                   @unique
+  name              String
+  type              EquipmentType            @default(OTRO)
+  brand             String?
+  model             String?
+  serialNumber      String?
+  year              Int?
+  countType         CountType                @default(HOROMETRO)
+  currentCount      Decimal                  @default(0) @db.Decimal(12, 2)
+  initialCount      Decimal                  @default(0) @db.Decimal(12, 2)
+  initialCountDate  DateTime?
+  acquisitionDate   DateTime?
+  acquisitionCost   Decimal?                 @db.Decimal(14, 2)
+  status            EquipmentStatus          @default(OPERATIVO)
+  obraId            String?
+  obra              Obra?                    @relation(fields: [obraId], references: [id])
+  notes             String?
+  active            Boolean                  @default(true)
+  createdAt         DateTime                 @default(now())
+  updatedAt         DateTime                 @updatedAt
+  deletedAt         DateTime?
+
+  countReadings     EquipmentCountReading[]
+  fuelDispatches    FuelDispatch[]
+  maintenances      Maintenance[]
+
+  @@index([type])
+  @@index([status])
+  @@index([obraId])
+  @@index([deletedAt])
+  @@map("equipment")
+}
+
+model EquipmentSequence {
+  id        Int @id @default(1)
+  lastValue Int @default(0)
+
+  @@map("equipment_sequence")
+}
+
+/// Histórico de lecturas del contador (horómetro/km) del equipo.
+/// Lo alimentan: despachos de combustible, inicio/fin de mantenimiento, y lecturas manuales.
+model EquipmentCountReading {
+  id           String    @id @default(cuid())
+  equipmentId  String
+  equipment    Equipment @relation(fields: [equipmentId], references: [id], onDelete: Cascade)
+  countValue   Decimal   @db.Decimal(12, 2)
+  source       String // 'FUEL_DISPATCH' | 'MAINTENANCE_START' | 'MAINTENANCE_END' | 'MANUAL'
+  sourceId     String?
+  notes        String?
+  recordedAt   DateTime  @default(now())
+  recordedById String?
+
+  @@index([equipmentId, recordedAt])
+  @@map("equipment_count_readings")
+}
+
+// ============================================================================
+// COMBUSTIBLE (Fase 6D)
+// ============================================================================
+
+model FuelDispatch {
+  id              String    @id @default(cuid())
+  code            String    @unique
+  equipmentId     String
+  equipment       Equipment @relation(fields: [equipmentId], references: [id])
+  itemId          String
+  item            Item      @relation(fields: [itemId], references: [id])
+  warehouseId     String
+  warehouse       Warehouse @relation(fields: [warehouseId], references: [id])
+  quantity        Decimal   @db.Decimal(12, 3)
+  countReading    Decimal   @db.Decimal(12, 2)
+  operatorWorkerId String?
+  operatorWorker  Worker?   @relation("FuelDispatchOperator", fields: [operatorWorkerId], references: [id])
+  dispatchedById  String
+  dispatchedBy    User      @relation("FuelDispatchDispatchedBy", fields: [dispatchedById], references: [id])
+  movementId      String?   @unique
+  movement        Movement? @relation("FuelDispatchMovement", fields: [movementId], references: [id])
+  notes           String?
+  createdAt       DateTime  @default(now())
+
+  @@index([equipmentId])
+  @@index([itemId])
+  @@index([warehouseId])
+  @@index([createdAt])
+  @@map("fuel_dispatches")
+}
+
+model FuelDispatchSequence {
+  id        Int @id @default(1)
+  lastValue Int @default(0)
+
+  @@map("fuel_dispatch_sequence")
+}
+
+// ============================================================================
+// MANTENIMIENTOS (Fase 6E)
+// ============================================================================
+
+enum MaintenanceType {
+  PREVENTIVO
+  CORRECTIVO
+}
+
+enum MaintenanceStatus {
+  PROGRAMADO
+  EN_CURSO
+  COMPLETADO
+  CANCELADO
+}
+
+model Maintenance {
+  id              String              @id @default(cuid())
+  code            String              @unique
+  equipmentId     String
+  equipment       Equipment           @relation(fields: [equipmentId], references: [id])
+  type            MaintenanceType
+  description     String
+  status          MaintenanceStatus   @default(PROGRAMADO)
+
+  scheduledDate   DateTime?
+  scheduledCount  Decimal?            @db.Decimal(12, 2)
+
+  startedAt       DateTime?
+  countAtStart    Decimal?            @db.Decimal(12, 2)
+  completedAt     DateTime?
+  countAtEnd      Decimal?            @db.Decimal(12, 2)
+  cancelledAt     DateTime?
+  cancelReason    String?
+
+  totalCost       Decimal?            @db.Decimal(14, 2)
+  technicianId    String?
+  technician      User?               @relation("MaintenanceTechnician", fields: [technicianId], references: [id])
+  notes           String?
+  createdAt       DateTime            @default(now())
+  updatedAt       DateTime            @updatedAt
+
+  items           MaintenanceItem[]
+
+  @@index([equipmentId])
+  @@index([status])
+  @@index([type])
+  @@index([scheduledDate])
+  @@map("maintenances")
+}
+
+model MaintenanceItem {
+  id             String      @id @default(cuid())
+  maintenanceId  String
+  maintenance    Maintenance @relation(fields: [maintenanceId], references: [id], onDelete: Cascade)
+  itemId         String
+  item           Item        @relation(fields: [itemId], references: [id])
+  warehouseId    String
+  warehouse      Warehouse   @relation(fields: [warehouseId], references: [id])
+  quantity       Decimal     @db.Decimal(12, 3)
+  movementId     String?     @unique
+  movement       Movement?   @relation("MaintenanceItemMovement", fields: [movementId], references: [id])
+  notes          String?
+  createdAt      DateTime    @default(now())
+
+  @@index([maintenanceId])
+  @@index([itemId])
+  @@map("maintenance_items")
+}
+
+model MaintenanceSequence {
+  id        Int @id @default(1)
+  lastValue Int @default(0)
+
+  @@map("maintenance_sequence")
+}
+
+// ============================================================================
+// OBRAS (Proyectos)
+// ============================================================================
+
+model Obra {
+  id          String     @id @default(cuid())
+  code        String     @unique
+  name        String
+  address     String?
+  client      String?
+  description String?
+  startDate   DateTime?
+  endDate     DateTime?
+  status      ObraStatus @default(PLANIFICACION)
+
+  responsibleUserId String
+  responsibleUser   User    @relation("ObraResponsible", fields: [responsibleUserId], references: [id])
+
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  deletedAt DateTime?
+
+  warehouses   Warehouse[]
+  workers      Worker[]
+  workStations WorkStation[]
+  equipment    Equipment[]
+
+  @@index([status])
+  @@index([responsibleUserId])
+  @@index([deletedAt])
+  @@map("obras")
+}
+
+// ============================================================================
+// SPECIALTIES (Especialidades de Empleados)
+// ============================================================================
+
+model Specialty {
+  id          String    @id @default(cuid())
+  code        String    @unique
+  name        String
+  description String?
+  active      Boolean   @default(true)
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+  deletedAt   DateTime?
+  workers     Worker[]
+
+  @@index([deletedAt])
+  @@map("specialties")
+}
+
+// ============================================================================
+// WORKERS (Empleados/Obreros — no logean al sistema)
+// ============================================================================
+
+model Worker {
+  id             String       @id @default(cuid())
+  documentType   DocumentType
+  documentNumber String
+  firstName      String
+  lastName       String
+  phone          String
+  address        String?
+  birthDate      DateTime?
+  hireDate       DateTime?
+  notes          String?
+
+  specialtyId String
+  specialty   Specialty @relation(fields: [specialtyId], references: [id])
+
+  obraId String?
+  obra   Obra?   @relation(fields: [obraId], references: [id])
+
+  active    Boolean   @default(true)
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  deletedAt DateTime?
+
+  toolLoans      ToolLoan[]      @relation("ToolLoanBorrower")
+  eppAssignments EPPAssignment[]
+  fuelDispatches FuelDispatch[]  @relation("FuelDispatchOperator")
+
+  @@unique([documentType, documentNumber, deletedAt])
+  @@index([specialtyId])
+  @@index([obraId])
+  @@index([active])
+  @@index([deletedAt])
+  @@map("workers")
+}
+
+// ============================================================================
+// WORK STATIONS (Estaciones de Trabajo — label por Obra, sin stock)
+// ============================================================================
+
+model WorkStation {
+  id          String    @id @default(cuid())
+  obraId      String
+  obra        Obra      @relation(fields: [obraId], references: [id])
+  name        String
+  description String?
+  active      Boolean   @default(true)
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+  deletedAt   DateTime?
+
+  toolLoans ToolLoan[]
+
+  @@unique([obraId, name, deletedAt])
+  @@index([obraId])
+  @@index([deletedAt])
+  @@map("work_stations")
+}
+
+// ============================================================================
+// INVENTARIOS FISICOS (Fase 7B)
+// ============================================================================
+
+model InventoryCountSequence {
+  id        Int @id @default(1)
+  lastValue Int @default(0)
+
+  @@map("inventory_count_sequences")
+}
+
+model InventoryCount {
+  id                   String               @id @default(cuid())
+  code                 String               @unique
+  warehouseId          String
+  warehouse            Warehouse            @relation(fields: [warehouseId], references: [id])
+  status               InventoryCountStatus @default(IN_PROGRESS)
+  notes                String?
+  startedById          String
+  startedBy            User                 @relation("InventoryCountStartedBy", fields: [startedById], references: [id])
+  startedAt            DateTime             @default(now())
+  closedById           String?
+  closedBy             User?                @relation("InventoryCountClosedBy", fields: [closedById], references: [id])
+  closedAt             DateTime?
+  cancelledById        String?
+  cancelledBy          User?                @relation("InventoryCountCancelledBy", fields: [cancelledById], references: [id])
+  cancelledAt          DateTime?
+  adjustmentMovementId String?              @unique
+  adjustmentMovement   Movement?            @relation("InventoryCountAdjustment", fields: [adjustmentMovementId], references: [id])
+  items                InventoryCountItem[]
+
+  @@index([warehouseId, status])
+  @@index([startedById])
+  @@index([startedAt])
+  @@map("inventory_counts")
+}
+
+model InventoryCountItem {
+  id          String         @id @default(cuid())
+  countId     String
+  count       InventoryCount @relation(fields: [countId], references: [id], onDelete: Cascade)
+  itemId      String
+  item        Item           @relation(fields: [itemId], references: [id])
+  expectedQty Decimal        @db.Decimal(12, 3)
+  countedQty  Decimal?       @db.Decimal(12, 3)
+  variance    Decimal?       @db.Decimal(12, 3)
+  notes       String?
+
+  @@unique([countId, itemId])
+  @@index([countId])
+  @@map("inventory_count_items")
 }

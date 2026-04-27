@@ -56,6 +56,8 @@ export enum BusinessErrorCode {
   // Generic
   INVALID_INPUT = 'INVALID_INPUT',
   NOT_FOUND = 'NOT_FOUND',
+  DUPLICATE_RESOURCE = 'DUPLICATE_RESOURCE',
+  RESOURCE_IN_USE = 'RESOURCE_IN_USE',
   INTERNAL_SERVER_ERROR = 'INTERNAL_SERVER_ERROR',
   RATE_LIMIT_EXCEEDED = 'RATE_LIMIT_EXCEEDED',
 }
@@ -67,22 +69,18 @@ export const ERROR_MESSAGES: Record<BusinessErrorCode, string> = {
   [BusinessErrorCode.USER_INACTIVE]: 'Usuario inactivo',
   [BusinessErrorCode.MUST_CHANGE_PASSWORD]:
     'Debe cambiar su contraseña antes de continuar',
-  [BusinessErrorCode.SETUP_ALREADY_COMPLETED]:
-    'El setup inicial ya fue completado',
+  [BusinessErrorCode.SETUP_ALREADY_COMPLETED]: 'El setup inicial ya fue completado',
   [BusinessErrorCode.SETUP_NOT_COMPLETED]:
     'El setup inicial del sistema no ha sido completado',
   [BusinessErrorCode.TOKEN_EXPIRED]: 'Token expirado',
   [BusinessErrorCode.TOKEN_INVALID]: 'Token inválido',
   [BusinessErrorCode.REFRESH_TOKEN_EXPIRED]: 'Refresh token expirado',
 
-  [BusinessErrorCode.PERMISSION_DENIED]:
-    'No tiene permiso para realizar esta acción',
-  [BusinessErrorCode.WAREHOUSE_SCOPE_VIOLATION]:
-    'No tiene acceso a este almacén',
+  [BusinessErrorCode.PERMISSION_DENIED]: 'No tiene permiso para realizar esta acción',
+  [BusinessErrorCode.WAREHOUSE_SCOPE_VIOLATION]: 'No tiene acceso a este almacén',
 
   [BusinessErrorCode.USER_ALREADY_EXISTS]: 'El usuario ya existe',
-  [BusinessErrorCode.DOCUMENT_ALREADY_REGISTERED]:
-    'El documento ya está registrado',
+  [BusinessErrorCode.DOCUMENT_ALREADY_REGISTERED]: 'El documento ya está registrado',
 
   [BusinessErrorCode.STOCK_INSUFFICIENT]: 'Stock insuficiente',
   [BusinessErrorCode.STOCK_CONFLICT]:
@@ -107,15 +105,11 @@ export const ERROR_MESSAGES: Record<BusinessErrorCode, string> = {
   [BusinessErrorCode.EQUIPMENT_NOT_FOUND]: 'Equipo no encontrado',
 
   [BusinessErrorCode.WORKER_NOT_FOUND]: 'Trabajador no encontrado',
-  [BusinessErrorCode.TOOL_LOAN_NOT_FOUND]:
-    'Préstamo de herramienta no encontrado',
-  [BusinessErrorCode.TOOL_ALREADY_LOANED]:
-    'La herramienta ya está prestada',
+  [BusinessErrorCode.TOOL_LOAN_NOT_FOUND]: 'Préstamo de herramienta no encontrado',
+  [BusinessErrorCode.TOOL_ALREADY_LOANED]: 'La herramienta ya está prestada',
 
-  [BusinessErrorCode.IMPORT_VALIDATION_FAILED]:
-    'La validación de importación falló',
-  [BusinessErrorCode.IMPORT_DUPLICATE_CODES]:
-    'El archivo contiene códigos duplicados',
+  [BusinessErrorCode.IMPORT_VALIDATION_FAILED]: 'La validación de importación falló',
+  [BusinessErrorCode.IMPORT_DUPLICATE_CODES]: 'El archivo contiene códigos duplicados',
 
   [BusinessErrorCode.EXPORT_JOB_NOT_FOUND]: 'Job de exportación no encontrado',
   [BusinessErrorCode.EXPORT_GENERATION_FAILED]:
@@ -123,6 +117,9 @@ export const ERROR_MESSAGES: Record<BusinessErrorCode, string> = {
 
   [BusinessErrorCode.INVALID_INPUT]: 'Datos de entrada inválidos',
   [BusinessErrorCode.NOT_FOUND]: 'Recurso no encontrado',
+  [BusinessErrorCode.DUPLICATE_RESOURCE]: 'Ya existe un recurso con ese identificador',
+  [BusinessErrorCode.RESOURCE_IN_USE]:
+    'El recurso no puede eliminarse porque está en uso',
   [BusinessErrorCode.INTERNAL_SERVER_ERROR]: 'Error interno del servidor',
   [BusinessErrorCode.RATE_LIMIT_EXCEEDED]:
     'Demasiadas peticiones. Por favor intente más tarde',

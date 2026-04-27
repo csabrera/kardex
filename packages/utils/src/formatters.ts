@@ -24,7 +24,7 @@ export function formatDate(
 ): string {
   const d = typeof date === 'string' ? new Date(date) : date;
 
-  const options: Intl.DateTimeFormatOptions = {
+  const presets = {
     short: { day: '2-digit', month: '2-digit', year: 'numeric' },
     long: { day: 'numeric', month: 'long', year: 'numeric' },
     datetime: {
@@ -34,15 +34,14 @@ export function formatDate(
       hour: '2-digit',
       minute: '2-digit',
     },
-  }[format];
+  } satisfies Record<string, Intl.DateTimeFormatOptions>;
+
+  const options = presets[format];
 
   return new Intl.DateTimeFormat(locale, options).format(d);
 }
 
-export function formatDocument(
-  type: 'DNI' | 'CE' | 'PASAPORTE',
-  value: string,
-): string {
+export function formatDocument(type: 'DNI' | 'CE' | 'PASAPORTE', value: string): string {
   if (type === 'DNI' && value.length === 8) {
     return value;
   }

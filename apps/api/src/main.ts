@@ -1,8 +1,10 @@
 import { ValidationPipe } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { NestFactory } from '@nestjs/core';
+import { IoAdapter } from '@nestjs/platform-socket.io';
 import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
 import helmet from 'helmet';
+import cookieParser from 'cookie-parser';
 
 import { AppModule } from './app.module';
 import { PrismaService } from './prisma/prisma.service';
@@ -15,8 +17,14 @@ async function bootstrap(): Promise<void> {
   const configService = app.get(ConfigService);
   const port = configService.get<number>('app.port') ?? 4000;
   const host = configService.get<string>('app.host') ?? 'localhost';
-  const corsOrigin = configService.get<string>('app.corsOrigin') ?? 'http://localhost:3000';
+  const corsOrigin =
+    configService.get<string>('app.corsOrigin') ?? 'http://localhost:3000';
   const env = configService.get<string>('app.env') ?? 'development';
+
+  // ===========================================================================
+  // Cookie parser (needed for refresh token httpOnly cookie)
+  // ===========================================================================
+  app.use(cookieParser());
 
   // ===========================================================================
   // Security
@@ -54,6 +62,11 @@ async function bootstrap(): Promise<void> {
   // Global API prefix
   // ===========================================================================
   app.setGlobalPrefix('api', { exclude: ['health', 'health/live'] });
+
+  // ===========================================================================
+  // WebSocket adapter (Socket.IO)
+  // ===========================================================================
+  app.useWebSocketAdapter(new IoAdapter(app));
 
   // ===========================================================================
   // Prisma graceful shutdown
