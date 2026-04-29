@@ -32,17 +32,23 @@ interface Props {
   headerAction?: React.ReactNode;
   /** Filtra por worker específico (ficha empleado). */
   workerId?: string;
+  /** Filtra por almacén específico (ficha de almacén de obra). */
+  warehouseId?: string;
   /** Pre-selecciona obra al abrir Nueva asignación. */
   defaultObraId?: string;
   /** Oculta el filtro de obra cuando ya estás en contexto de una obra. */
   hideObraFilter?: boolean;
+  /** Oculta el botón "Nueva asignación" — vista solo lectura (hub Principal del admin). */
+  hideNewAction?: boolean;
 }
 
 export function EppPanel({
   headerAction,
   workerId,
+  warehouseId,
   defaultObraId,
   hideObraFilter,
+  hideNewAction,
 }: Props) {
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(10);
@@ -61,24 +67,19 @@ export function EppPanel({
     search: debouncedSearch || undefined,
     obraId: obraId === '_all' ? undefined : obraId,
     workerId,
+    warehouseId,
   } as any);
 
-  const action = headerAction ?? (
-    <Button className="gap-2" onClick={() => setShowNew(true)}>
-      <Plus className="h-4 w-4" /> Nueva asignación
-    </Button>
-  );
+  const action = hideNewAction
+    ? null
+    : (headerAction ?? (
+        <Button className="gap-2" onClick={() => setShowNew(true)}>
+          <Plus className="h-4 w-4" /> Nueva asignación
+        </Button>
+      ));
 
   const columns: ColumnDef<EPPAssignment>[] = [
     rowNumberColumn<EPPAssignment>({ page, pageSize }),
-    {
-      accessorKey: 'code',
-      header: 'Código',
-      size: 110,
-      cell: ({ row }) => (
-        <span className="font-mono text-sm font-semibold">{row.original.code}</span>
-      ),
-    },
     ...(workerId
       ? []
       : [
@@ -220,7 +221,7 @@ export function EppPanel({
             </SelectContent>
           </Select>
         )}
-        <div className="w-full sm:ml-auto sm:w-auto">{action}</div>
+        {action && <div className="w-full sm:ml-auto sm:w-auto">{action}</div>}
       </div>
 
       <DataTable

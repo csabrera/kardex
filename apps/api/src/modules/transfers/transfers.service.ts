@@ -11,7 +11,9 @@ import { PrismaService } from '../../prisma/prisma.service';
 import { BusinessException } from '../../common/exceptions/business.exception';
 import { BusinessErrorCode, WS_EVENTS } from '@kardex/types';
 import { RealtimeService } from '../realtime/realtime.service';
+import { assertOverrideReasonIfNeeded } from '../../common/utils/scope';
 import type {
+  CancelTransferDto,
   CreateTransferDto,
   ReceiveTransferDto,
   RejectTransferDto,
@@ -241,11 +243,20 @@ export class TransfersService {
 
     // Regla Fase 7A: si el usuario es RESIDENTE, debe ser el responsable de la obra destino.
     // ADMIN y ALMACENERO pueden recibir por él (override).
+    const toWh = await this.prisma.warehouse.findUnique({
+      where: { id: t.toWarehouseId },
+      include: { obra: { select: { id: true, responsibleUserId: true } } },
+    });
+    if (!toWh?.obra) {
+      throw new BusinessException(
+        BusinessErrorCode.INVALID_INPUT,
+        'El almacén destino no tiene obra asociada',
+        HttpStatus.BAD_REQUEST,
+      );
+    }
     const user = await this.prisma.user.findUnique({
       where: { id: userId },
-      include: {
-        role: true,
-      },
+      include: { role: true },
     });
     if (!user) {
       throw new BusinessException(
@@ -254,19 +265,20 @@ export class TransfersService {
         HttpStatus.NOT_FOUND,
       );
     }
-    if (user.role.name === 'RESIDENTE') {
-      const toWh = await this.prisma.warehouse.findUnique({
-        where: { id: t.toWarehouseId },
-        include: { obra: { select: { id: true, responsibleUserId: true } } },
-      });
-      if (!toWh?.obra || toWh.obra.responsibleUserId !== userId) {
-        throw new BusinessException(
-          BusinessErrorCode.PERMISSION_DENIED,
-          'Solo el residente responsable de la obra puede recibir esta transferencia',
-          HttpStatus.FORBIDDEN,
-        );
-      }
+    if (user.role.name === 'RESIDENTE' && toWh.obra.responsibleUserId !== userId) {
+      throw new BusinessException(
+        BusinessErrorCode.PERMISSION_DENIED,
+        'Solo el residente responsable de la obra puede recibir esta transferencia',
+        HttpStatus.FORBIDDEN,
+      );
     }
+    // Almacenero o residente responsable: sin motivo. Admin: requiere motivo.
+    await assertOverrideReasonIfNeeded(
+      this.prisma,
+      userId,
+      toWh.obra.id,
+      dto.overrideReason,
+    );
 
     // Detectar discrepancia (cantidad recibida ≠ enviada en alguna línea)
     const discrepancias: {
@@ -339,6 +351,7 @@ export class TransfersService {
             receivedById: userId,
             receivedAt: new Date(),
             ...(dto.notes && { notes: dto.notes }),
+            receiveOverrideReason: dto.overrideReason?.trim() || null,
           },
           include: TRANSFER_INCLUDE,
         });
@@ -373,6 +386,24 @@ export class TransfersService {
       );
     }
 
+    const toWh = await this.prisma.warehouse.findUnique({
+      where: { id: t.toWarehouseId },
+      include: { obra: { select: { id: true } } },
+    });
+    if (!toWh?.obra) {
+      throw new BusinessException(
+        BusinessErrorCode.INVALID_INPUT,
+        'El almacén destino no tiene obra asociada',
+        HttpStatus.BAD_REQUEST,
+      );
+    }
+    await assertOverrideReasonIfNeeded(
+      this.prisma,
+      userId,
+      toWh.obra.id,
+      dto.overrideReason,
+    );
+
     return this.prisma.$transaction(async (tx) => {
       // Si ya estaba EN_TRANSITO, devolver stock al origen
       if (t.status === TransferStatus.EN_TRANSITO) {
@@ -400,6 +431,7 @@ export class TransfersService {
           rejectedById: userId,
           rejectedAt: new Date(),
           rejectionReason: dto.reason,
+          rejectOverrideReason: dto.overrideReason?.trim() || null,
         },
         include: TRANSFER_INCLUDE,
       });
@@ -413,7 +445,7 @@ export class TransfersService {
    * Caso típico: el almacenero se equivocó al crear la transferencia y la cancela antes
    * de que el residente la reciba.
    */
-  async cancel(id: string, userId: string) {
+  async cancel(id: string, dto: CancelTransferDto, userId: string) {
     const t = await this.findOne(id);
     if (t.status !== TransferStatus.EN_TRANSITO) {
       throw new BusinessException(
@@ -422,6 +454,24 @@ export class TransfersService {
         HttpStatus.CONFLICT,
       );
     }
+
+    const toWh = await this.prisma.warehouse.findUnique({
+      where: { id: t.toWarehouseId },
+      include: { obra: { select: { id: true } } },
+    });
+    if (!toWh?.obra) {
+      throw new BusinessException(
+        BusinessErrorCode.INVALID_INPUT,
+        'El almacén destino no tiene obra asociada',
+        HttpStatus.BAD_REQUEST,
+      );
+    }
+    await assertOverrideReasonIfNeeded(
+      this.prisma,
+      userId,
+      toWh.obra.id,
+      dto.overrideReason,
+    );
 
     return this.prisma.$transaction(async (tx) => {
       // Devolver stock al almacén origen basado en lo que se envió (sentQty) o solicitó
@@ -450,6 +500,7 @@ export class TransfersService {
           status: TransferStatus.CANCELADA,
           rejectedById: userId,
           rejectedAt: new Date(),
+          cancelOverrideReason: dto.overrideReason?.trim() || null,
         },
         include: TRANSFER_INCLUDE,
       });

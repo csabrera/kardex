@@ -22,7 +22,7 @@ describe('EPPService', () => {
       id: 'item-epp-1',
       code: 'EPP-CASCO',
       name: 'Casco de seguridad',
-      type: ItemType.EPP,
+      type: ItemType.ASIGNACION,
       active: true,
       deletedAt: null,
     };
@@ -77,9 +77,15 @@ describe('EPPService', () => {
     };
 
     prismaMock = {
-      // assertWarehouseScope llama user.findUnique — default: ADMIN (sin restricción)
+      // assertWarehouseScope + assertOverrideReasonIfNeeded llaman user.findUnique.
+      // Default: ALMACENERO (pasa scope + exento de override).
       user: {
-        findUnique: jest.fn().mockResolvedValue({ role: { name: 'ADMIN' } }),
+        findUnique: jest
+          .fn()
+          .mockResolvedValue({ id: 'u-1', role: { name: 'ALMACENERO' } }),
+      },
+      obra: {
+        findUnique: jest.fn().mockResolvedValue({ responsibleUserId: 'u-1' }),
       },
       item: {
         findFirst: jest.fn().mockResolvedValue(eppItem),
@@ -147,10 +153,10 @@ describe('EPPService', () => {
       });
     });
 
-    it('rechaza ítem que no es tipo EPP', async () => {
+    it('rechaza ítem que no es tipo ASIGNACION', async () => {
       prismaMock.item.findFirst.mockResolvedValueOnce({
         id: 'item-1',
-        type: ItemType.HERRAMIENTA,
+        type: ItemType.PRESTAMO,
         active: true,
         deletedAt: null,
       });

@@ -47,7 +47,7 @@ const TABS: { id: TabId; label: string; icon: React.ElementType }[] = [
   { id: 'movimientos', label: 'Movimientos', icon: FileText },
   { id: 'transferencias', label: 'Transferencias', icon: WarehouseIcon },
   { id: 'prestamos', label: 'Préstamos', icon: Wrench },
-  { id: 'epp', label: 'EPP', icon: Shield },
+  { id: 'epp', label: 'Asignación (EPP)', icon: Shield },
   { id: 'inventarios', label: 'Inventarios', icon: ClipboardCheck },
 ];
 
@@ -183,11 +183,11 @@ export default function AlmacenPrincipalPage() {
         </TabsContent>
 
         <TabsContent value="prestamos" className="mt-5">
-          <ToolLoansPanel />
+          <ToolLoansPanel hideNewAction />
         </TabsContent>
 
         <TabsContent value="epp" className="mt-5">
-          <EppPanel />
+          <EppPanel hideNewAction />
         </TabsContent>
 
         <TabsContent value="inventarios" className="mt-5">

@@ -27,6 +27,14 @@ function makeLoan(overrides: any = {}) {
     returnCondition: null,
     returnNotes: null,
     borrowerNotes: null,
+    // findOne hace include: { warehouse: { ... obra } }; el helper de override usa loan.warehouse.obra.id
+    warehouse: {
+      id: 'wh-1',
+      code: 'WH-01',
+      name: 'Almacén Obra',
+      type: 'OBRA',
+      obra: { id: 'obra-1', code: 'OBR-01', name: 'Obra Test' },
+    },
     ...overrides,
   };
 }
@@ -40,14 +48,23 @@ describe('ToolLoansService', () => {
     loanState = makeLoan();
 
     prismaMock = {
-      // assertWarehouseScope llama user.findUnique — default: ADMIN (sin restricción)
+      // assertWarehouseScope + assertOverrideReasonIfNeeded llaman user.findUnique.
+      // Default: ALMACENERO (pasa scope + exento de override). Tests específicos de
+      // override admin deben mockear ADMIN explícitamente.
       user: {
-        findUnique: jest.fn().mockResolvedValue({ role: { name: 'ADMIN' } }),
+        findUnique: jest
+          .fn()
+          .mockResolvedValue({ id: 'u-1', role: { name: 'ALMACENERO' } }),
+      },
+      // assertOverrideReasonIfNeeded query obra solo si user es RESIDENTE.
+      // Default presente para casos donde se mockee residente.
+      obra: {
+        findUnique: jest.fn().mockResolvedValue({ responsibleUserId: 'u-1' }),
       },
       item: {
         findFirst: jest.fn().mockResolvedValue({
           id: 'item-1',
-          type: ItemType.HERRAMIENTA,
+          type: ItemType.PRESTAMO,
           active: true,
           deletedAt: null,
         }),
@@ -123,10 +140,10 @@ describe('ToolLoansService', () => {
       expect((result as any).code).toBe('PRT-00001');
     });
 
-    it('rechaza items que no son HERRAMIENTA o EQUIPO', async () => {
+    it('rechaza items que no son tipo PRESTAMO', async () => {
       prismaMock.item.findFirst.mockResolvedValueOnce({
         id: 'item-1',
-        type: ItemType.MATERIAL,
+        type: ItemType.CONSUMO,
         active: true,
       });
       await expect(service.create(baseDto(), 'u-1')).rejects.toMatchObject({
@@ -134,10 +151,10 @@ describe('ToolLoansService', () => {
       });
     });
 
-    it('acepta EQUIPO', async () => {
+    it('acepta tipo PRESTAMO', async () => {
       prismaMock.item.findFirst.mockResolvedValueOnce({
         id: 'item-1',
-        type: ItemType.EQUIPO,
+        type: ItemType.PRESTAMO,
         active: true,
       });
       await expect(service.create(baseDto(), 'u-1')).resolves.toBeDefined();
@@ -286,7 +303,7 @@ describe('ToolLoansService', () => {
 
   describe('markLost', () => {
     it('transiciona ACTIVE → LOST', async () => {
-      await service.markLost('loan-1', 'u-1');
+      await service.markLost('loan-1', {}, 'u-1');
       expect(loanState.status).toBe(ToolLoanStatus.LOST);
     });
   });

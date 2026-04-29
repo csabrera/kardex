@@ -27,6 +27,15 @@ export class AssignEPPDto {
   @IsString()
   @MaxLength(500)
   notes?: string;
+
+  @ApiPropertyOptional({
+    description:
+      'Motivo de excepción cuando quien asigna no es residente responsable ni almacenero (típicamente admin por ausencia)',
+  })
+  @IsOptional()
+  @IsString()
+  @MaxLength(500)
+  overrideReason?: string;
 }
 
 export class ReplaceEPPDto {
@@ -49,4 +58,13 @@ export class ReplaceEPPDto {
   @IsString()
   @MaxLength(500)
   notes?: string;
+
+  @ApiPropertyOptional({
+    description:
+      'Motivo de excepción cuando quien repone no es residente responsable ni almacenero (típicamente admin por ausencia)',
+  })
+  @IsOptional()
+  @IsString()
+  @MaxLength(500)
+  overrideReason?: string;
 }

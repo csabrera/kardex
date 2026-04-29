@@ -11,7 +11,10 @@ import { BusinessException } from '../../common/exceptions/business.exception';
 import { BusinessErrorCode, WS_EVENTS } from '@kardex/types';
 import { PrismaService } from '../../prisma/prisma.service';
 import { RealtimeService } from '../realtime/realtime.service';
-import { assertWarehouseScope } from '../../common/utils/scope';
+import {
+  assertOverrideReasonIfNeeded,
+  assertWarehouseScope,
+} from '../../common/utils/scope';
 import type { AssignEPPDto, ReplaceEPPDto } from './dto/epp.dto';
 
 const EPP_INCLUDE = {
@@ -163,7 +166,13 @@ export class EPPService {
   async assign(dto: AssignEPPDto, userId: string) {
     const { workerId, itemId, warehouseId, quantity } = dto;
     await assertWarehouseScope(this.prisma, userId, warehouseId);
-    await this.validateAssignment({ workerId, itemId, warehouseId, quantity });
+    const obraId = await this.validateAssignment({
+      workerId,
+      itemId,
+      warehouseId,
+      quantity,
+    });
+    await assertOverrideReasonIfNeeded(this.prisma, userId, obraId, dto.overrideReason);
     return this.createAssignmentTransaction({
       workerId,
       itemId,
@@ -171,6 +180,7 @@ export class EPPService {
       quantity,
       userId,
       notes: dto.notes,
+      overrideReason: dto.overrideReason,
     });
   }
 
@@ -179,12 +189,13 @@ export class EPPService {
     await assertWarehouseScope(this.prisma, userId, dto.warehouseId);
 
     // Validaciones de reposición
-    await this.validateAssignment({
+    const obraId = await this.validateAssignment({
       workerId: original.workerId,
       itemId: original.itemId,
       warehouseId: dto.warehouseId,
       quantity: dto.quantity,
     });
+    await assertOverrideReasonIfNeeded(this.prisma, userId, obraId, dto.overrideReason);
 
     return this.createAssignmentTransaction({
       workerId: original.workerId,
@@ -195,11 +206,13 @@ export class EPPService {
       notes: dto.notes,
       replacesId: original.id,
       replacementReason: dto.reason,
+      overrideReason: dto.overrideReason,
     });
   }
 
   /**
-   * Valida: item existe y es tipo EPP · warehouse es de obra · worker pertenece a la obra · stock suficiente
+   * Valida: item existe y es tipo EPP · warehouse es de obra · worker pertenece a la obra · stock suficiente.
+   * Retorna el obraId del almacén para que el caller pueda usarlo (p.ej. validar override reason).
    */
   private async validateAssignment({
     workerId,
@@ -211,7 +224,7 @@ export class EPPService {
     itemId: string;
     warehouseId: string;
     quantity: number;
-  }) {
+  }): Promise<string> {
     const [item, warehouse, worker] = await Promise.all([
       this.prisma.item.findFirst({
         where: { id: itemId, deletedAt: null, active: true },
@@ -231,10 +244,10 @@ export class EPPService {
         HttpStatus.NOT_FOUND,
       );
     }
-    if (item.type !== ItemType.EPP) {
+    if (item.type !== ItemType.ASIGNACION) {
       throw new BusinessException(
         BusinessErrorCode.INVALID_INPUT,
-        'Solo se pueden asignar ítems de tipo EPP',
+        'Solo se pueden asignar ítems de categoría tipo Asignación (EPP)',
         HttpStatus.BAD_REQUEST,
       );
     }
@@ -287,6 +300,8 @@ export class EPPService {
         HttpStatus.CONFLICT,
       );
     }
+
+    return warehouse.obraId;
   }
 
   /**
@@ -302,6 +317,7 @@ export class EPPService {
     notes?: string;
     replacesId?: string;
     replacementReason?: Prisma.EPPAssignmentCreateInput['replacementReason'];
+    overrideReason?: string;
   }) {
     const {
       workerId,
@@ -312,6 +328,7 @@ export class EPPService {
       notes,
       replacesId,
       replacementReason,
+      overrideReason,
     } = params;
 
     const result = await this.prisma.$transaction(async (tx) => {
@@ -401,6 +418,7 @@ export class EPPService {
           replacementReason: replacementReason ?? null,
           movementId: movement.id,
           notes,
+          overrideReason: overrideReason?.trim() || null,
         },
         include: EPP_INCLUDE,
       });

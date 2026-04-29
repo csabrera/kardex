@@ -7,6 +7,7 @@ import {
   IsNumber,
   IsOptional,
   IsString,
+  MaxLength,
   Min,
 } from 'class-validator';
 
@@ -41,6 +42,15 @@ export class CreateToolLoanDto {
   @IsOptional()
   @IsString()
   borrowerNotes?: string;
+
+  @ApiPropertyOptional({
+    description:
+      'Motivo de excepción cuando quien crea no es residente responsable ni almacenero (típicamente admin por ausencia)',
+  })
+  @IsOptional()
+  @IsString()
+  @MaxLength(500)
+  overrideReason?: string;
 }
 
 export class ReturnToolLoanDto {
@@ -52,4 +62,24 @@ export class ReturnToolLoanDto {
   @IsOptional()
   @IsString()
   notes?: string;
+
+  @ApiPropertyOptional({
+    description:
+      'Motivo de excepción al cerrar el préstamo cuando quien actúa no es residente responsable ni almacenero',
+  })
+  @IsOptional()
+  @IsString()
+  @MaxLength(500)
+  overrideReason?: string;
+}
+
+export class MarkLostToolLoanDto {
+  @ApiPropertyOptional({
+    description:
+      'Motivo de excepción al marcar como perdido cuando quien actúa no es residente responsable ni almacenero',
+  })
+  @IsOptional()
+  @IsString()
+  @MaxLength(500)
+  overrideReason?: string;
 }

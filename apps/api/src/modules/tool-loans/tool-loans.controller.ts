@@ -7,7 +7,11 @@ import { Transform, Type } from 'class-transformer';
 import { RequirePermissions } from '../auth/decorators/permissions.decorator';
 import { PaginationQueryDto } from '../../common/dto/pagination.dto';
 import type { AuthenticatedRequest } from '../../common/types/authenticated-request';
-import { CreateToolLoanDto, ReturnToolLoanDto } from './dto/tool-loan.dto';
+import {
+  CreateToolLoanDto,
+  MarkLostToolLoanDto,
+  ReturnToolLoanDto,
+} from './dto/tool-loan.dto';
 import { ToolLoansService } from './tool-loans.service';
 
 class ToolLoanQueryDto extends PaginationQueryDto {
@@ -84,7 +88,11 @@ export class ToolLoansController {
 
   @Patch(':id/mark-lost')
   @RequirePermissions('tools:return')
-  markLost(@Param('id') id: string, @Req() req: AuthenticatedRequest) {
-    return this.service.markLost(id, req.user.sub);
+  markLost(
+    @Param('id') id: string,
+    @Body() dto: MarkLostToolLoanDto,
+    @Req() req: AuthenticatedRequest,
+  ) {
+    return this.service.markLost(id, dto, req.user.sub);
   }
 }

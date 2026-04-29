@@ -9,20 +9,26 @@ import {
   Building,
   Calendar,
   CheckCircle2,
+  FileText,
   MapPin,
   Package,
+  Shield,
   Star,
   TrendingDown,
   Warehouse as WarehouseIcon,
+  Wrench,
 } from 'lucide-react';
 import Link from 'next/link';
-import { useParams } from 'next/navigation';
-import { useMemo } from 'react';
+import { useParams, useRouter, useSearchParams } from 'next/navigation';
+import { useCallback, useMemo } from 'react';
 import { Cell, Pie, PieChart, ResponsiveContainer, Tooltip } from 'recharts';
 
+import { EppPanel } from '@/components/epp/epp-panel';
+import { ToolLoansPanel } from '@/components/tool-loans/tool-loans-panel';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { EmptyState } from '@/components/ui/empty-state';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { useAlerts } from '@/hooks/use-alerts';
 import { useMovements } from '@/hooks/use-movements';
 import { useStock } from '@/hooks/use-stock';
@@ -30,19 +36,15 @@ import { useWarehouse } from '@/hooks/use-warehouses';
 import { cn } from '@/lib/cn';
 
 const TYPE_COLORS: Record<string, string> = {
-  MATERIAL: 'hsl(217 91% 60%)',
-  HERRAMIENTA: 'hsl(38 92% 55%)',
-  EPP: 'hsl(142 71% 45%)',
-  EQUIPO: 'hsl(270 60% 55%)',
-  REPUESTO: 'hsl(200 30% 50%)',
+  CONSUMO: 'hsl(217 91% 60%)',
+  PRESTAMO: 'hsl(38 92% 55%)',
+  ASIGNACION: 'hsl(142 71% 45%)',
 };
 
 const TYPE_LABELS: Record<string, string> = {
-  MATERIAL: 'Material',
-  HERRAMIENTA: 'Herramienta',
-  EPP: 'EPP',
-  EQUIPO: 'Equipo',
-  REPUESTO: 'Repuesto',
+  CONSUMO: 'Consumo',
+  PRESTAMO: 'Préstamo',
+  ASIGNACION: 'Asignación (EPP)',
 };
 
 const MOVEMENT_TYPE_BADGE: Record<string, { label: string; variant: string }> = {
@@ -51,9 +53,31 @@ const MOVEMENT_TYPE_BADGE: Record<string, { label: string; variant: string }> = 
   AJUSTE: { label: 'Ajuste', variant: 'warning' },
 };
 
+type TabId = 'informacion' | 'prestamos' | 'epp';
+const VALID_TABS = new Set<TabId>(['informacion', 'prestamos', 'epp']);
+const DEFAULT_TAB: TabId = 'informacion';
+
 export default function WarehouseDetailPage() {
   const params = useParams();
+  const router = useRouter();
+  const searchParams = useSearchParams();
   const id = params.id as string;
+
+  const tabParam = searchParams.get('tab') as TabId | null;
+  const activeTab: TabId = tabParam && VALID_TABS.has(tabParam) ? tabParam : DEFAULT_TAB;
+
+  const setActiveTab = useCallback(
+    (next: TabId) => {
+      const sp = new URLSearchParams(searchParams.toString());
+      if (next === DEFAULT_TAB) sp.delete('tab');
+      else sp.set('tab', next);
+      const qs = sp.toString();
+      router.replace(`/dashboard/almacenes/${id}${qs ? `?${qs}` : ''}`, {
+        scroll: false,
+      });
+    },
+    [router, searchParams, id],
+  );
 
   const { data: warehouse, isLoading: whLoading } = useWarehouse(id);
   const { data: stock = [] } = useStock({ warehouseId: id, enabled: !!id });
@@ -78,7 +102,6 @@ export default function WarehouseDetailPage() {
       (s) => Number(s.quantity) === 0 && Number(s.item.minStock) > 0,
     ).length;
 
-    // Distribución por tipo (cantidad de ítems, no cantidades físicas)
     const byType = new Map<string, number>();
     for (const s of stock) {
       byType.set(s.item.type, (byType.get(s.item.type) ?? 0) + 1);
@@ -102,6 +125,7 @@ export default function WarehouseDetailPage() {
   }
 
   const isPrincipal = warehouse.type === 'CENTRAL';
+  const showOperationalTabs = !isPrincipal; // Préstamos/EPP solo en almacén de obra
 
   return (
     <div className="space-y-6">
@@ -185,7 +209,7 @@ export default function WarehouseDetailPage() {
             </Link>
           )}
           {isPrincipal && (
-            <Link href="/dashboard/transferencias/nueva">
+            <Link href="/dashboard/almacen-principal?tab=transferencias&action=new">
               <Button variant="outline" size="sm" className="gap-1.5">
                 <ArrowRight className="h-4 w-4 text-blue-600" /> Transferir
               </Button>
@@ -222,6 +246,85 @@ export default function WarehouseDetailPage() {
         />
       </div>
 
+      {/* Tabs solo en almacén de obra. En Principal renderiza la sección Información directa. */}
+      {showOperationalTabs ? (
+        <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as TabId)}>
+          <TabsList>
+            <TabsTrigger value="informacion" icon={FileText}>
+              Información
+            </TabsTrigger>
+            <TabsTrigger value="prestamos" icon={Wrench}>
+              Préstamos
+            </TabsTrigger>
+            <TabsTrigger value="epp" icon={Shield}>
+              Asignación (EPP)
+            </TabsTrigger>
+          </TabsList>
+
+          <TabsContent value="informacion" className="mt-5 space-y-6">
+            <InformacionSection
+              warehouse={warehouse}
+              stock={stock}
+              stats={stats}
+              isPrincipal={isPrincipal}
+              movementsPage={movementsPage}
+            />
+          </TabsContent>
+
+          <TabsContent value="prestamos" className="mt-5">
+            <ToolLoansPanel
+              warehouseId={id}
+              hideSummary
+              defaultObraId={warehouse.obra?.id}
+            />
+          </TabsContent>
+
+          <TabsContent value="epp" className="mt-5">
+            <EppPanel
+              warehouseId={id}
+              hideObraFilter
+              defaultObraId={warehouse.obra?.id}
+            />
+          </TabsContent>
+        </Tabs>
+      ) : (
+        <InformacionSection
+          warehouse={warehouse}
+          stock={stock}
+          stats={stats}
+          isPrincipal={isPrincipal}
+          movementsPage={movementsPage}
+        />
+      )}
+    </div>
+  );
+}
+
+// ======================================================================
+// Sección "Información" (donut + info general + stock + movimientos)
+// ======================================================================
+
+function InformacionSection({
+  warehouse,
+  stock,
+  stats,
+  isPrincipal,
+  movementsPage,
+}: {
+  warehouse: any;
+  stock: any[];
+  stats: {
+    items: number;
+    totalQty: number;
+    belowMin: number;
+    outOfStock: number;
+    typeData: { name: string; value: number; fill: string }[];
+  };
+  isPrincipal: boolean;
+  movementsPage: any;
+}) {
+  return (
+    <>
       {/* Fila: distribución por tipo + info general */}
       <div className="grid grid-cols-1 lg:grid-cols-5 gap-5">
         {/* Donut tipo */}
@@ -523,7 +626,7 @@ export default function WarehouseDetailPage() {
                 </tr>
               </thead>
               <tbody>
-                {movementsPage.items.map((m) => {
+                {movementsPage.items.map((m: any) => {
                   const badge = MOVEMENT_TYPE_BADGE[m.type] ?? {
                     label: m.type,
                     variant: 'outline',
@@ -556,7 +659,7 @@ export default function WarehouseDetailPage() {
           </div>
         )}
       </section>
-    </div>
+    </>
   );
 }
 

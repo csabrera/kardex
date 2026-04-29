@@ -1,6 +1,6 @@
 'use client';
 
-import { CheckCircle2 } from 'lucide-react';
+import { AlertCircle, CheckCircle2 } from 'lucide-react';
 import { useState } from 'react';
 
 import { Button } from '@/components/ui/button';
@@ -20,11 +20,13 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
+import { Textarea } from '@/components/ui/textarea';
 import {
   useReturnToolLoan,
   type ToolLoan,
   type ToolLoanCondition,
 } from '@/hooks/use-tool-loans';
+import { useAuthStore } from '@/stores/use-auth-store';
 
 const CONDITIONS: { value: ToolLoanCondition; label: string; color: string }[] = [
   { value: 'BUENO', label: 'Bueno — sin daños', color: 'text-green-600' },
@@ -43,18 +45,37 @@ export function ReturnLoanDialog({
   loan: ToolLoan | null;
   onClose: () => void;
 }) {
+  const user = useAuthStore((s) => s.user);
+  const needsOverride = user?.role?.name === 'ADMIN';
+
   const [condition, setCondition] = useState<ToolLoanCondition | ''>('');
   const [notes, setNotes] = useState('');
+  const [overrideReason, setOverrideReason] = useState('');
+  const [overrideError, setOverrideError] = useState<string | null>(null);
   const mutation = useReturnToolLoan();
 
   const handleSubmit = () => {
     if (!loan || !condition) return;
+    if (needsOverride) {
+      const trimmed = overrideReason.trim();
+      if (trimmed.length < 5) {
+        setOverrideError('Requerido como administrador (mínimo 5 caracteres)');
+        return;
+      }
+    }
+    setOverrideError(null);
     mutation.mutate(
-      { id: loan.id, condition, notes: notes || undefined },
+      {
+        id: loan.id,
+        condition,
+        notes: notes || undefined,
+        overrideReason: needsOverride ? overrideReason.trim() : undefined,
+      },
       {
         onSuccess: () => {
           setCondition('');
           setNotes('');
+          setOverrideReason('');
           onClose();
         },
       },
@@ -133,6 +154,39 @@ export function ReturnLoanDialog({
                 placeholder="Opcional"
               />
             </div>
+
+            {needsOverride && (
+              <div className="rounded-md border border-amber-300 bg-amber-50/70 dark:bg-amber-950/30 p-3 space-y-2">
+                <div className="flex items-start gap-2">
+                  <AlertCircle className="h-4 w-4 text-amber-600 dark:text-amber-400 shrink-0 mt-0.5" />
+                  <div className="text-xs text-amber-900 dark:text-amber-100 space-y-1">
+                    <p className="font-medium">
+                      Estás cerrando este préstamo como administrador
+                    </p>
+                    <p className="text-amber-800 dark:text-amber-200/90">
+                      Solo el residente o almacenero conoce de primera mano la condición
+                      en que volvió la herramienta. Deja constancia del motivo.
+                    </p>
+                  </div>
+                </div>
+                <div className="space-y-1.5 pl-6">
+                  <Label htmlFor="returnOverrideReason" className="text-xs">
+                    Motivo de excepción *
+                  </Label>
+                  <Textarea
+                    id="returnOverrideReason"
+                    value={overrideReason}
+                    onChange={(e) => setOverrideReason(e.target.value)}
+                    placeholder="Ej: Residente ausente — albañil García devolvió ahora"
+                    rows={2}
+                    className="text-sm"
+                  />
+                  {overrideError && (
+                    <p className="text-xs text-destructive">{overrideError}</p>
+                  )}
+                </div>
+              </div>
+            )}
 
             <div className="flex justify-end gap-2 pt-2 border-t">
               <Button variant="outline" onClick={onClose}>

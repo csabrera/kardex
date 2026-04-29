@@ -18,6 +18,7 @@ import {
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { SearchCombobox } from '@/components/ui/search-combobox';
+import { Textarea } from '@/components/ui/textarea';
 import {
   Select,
   SelectContent,
@@ -40,6 +41,7 @@ const schema = z.object({
   itemId: z.string().min(1, 'Requerido'),
   quantity: z.coerce.number().min(0.001, 'Debe ser > 0'),
   notes: z.string().max(500).optional(),
+  overrideReason: z.string().max(500).optional(),
 });
 
 type FormData = z.infer<typeof schema>;
@@ -61,6 +63,9 @@ export function NewEPPAssignmentDialog({
 }: Props) {
   const user = useAuthStore((s) => s.user);
   const isResidente = user?.role?.name === 'RESIDENTE';
+  const isAdmin = user?.role?.name === 'ADMIN';
+  // Admin actuando por excepción debe justificar (residente y almacenero son flujo normal).
+  const needsOverride = isAdmin;
 
   const { data: obrasData } = useObras({
     pageSize: 100,
@@ -78,6 +83,7 @@ export function NewEPPAssignmentDialog({
     setValue,
     watch,
     reset,
+    setError,
     formState: { errors },
   } = useForm<FormData>({
     resolver: zodResolver(schema),
@@ -88,6 +94,7 @@ export function NewEPPAssignmentDialog({
       itemId: '',
       quantity: 1,
       notes: '',
+      overrideReason: '',
     },
   });
 
@@ -119,11 +126,11 @@ export function NewEPPAssignmentDialog({
   });
   const obraWorkers = workersData?.items ?? [];
 
-  // Ítems tipo EPP buscables
+  // Ítems tipo ASIGNACION (EPP) buscables
   const [itemSearch, setItemSearch] = useState('');
   const { data: itemsData, isFetching: itemsLoading } = useItems({
     search: itemSearch || undefined,
-    type: 'EPP',
+    type: 'ASIGNACION',
     pageSize: 30,
   });
   const eppItems: Item[] = useMemo(() => itemsData?.items ?? [], [itemsData]);
@@ -154,6 +161,15 @@ export function NewEPPAssignmentDialog({
   }, [itemStock, itemId, warehouseId]);
 
   const onSubmit = (data: FormData) => {
+    if (needsOverride) {
+      const trimmed = data.overrideReason?.trim() ?? '';
+      if (trimmed.length < 5) {
+        setError('overrideReason', {
+          message: 'Requerido como administrador (mínimo 5 caracteres)',
+        });
+        return;
+      }
+    }
     mutation.mutate(
       {
         workerId: data.workerId,
@@ -161,6 +177,7 @@ export function NewEPPAssignmentDialog({
         warehouseId: data.warehouseId,
         quantity: data.quantity,
         notes: data.notes,
+        overrideReason: needsOverride ? data.overrideReason?.trim() : undefined,
       },
       {
         onSuccess: () => {
@@ -179,6 +196,7 @@ export function NewEPPAssignmentDialog({
       itemId: '',
       quantity: 1,
       notes: '',
+      overrideReason: '',
     });
     setItemSearch('');
   };
@@ -398,6 +416,41 @@ export function NewEPPAssignmentDialog({
                 <Label>Observaciones</Label>
                 <Input {...register('notes')} placeholder="Opcional" />
               </div>
+
+              {needsOverride && (
+                <div className="rounded-md border border-amber-300 bg-amber-50/70 dark:bg-amber-950/30 p-3 space-y-2">
+                  <div className="flex items-start gap-2">
+                    <AlertCircle className="h-4 w-4 text-amber-600 dark:text-amber-400 shrink-0 mt-0.5" />
+                    <div className="text-xs text-amber-900 dark:text-amber-100 space-y-1">
+                      <p className="font-medium">
+                        Estás registrando esta entrega como administrador
+                      </p>
+                      <p className="text-amber-800 dark:text-amber-200/90">
+                        El flujo normal lo realiza el residente o almacenero. Como
+                        excepción, debes dejar constancia del motivo (queda en el registro
+                        de auditoría).
+                      </p>
+                    </div>
+                  </div>
+                  <div className="space-y-1.5 pl-6">
+                    <Label htmlFor="overrideReason" className="text-xs">
+                      Motivo de excepción *
+                    </Label>
+                    <Textarea
+                      id="overrideReason"
+                      {...register('overrideReason')}
+                      placeholder="Ej: Residente ausente — entrega urgente albañil García"
+                      rows={2}
+                      className="text-sm"
+                    />
+                    {errors.overrideReason && (
+                      <p className="text-xs text-destructive">
+                        {errors.overrideReason.message}
+                      </p>
+                    )}
+                  </div>
+                </div>
+              )}
             </>
           )}
 

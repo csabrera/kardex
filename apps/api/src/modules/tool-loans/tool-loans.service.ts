@@ -10,8 +10,15 @@ import {
 import { PrismaService } from '../../prisma/prisma.service';
 import { BusinessException } from '../../common/exceptions/business.exception';
 import { BusinessErrorCode } from '@kardex/types';
-import { assertWarehouseScope } from '../../common/utils/scope';
-import type { CreateToolLoanDto, ReturnToolLoanDto } from './dto/tool-loan.dto';
+import {
+  assertOverrideReasonIfNeeded,
+  assertWarehouseScope,
+} from '../../common/utils/scope';
+import type {
+  CreateToolLoanDto,
+  MarkLostToolLoanDto,
+  ReturnToolLoanDto,
+} from './dto/tool-loan.dto';
 
 const TOOL_LOAN_INCLUDE = {
   item: {
@@ -159,10 +166,10 @@ export class ToolLoansService {
         HttpStatus.NOT_FOUND,
       );
     }
-    if (item.type !== ItemType.HERRAMIENTA && item.type !== ItemType.EQUIPO) {
+    if (item.type !== ItemType.PRESTAMO) {
       throw new BusinessException(
         BusinessErrorCode.INVALID_INPUT,
-        'Solo se pueden prestar ítems de tipo HERRAMIENTA o EQUIPO',
+        'Solo se pueden prestar ítems de categoría tipo Préstamo',
         HttpStatus.BAD_REQUEST,
       );
     }
@@ -277,7 +284,15 @@ export class ToolLoansService {
       );
     }
 
-    // 7. Generar código y crear préstamo
+    // 7. Validar motivo de excepción si quien crea no es residente responsable ni almacenero
+    await assertOverrideReasonIfNeeded(
+      this.prisma,
+      userId,
+      warehouse.obraId,
+      dto.overrideReason,
+    );
+
+    // 8. Generar código y crear préstamo
     const seq = await this.prisma.toolLoanSequence.upsert({
       where: { id: 1 },
       update: { lastValue: { increment: 1 } },
@@ -295,6 +310,7 @@ export class ToolLoansService {
         quantity: dto.quantity,
         expectedReturnAt,
         borrowerNotes: dto.borrowerNotes,
+        overrideReason: dto.overrideReason?.trim() || null,
         loanedById: userId,
       },
       include: TOOL_LOAN_INCLUDE,
@@ -313,6 +329,20 @@ export class ToolLoansService {
       );
     }
 
+    if (!loan.warehouse.obra?.id) {
+      throw new BusinessException(
+        BusinessErrorCode.INVALID_INPUT,
+        'El almacén del préstamo no tiene obra asociada',
+        HttpStatus.BAD_REQUEST,
+      );
+    }
+    await assertOverrideReasonIfNeeded(
+      this.prisma,
+      userId,
+      loan.warehouse.obra.id,
+      dto.overrideReason,
+    );
+
     return this.prisma.toolLoan.update({
       where: { id },
       data: {
@@ -321,12 +351,13 @@ export class ToolLoansService {
         returnedById: userId,
         returnCondition: dto.condition,
         returnNotes: dto.notes,
+        returnOverrideReason: dto.overrideReason?.trim() || null,
       },
       include: TOOL_LOAN_INCLUDE,
     });
   }
 
-  async markLost(id: string, userId: string) {
+  async markLost(id: string, dto: MarkLostToolLoanDto, userId: string) {
     const loan = await this.findOne(id);
     await assertWarehouseScope(this.prisma, userId, loan.warehouseId);
     if (loan.status !== ToolLoanStatus.ACTIVE) {
@@ -336,6 +367,21 @@ export class ToolLoansService {
         HttpStatus.CONFLICT,
       );
     }
+
+    if (!loan.warehouse.obra?.id) {
+      throw new BusinessException(
+        BusinessErrorCode.INVALID_INPUT,
+        'El almacén del préstamo no tiene obra asociada',
+        HttpStatus.BAD_REQUEST,
+      );
+    }
+    await assertOverrideReasonIfNeeded(
+      this.prisma,
+      userId,
+      loan.warehouse.obra.id,
+      dto.overrideReason,
+    );
+
     return this.prisma.toolLoan.update({
       where: { id },
       data: {
@@ -344,6 +390,7 @@ export class ToolLoansService {
         returnedById: userId,
         returnCondition: ToolLoanCondition.DAMAGED,
         returnNotes: 'Marcado como perdido',
+        returnOverrideReason: dto.overrideReason?.trim() || null,
       },
       include: TOOL_LOAN_INCLUDE,
     });

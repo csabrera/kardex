@@ -6,6 +6,7 @@ import {
   IsNumber,
   IsOptional,
   IsString,
+  MaxLength,
   Min,
   ValidateNested,
 } from 'class-validator';
@@ -80,6 +81,15 @@ export class ReceiveTransferDto {
   @IsOptional()
   @IsString()
   notes?: string;
+
+  @ApiPropertyOptional({
+    description:
+      'Motivo de excepción al recibir cuando quien actúa no es residente responsable ni almacenero',
+  })
+  @IsOptional()
+  @IsString()
+  @MaxLength(500)
+  overrideReason?: string;
 }
 
 class ReceivedItemDto {
@@ -98,4 +108,24 @@ export class RejectTransferDto {
   @ApiProperty()
   @IsString()
   reason: string;
+
+  @ApiPropertyOptional({
+    description:
+      'Motivo de excepción al rechazar cuando quien actúa no es residente responsable ni almacenero',
+  })
+  @IsOptional()
+  @IsString()
+  @MaxLength(500)
+  overrideReason?: string;
+}
+
+export class CancelTransferDto {
+  @ApiPropertyOptional({
+    description:
+      'Motivo de excepción al cancelar cuando quien actúa no es residente responsable ni almacenero',
+  })
+  @IsOptional()
+  @IsString()
+  @MaxLength(500)
+  overrideReason?: string;
 }

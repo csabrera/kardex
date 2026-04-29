@@ -57,6 +57,7 @@ export interface EPPAssignment {
   movementId?: string | null;
   movement?: { id: string; code: string } | null;
   notes?: string | null;
+  overrideReason?: string | null;
   createdAt: string;
 }
 
@@ -79,6 +80,7 @@ export interface AssignEPPDto {
   warehouseId: string;
   quantity: number;
   notes?: string;
+  overrideReason?: string;
 }
 
 export interface ReplaceEPPDto {
@@ -86,6 +88,7 @@ export interface ReplaceEPPDto {
   reason: ReplacementReason;
   warehouseId: string;
   notes?: string;
+  overrideReason?: string;
 }
 
 const BASE = '/epp';

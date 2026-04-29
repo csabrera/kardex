@@ -172,6 +172,11 @@ describe('TransfersService', () => {
           }),
         ),
       },
+      // assertOverrideReasonIfNeeded query obra cuando user es RESIDENTE.
+      // Por default 'resident-1' es responsable de obra-1.
+      obra: {
+        findUnique: jest.fn().mockResolvedValue({ responsibleUserId: 'resident-1' }),
+      },
       $transaction: jest
         .fn()
         .mockImplementation(async (cb: (tx: any) => Promise<unknown>) => cb(txMock)),
@@ -368,7 +373,7 @@ describe('TransfersService', () => {
         quantity: 40,
         version: 0,
       });
-      await service.cancel('t-1', 'user-1');
+      await service.cancel('t-1', {}, 'user-1');
       expect(state.transfer.status).toBe(TransferStatus.CANCELADA);
       expect(state.stocks[0].quantity).toBe(50); // devolvió 10 al origen
     });
@@ -380,7 +385,7 @@ describe('TransfersService', () => {
         TransferStatus.CANCELADA,
       ]) {
         state.transfer.status = terminal;
-        await expect(service.cancel('t-1', 'user-1')).rejects.toMatchObject({
+        await expect(service.cancel('t-1', {}, 'user-1')).rejects.toMatchObject({
           errorCode: 'TRANSFER_INVALID_STATE',
         });
       }
@@ -395,7 +400,7 @@ describe('TransfersService', () => {
         quantity: 40,
         version: 0,
       });
-      await service.cancel('t-1', 'user-1');
+      await service.cancel('t-1', {}, 'user-1');
       expect(realtimeMock.emitToWarehouse).toHaveBeenCalledWith(
         expect.any(String),
         'transfer.cancelled',
@@ -441,24 +446,39 @@ describe('TransfersService', () => {
       ).rejects.toMatchObject({ errorCode: 'PERMISSION_DENIED' });
     });
 
-    it('ADMIN puede recibir como override (no requiere ser responsable)', async () => {
-      prismaMock.user.findUnique.mockResolvedValueOnce({
-        id: 'admin-1',
-        role: { name: 'ADMIN' },
-      });
+    it('ADMIN puede recibir como override SI proporciona overrideReason', async () => {
+      // ADMIN aparece dos veces porque el helper hace su propia query del user.
+      prismaMock.user.findUnique
+        .mockResolvedValueOnce({ id: 'admin-1', role: { name: 'ADMIN' } })
+        .mockResolvedValueOnce({ id: 'admin-1', role: { name: 'ADMIN' } });
       await service.receive(
         't-1',
-        { items: [{ transferItemId: 'ti-1', receivedQty: 10 }] },
+        {
+          items: [{ transferItemId: 'ti-1', receivedQty: 10 }],
+          overrideReason: 'Residente ausente — recepción urgente',
+        },
         'admin-1',
       );
       expect(state.transfer.status).toBe(TransferStatus.RECIBIDA);
     });
 
-    it('ALMACENERO puede recibir como override', async () => {
-      prismaMock.user.findUnique.mockResolvedValueOnce({
-        id: 'alm-1',
-        role: { name: 'ALMACENERO' },
-      });
+    it('ADMIN sin overrideReason es rechazado con INVALID_INPUT', async () => {
+      prismaMock.user.findUnique
+        .mockResolvedValueOnce({ id: 'admin-1', role: { name: 'ADMIN' } })
+        .mockResolvedValueOnce({ id: 'admin-1', role: { name: 'ADMIN' } });
+      await expect(
+        service.receive(
+          't-1',
+          { items: [{ transferItemId: 'ti-1', receivedQty: 10 }] },
+          'admin-1',
+        ),
+      ).rejects.toMatchObject({ errorCode: 'INVALID_INPUT' });
+    });
+
+    it('ALMACENERO puede recibir sin justificación (flujo normal)', async () => {
+      prismaMock.user.findUnique
+        .mockResolvedValueOnce({ id: 'alm-1', role: { name: 'ALMACENERO' } })
+        .mockResolvedValueOnce({ id: 'alm-1', role: { name: 'ALMACENERO' } });
       await service.receive(
         't-1',
         { items: [{ transferItemId: 'ti-1', receivedQty: 10 }] },

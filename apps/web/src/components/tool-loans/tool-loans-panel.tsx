@@ -6,6 +6,7 @@ import { useState } from 'react';
 
 import { DataTable } from '@/components/data-table/data-table';
 import { rowNumberColumn } from '@/components/data-table/row-number-column';
+import { MarkLostLoanDialog } from '@/components/tool-loans/mark-lost-loan-dialog';
 import { NewLoanDialog } from '@/components/tool-loans/new-loan-dialog';
 import { ReturnLoanDialog } from '@/components/tool-loans/return-loan-dialog';
 import { ActionButton } from '@/components/ui/action-button';
@@ -29,6 +30,7 @@ import {
   type ToolLoan,
   type ToolLoanStatus,
 } from '@/hooks/use-tool-loans';
+import { useAuthStore } from '@/stores/use-auth-store';
 
 const STATUS_OPTIONS: { value: ToolLoanStatus | '_all' | '_overdue'; label: string }[] = [
   { value: '_all', label: 'Todos los estados' },
@@ -61,17 +63,23 @@ interface Props {
   headerAction?: React.ReactNode;
   /** Filtra por worker específico (usado en /empleados/[id] tab Préstamos). */
   workerId?: string;
+  /** Filtra por almacén específico (usado en ficha de almacén de obra). */
+  warehouseId?: string;
   /** Oculta el grid de StatCards (usado cuando va embebido en una ficha). */
   hideSummary?: boolean;
   /** Pre-selecciona obra al abrir el modal de Nuevo préstamo. */
   defaultObraId?: string;
+  /** Oculta el botón "Nuevo préstamo" — vista solo lectura (hub Principal del admin). */
+  hideNewAction?: boolean;
 }
 
 export function ToolLoansPanel({
   headerAction,
   workerId,
+  warehouseId,
   hideSummary,
   defaultObraId,
+  hideNewAction,
 }: Props) {
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(10);
@@ -81,10 +89,14 @@ export function ToolLoansPanel({
 
   const [showNew, setShowNew] = useState(false);
   const [toReturn, setToReturn] = useState<ToolLoan | null>(null);
+  const [toMarkLost, setToMarkLost] = useState<ToolLoan | null>(null);
+
+  const user = useAuthStore((s) => s.user);
+  const isAdmin = user?.role?.name === 'ADMIN';
 
   const markLost = useMarkToolLoanLost();
   const confirm = useConfirm();
-  const { data: summary } = useToolLoansSummary();
+  const { data: summary } = useToolLoansSummary(warehouseId);
   const { data, isLoading } = useToolLoans({
     page,
     pageSize,
@@ -92,24 +104,19 @@ export function ToolLoansPanel({
     overdueOnly: status === '_overdue' ? true : undefined,
     search: debouncedSearch || undefined,
     borrowerWorkerId: workerId,
+    warehouseId,
   });
 
-  const action = headerAction ?? (
-    <Button className="gap-2" onClick={() => setShowNew(true)}>
-      <Plus className="h-4 w-4" /> Nuevo préstamo
-    </Button>
-  );
+  const action = hideNewAction
+    ? null
+    : (headerAction ?? (
+        <Button className="gap-2" onClick={() => setShowNew(true)}>
+          <Plus className="h-4 w-4" /> Nuevo préstamo
+        </Button>
+      ));
 
   const columns: ColumnDef<ToolLoan>[] = [
     rowNumberColumn<ToolLoan>({ page, pageSize }),
-    {
-      accessorKey: 'code',
-      header: 'Código',
-      size: 110,
-      cell: ({ getValue }) => (
-        <span className="font-mono text-sm font-semibold">{getValue() as string}</span>
-      ),
-    },
     {
       id: 'item',
       header: 'Herramienta',
@@ -202,13 +209,18 @@ export function ToolLoansPanel({
               tone="destructive"
               disabled={markLost.isPending}
               onClick={async () => {
+                if (isAdmin) {
+                  // Admin debe dejar motivo de excepción → dialog dedicado
+                  setToMarkLost(row.original);
+                  return;
+                }
                 const ok = await confirm({
                   title: 'Marcar herramienta como perdida',
                   description: `¿Marcar "${row.original.item.name}" como perdida? Esta acción es irreversible y afecta al stock.`,
                   confirmText: 'Marcar como perdida',
                   tone: 'destructive',
                 });
-                if (ok) markLost.mutate(row.original.id);
+                if (ok) markLost.mutate({ id: row.original.id });
               }}
             />
           </div>
@@ -275,7 +287,7 @@ export function ToolLoansPanel({
             ))}
           </SelectContent>
         </Select>
-        <div className="w-full sm:ml-auto sm:w-auto">{action}</div>
+        {action && <div className="w-full sm:ml-auto sm:w-auto">{action}</div>}
       </div>
 
       <DataTable
@@ -295,6 +307,7 @@ export function ToolLoansPanel({
         lockedObraId={defaultObraId}
       />
       <ReturnLoanDialog loan={toReturn} onClose={() => setToReturn(null)} />
+      <MarkLostLoanDialog loan={toMarkLost} onClose={() => setToMarkLost(null)} />
     </div>
   );
 }

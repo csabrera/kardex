@@ -29,12 +29,16 @@ enum ObraStatus {
   FINALIZADA
 }
 
+// 3 tipos basados en el comportamiento operativo del ítem.
+// Reemplaza modelo previo de 5 valores (MATERIAL/HERRAMIENTA/EPP/EQUIPO/REPUESTO).
+// Mapping histórico aplicado en migration `20260429_consolidate_item_type_to_three`:
+//   MATERIAL, REPUESTO    → CONSUMO     (sale del almacén, no vuelve, sin tracking individual)
+//   HERRAMIENTA, EQUIPO   → PRESTAMO    (sale a obrero, vuelve con condición)
+//   EPP                   → ASIGNACION  (sale a obrero individual, no vuelve, con reposición)
 enum ItemType {
-  MATERIAL
-  HERRAMIENTA
-  EPP
-  EQUIPO
-  REPUESTO
+  CONSUMO
+  PRESTAMO
+  ASIGNACION
 }
 
 enum MovementType {
@@ -228,19 +232,18 @@ model Warehouse {
 }
 
 model Category {
-  id          String     @id @default(cuid())
-  code        String     @unique
+  id          String    @id @default(cuid())
+  code        String    @unique
   name        String
   description String?
-  parentId    String?
-  parent      Category?  @relation("CategoryHierarchy", fields: [parentId], references: [id])
-  children    Category[] @relation("CategoryHierarchy")
+  // Categorías son taxonomía libre — independientes del Tipo del ítem (ortogonales).
+  // El Tipo (Item.type) determina comportamiento; la Categoría es solo etiqueta para
+  // agrupar y reportar. Una categoría aparece para cualquier tipo de ítem.
   items       Item[]
-  createdAt   DateTime   @default(now())
-  updatedAt   DateTime   @updatedAt
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
   deletedAt   DateTime?
 
-  @@index([parentId])
   @@index([deletedAt])
   @@map("categories")
 }
@@ -262,7 +265,7 @@ model Item {
   code           String          @unique
   name           String
   description    String?
-  type           ItemType        @default(MATERIAL)
+  type           ItemType        @default(CONSUMO)
   categoryId     String
   category       Category        @relation(fields: [categoryId], references: [id])
   unitId         String
@@ -415,6 +418,13 @@ model Transfer {
   rejectedBy      User?          @relation("TransferRejected", fields: [rejectedById], references: [id])
   notes           String?
   rejectionReason String?
+
+  // Motivos de excepción operativa para auditar acciones que el flujo normal asigna
+  // a residente/almacenero pero que un admin haya tenido que ejecutar por ausencia.
+  receiveOverrideReason String?
+  rejectOverrideReason  String?
+  cancelOverrideReason  String?
+
   items           TransferItem[]
   createdAt       DateTime       @default(now())
   approvedAt      DateTime?
@@ -523,6 +533,13 @@ model ToolLoan {
   returnCondition ToolLoanCondition?
   returnNotes     String?
 
+  // Motivo de excepción al CREAR el préstamo (admin actuando por ausencia del residente).
+  overrideReason String?
+
+  // Motivo de excepción al CERRAR el préstamo (devolver o marcar perdido).
+  // Se exige cuando el actor NO es residente responsable ni almacenero.
+  returnOverrideReason String?
+
   status    ToolLoanStatus @default(ACTIVE)
   createdAt DateTime       @default(now())
   updatedAt DateTime       @updatedAt
@@ -578,6 +595,10 @@ model EPPAssignment {
   // Movimiento SALIDA generado por esta asignación (para trazabilidad)
   movementId String?   @unique
   movement   Movement? @relation("EPPMovement", fields: [movementId], references: [id])
+
+  // Motivo de excepción: requerido cuando quien asigna no es residente responsable ni almacenero
+  // (típicamente admin actuando por ausencia de residente). Auditoría operativa.
+  overrideReason String?
 
   notes     String?
   createdAt DateTime @default(now())

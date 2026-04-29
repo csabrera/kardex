@@ -28,6 +28,9 @@ export interface Transfer {
   rejectedBy?: { id: string; firstName: string; lastName: string } | null;
   notes?: string | null;
   rejectionReason?: string | null;
+  receiveOverrideReason?: string | null;
+  rejectOverrideReason?: string | null;
+  cancelOverrideReason?: string | null;
   items: TransferItemData[];
   createdAt: string;
   approvedAt?: string | null;
@@ -118,12 +121,16 @@ export function useReceiveTransfer() {
       id,
       items,
       notes,
+      overrideReason,
     }: {
       id: string;
       items: { transferItemId: string; receivedQty: number }[];
       notes?: string;
+      overrideReason?: string;
     }) =>
-      apiClient.patch(`${BASE}/${id}/receive`, { items, notes }).then((r) => r.data.data),
+      apiClient
+        .patch(`${BASE}/${id}/receive`, { items, notes, overrideReason })
+        .then((r) => r.data.data),
     onSuccess: () => {
       invalidateTransfers(qc);
       toast.success('Recepción confirmada · stock destino actualizado');
@@ -136,8 +143,18 @@ export function useReceiveTransfer() {
 export function useRejectTransfer() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: ({ id, reason }: { id: string; reason: string }) =>
-      apiClient.patch(`${BASE}/${id}/reject`, { reason }).then((r) => r.data.data),
+    mutationFn: ({
+      id,
+      reason,
+      overrideReason,
+    }: {
+      id: string;
+      reason: string;
+      overrideReason?: string;
+    }) =>
+      apiClient
+        .patch(`${BASE}/${id}/reject`, { reason, overrideReason })
+        .then((r) => r.data.data),
     onSuccess: () => {
       invalidateTransfers(qc);
       toast.success('Transferencia rechazada · stock devuelto al origen');
@@ -150,8 +167,10 @@ export function useRejectTransfer() {
 export function useCancelTransfer() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: (id: string) =>
-      apiClient.patch(`${BASE}/${id}/cancel`).then((r) => r.data.data),
+    mutationFn: ({ id, overrideReason }: { id: string; overrideReason?: string }) =>
+      apiClient
+        .patch(`${BASE}/${id}/cancel`, { overrideReason })
+        .then((r) => r.data.data),
     onSuccess: () => {
       invalidateTransfers(qc);
       toast.success('Transferencia cancelada · stock devuelto al origen');

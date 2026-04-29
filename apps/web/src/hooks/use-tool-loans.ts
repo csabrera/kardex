@@ -43,6 +43,8 @@ export interface ToolLoan {
   returnCondition?: ToolLoanCondition | null;
   borrowerNotes?: string | null;
   returnNotes?: string | null;
+  overrideReason?: string | null;
+  returnOverrideReason?: string | null;
 }
 
 interface ToolLoansQuery {
@@ -65,6 +67,7 @@ export interface CreateToolLoanDto {
   quantity: number;
   expectedReturnAt: string;
   borrowerNotes?: string;
+  overrideReason?: string;
 }
 
 const BASE = '/tool-loans';
@@ -115,13 +118,15 @@ export function useReturnToolLoan() {
       id,
       condition,
       notes,
+      overrideReason,
     }: {
       id: string;
       condition: ToolLoanCondition;
       notes?: string;
+      overrideReason?: string;
     }) =>
       apiClient
-        .patch(`${BASE}/${id}/return`, { condition, notes })
+        .patch(`${BASE}/${id}/return`, { condition, notes, overrideReason })
         .then((r) => r.data.data),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['tool-loans'] });
@@ -136,8 +141,10 @@ export function useReturnToolLoan() {
 export function useMarkToolLoanLost() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: (id: string) =>
-      apiClient.patch(`${BASE}/${id}/mark-lost`).then((r) => r.data.data),
+    mutationFn: ({ id, overrideReason }: { id: string; overrideReason?: string }) =>
+      apiClient
+        .patch(`${BASE}/${id}/mark-lost`, { overrideReason })
+        .then((r) => r.data.data),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['tool-loans'] });
       qc.invalidateQueries({ queryKey: ['dashboard-stats'] });

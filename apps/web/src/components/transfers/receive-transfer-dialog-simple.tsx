@@ -1,6 +1,6 @@
 'use client';
 
-import { CheckCircle2, Loader2, Package } from 'lucide-react';
+import { AlertCircle, CheckCircle2, Loader2, Package } from 'lucide-react';
 import { useEffect, useState } from 'react';
 
 import { Button } from '@/components/ui/button';
@@ -13,8 +13,10 @@ import {
 } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { Textarea } from '@/components/ui/textarea';
 import { useReceiveTransfer, type Transfer } from '@/hooks/use-transfers';
 import { cn } from '@/lib/cn';
+import { useAuthStore } from '@/stores/use-auth-store';
 
 interface Props {
   transfer: Transfer | null;
@@ -43,6 +45,11 @@ export function ReceiveTransferDialogSimple({ transfer, onClose }: Props) {
 
   const [lines, setLines] = useState<LineState[]>([]);
   const [notes, setNotes] = useState('');
+  const [overrideReason, setOverrideReason] = useState('');
+  const [overrideError, setOverrideError] = useState<string | null>(null);
+
+  const user = useAuthStore((s) => s.user);
+  const needsOverride = user?.role?.name === 'ADMIN';
 
   useEffect(() => {
     if (!transfer) return;
@@ -61,6 +68,8 @@ export function ReceiveTransferDialogSimple({ transfer, onClose }: Props) {
       }),
     );
     setNotes('');
+    setOverrideReason('');
+    setOverrideError(null);
   }, [transfer]);
 
   const toggleConforme = (idx: number) => {
@@ -87,6 +96,14 @@ export function ReceiveTransferDialogSimple({ transfer, onClose }: Props) {
 
   const handleSubmit = () => {
     if (!transfer) return;
+    if (needsOverride) {
+      const trimmed = overrideReason.trim();
+      if (trimmed.length < 5) {
+        setOverrideError('Requerido como administrador (mínimo 5 caracteres)');
+        return;
+      }
+    }
+    setOverrideError(null);
     mutation.mutate(
       {
         id: transfer.id,
@@ -95,6 +112,7 @@ export function ReceiveTransferDialogSimple({ transfer, onClose }: Props) {
           receivedQty: l.receivedQty,
         })),
         notes: notes.trim() || undefined,
+        overrideReason: needsOverride ? overrideReason.trim() : undefined,
       },
       { onSuccess: onClose },
     );
@@ -200,6 +218,39 @@ export function ReceiveTransferDialogSimple({ transfer, onClose }: Props) {
                 placeholder="Opcional — motivo si hay discrepancia"
               />
             </div>
+
+            {needsOverride && (
+              <div className="rounded-md border border-amber-300 bg-amber-50/70 dark:bg-amber-950/30 p-3 space-y-2">
+                <div className="flex items-start gap-2">
+                  <AlertCircle className="h-4 w-4 text-amber-600 dark:text-amber-400 shrink-0 mt-0.5" />
+                  <div className="text-xs text-amber-900 dark:text-amber-100 space-y-1">
+                    <p className="font-medium">
+                      Estás recibiendo esta transferencia como administrador
+                    </p>
+                    <p className="text-amber-800 dark:text-amber-200/90">
+                      Solo el residente verifica que la mercadería llegó correctamente al
+                      almacén de la obra. Deja constancia del motivo.
+                    </p>
+                  </div>
+                </div>
+                <div className="space-y-1.5 pl-6">
+                  <Label htmlFor="receiveOverrideReason" className="text-xs">
+                    Motivo de excepción *
+                  </Label>
+                  <Textarea
+                    id="receiveOverrideReason"
+                    value={overrideReason}
+                    onChange={(e) => setOverrideReason(e.target.value)}
+                    placeholder="Ej: Residente ausente — recepción urgente para iniciar obra"
+                    rows={2}
+                    className="text-sm"
+                  />
+                  {overrideError && (
+                    <p className="text-xs text-destructive">{overrideError}</p>
+                  )}
+                </div>
+              </div>
+            )}
 
             <div className="flex justify-end gap-2 pt-2 border-t">
               <Button variant="outline" onClick={onClose}>

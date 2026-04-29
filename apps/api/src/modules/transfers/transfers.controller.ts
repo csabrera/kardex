@@ -7,6 +7,7 @@ import { RequirePermissions } from '../auth/decorators/permissions.decorator';
 import { PaginationQueryDto } from '../../common/dto/pagination.dto';
 import type { AuthenticatedRequest } from '../../common/types/authenticated-request';
 import {
+  CancelTransferDto,
   CreateTransferDto,
   ReceiveTransferDto,
   RejectTransferDto,
@@ -80,7 +81,11 @@ export class TransfersController {
 
   @Patch(':id/cancel')
   @RequirePermissions('transfers:cancel')
-  cancel(@Param('id') id: string, @Req() req: AuthenticatedRequest) {
-    return this.service.cancel(id, req.user.sub);
+  cancel(
+    @Param('id') id: string,
+    @Body() dto: CancelTransferDto,
+    @Req() req: AuthenticatedRequest,
+  ) {
+    return this.service.cancel(id, dto, req.user.sub);
   }
 }
