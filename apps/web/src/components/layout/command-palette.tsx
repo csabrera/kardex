@@ -80,10 +80,10 @@ const NAV_ITEMS: {
     keywords: 'transferir envío recepción',
   },
   {
-    label: 'EPP',
+    label: 'Asignación (EPP)',
     href: '/dashboard/almacen-principal?tab=epp',
     icon: Shield,
-    keywords: 'equipo proteccion personal casco guantes asignacion',
+    keywords: 'epp equipo proteccion personal casco guantes asignacion',
   },
   {
     label: 'Préstamos de herramientas',
@@ -137,7 +137,7 @@ const QUICK_ACTIONS: {
   },
   {
     label: 'Nueva transferencia',
-    href: '/dashboard/transferencias/nueva',
+    href: '/dashboard/almacen-principal?tab=transferencias&action=new',
     icon: ArrowRight,
   },
   {

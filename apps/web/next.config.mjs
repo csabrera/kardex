@@ -3,6 +3,10 @@ const nextConfig = {
   reactStrictMode: true,
   poweredByHeader: false,
 
+  // Output standalone: produce un build self-contained en .next/standalone con solo
+  // las dependencias necesarias, ideal para Docker. Reduce ~80% el tamaño de la imagen.
+  output: 'standalone',
+
   // ESLint: no bloquear el build por warnings/errors. El linting se ejecuta
   // por separado (`npm run lint`) y debe pasar como gate en CI antes del build.
   // Sin esto, `next build` falla por reglas de a11y y refactors pendientes
@@ -77,6 +81,13 @@ const nextConfig = {
         // necesita query param porque es el default).
         source: '/dashboard/items',
         destination: '/dashboard/almacen-principal',
+        permanent: true,
+      },
+      {
+        // Cubre `/transferencias` (lista vieja) y `/transferencias/nueva`
+        // (form viejo, ahora modal en el hub).
+        source: '/dashboard/transferencias/:path*',
+        destination: '/dashboard/almacen-principal?tab=transferencias',
         permanent: true,
       },
       {

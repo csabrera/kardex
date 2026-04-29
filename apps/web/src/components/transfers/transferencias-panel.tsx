@@ -2,11 +2,12 @@
 
 import { type ColumnDef } from '@tanstack/react-table';
 import { ArrowRight, Eye, Plus } from 'lucide-react';
-import Link from 'next/link';
-import { useState } from 'react';
+import { useRouter, useSearchParams } from 'next/navigation';
+import { useEffect, useState } from 'react';
 
 import { DataTable } from '@/components/data-table/data-table';
 import { rowNumberColumn } from '@/components/data-table/row-number-column';
+import { NewTransferDialog } from '@/components/transfers/new-transfer-dialog';
 import { TransferDetail } from '@/components/transfers/transfer-detail';
 import { TransferStatusBadge } from '@/components/transfers/transfer-status-badge';
 import { ActionButton } from '@/components/ui/action-button';
@@ -42,12 +43,28 @@ interface Props {
  * Reutilizable: vive como tab dentro de `/almacen-principal?tab=transferencias`.
  */
 export function TransferenciasPanel({ headerAction }: Props) {
+  const router = useRouter();
+  const searchParams = useSearchParams();
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(10);
   const [search, setSearch] = useState('');
   const [status, setStatus] = useState<TransferStatus | '_all'>('_all');
   const debouncedSearch = useDebounce(search, 300);
   const [detail, setDetail] = useState<Transfer | null>(null);
+  const [showNew, setShowNew] = useState(false);
+
+  // Deep-link `?action=new` (Command Palette o redirect de /transferencias/nueva):
+  // abre el modal automáticamente y limpia el query param.
+  useEffect(() => {
+    if (searchParams.get('action') !== 'new') return;
+    setShowNew(true);
+    const params = new URLSearchParams(searchParams.toString());
+    params.delete('action');
+    const qs = params.toString();
+    router.replace(`/dashboard/almacen-principal${qs ? `?${qs}` : ''}`, {
+      scroll: false,
+    });
+  }, [searchParams, router]);
 
   const { data, isLoading } = useTransfers({
     page,
@@ -57,23 +74,13 @@ export function TransferenciasPanel({ headerAction }: Props) {
   });
 
   const action = headerAction ?? (
-    <Button asChild className="gap-2">
-      <Link href="/dashboard/transferencias/nueva">
-        <Plus className="h-4 w-4" /> Nueva transferencia
-      </Link>
+    <Button onClick={() => setShowNew(true)} className="gap-2">
+      <Plus className="h-4 w-4" /> Nueva transferencia
     </Button>
   );
 
   const columns: ColumnDef<Transfer>[] = [
     rowNumberColumn<Transfer>({ page, pageSize }),
-    {
-      accessorKey: 'code',
-      header: 'Código',
-      size: 120,
-      cell: ({ getValue }) => (
-        <span className="font-mono text-sm font-semibold">{getValue() as string}</span>
-      ),
-    },
     {
       id: 'route',
       header: 'Ruta',
@@ -174,13 +181,15 @@ export function TransferenciasPanel({ headerAction }: Props) {
       />
 
       <Dialog open={!!detail} onOpenChange={(v) => !v && setDetail(null)}>
-        <DialogContent className="max-w-2xl max-h-[85vh] overflow-y-auto">
+        <DialogContent className="max-w-2xl">
           <DialogHeader>
             <DialogTitle>Detalle de transferencia</DialogTitle>
           </DialogHeader>
           {detail && <TransferDetail transfer={detail} onClose={() => setDetail(null)} />}
         </DialogContent>
       </Dialog>
+
+      <NewTransferDialog open={showNew} onClose={() => setShowNew(false)} />
     </div>
   );
 }
