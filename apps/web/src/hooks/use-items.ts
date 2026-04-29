@@ -3,13 +3,7 @@ import { toast } from 'sonner';
 
 import { apiClient } from '@/lib/api-client';
 
-export type ItemType =
-  | 'MATERIAL'
-  | 'HERRAMIENTA'
-  | 'EPP'
-  | 'COMBUSTIBLE'
-  | 'EQUIPO'
-  | 'REPUESTO';
+export type ItemType = 'MATERIAL' | 'HERRAMIENTA' | 'EPP' | 'EQUIPO' | 'REPUESTO';
 
 export interface Item {
   id: string;

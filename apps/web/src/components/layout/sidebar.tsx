@@ -43,8 +43,8 @@ type NavSection = { title?: string; items: NavItem[] };
 
 // ──────────────────────────────────────────────────────────────────────
 // ALMACENERO — operativo, hub = /almacen-principal con tabs
-// (las URLs viejas /transferencias, /epp, /herramientas, /combustible,
-//  /mantenimientos, /inventarios redirigen al tab correspondiente)
+// (las URLs viejas /transferencias, /epp, /herramientas, /mantenimientos,
+//  /inventarios redirigen al tab correspondiente)
 // ──────────────────────────────────────────────────────────────────────
 const ALMACENERO_SECTIONS: NavSection[] = [
   {

@@ -25,7 +25,6 @@ const ITEM_TYPE_MAP: Record<string, ItemType> = {
   MATERIAL: ItemType.MATERIAL,
   HERRAMIENTA: ItemType.HERRAMIENTA,
   EPP: ItemType.EPP,
-  COMBUSTIBLE: ItemType.COMBUSTIBLE,
   EQUIPO: ItemType.EQUIPO,
   REPUESTO: ItemType.REPUESTO,
 };

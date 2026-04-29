@@ -95,11 +95,6 @@ const nextConfig = {
         permanent: true,
       },
       {
-        source: '/dashboard/combustible',
-        destination: '/dashboard/almacen-principal?tab=combustible',
-        permanent: true,
-      },
-      {
         source: '/dashboard/mantenimientos',
         destination: '/dashboard/almacen-principal?tab=mantenimientos',
         permanent: true,

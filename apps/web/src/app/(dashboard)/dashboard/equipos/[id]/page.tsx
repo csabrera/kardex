@@ -4,7 +4,6 @@ import {
   ArrowLeft,
   Building,
   Calendar,
-  Droplet,
   Gauge,
   Plus,
   Settings,
@@ -24,8 +23,6 @@ import {
   YAxis,
 } from 'recharts';
 
-import { FuelDispatchesPanel } from '@/components/fuel/fuel-dispatches-panel';
-import { NewFuelDispatchDialog } from '@/components/fuel/new-fuel-dispatch-dialog';
 import { MaintenancePanel } from '@/components/maintenance/maintenance-panel';
 import { NewMaintenanceDialog } from '@/components/maintenance/new-maintenance-dialog';
 import { Badge } from '@/components/ui/badge';
@@ -39,7 +36,6 @@ import {
   useEquipmentReadings,
   type EquipmentStatus,
 } from '@/hooks/use-equipment';
-import { useFuelDispatches } from '@/hooks/use-fuel';
 import { useMaintenances } from '@/hooks/use-maintenance';
 import { cn } from '@/lib/cn';
 
@@ -73,22 +69,14 @@ export default function EquipmentDetailPage() {
 
   const { data: equipment, isLoading } = useEquipment(id);
   const { data: readings = [] } = useEquipmentReadings(id);
-  // Solo cargamos los counts para los KPIs (los listados los cubren los Panels en cada tab).
-  const { data: fuelPage } = useFuelDispatches({
-    equipmentId: id,
-    pageSize: 1,
-    enabled: !!id,
-  } as any);
+  // Solo cargamos el count para el KPI (el listado lo cubre el Panel en su tab).
   const { data: maintenancePage } = useMaintenances({
     equipmentId: id,
     pageSize: 1,
     enabled: !!id,
   } as any);
 
-  const [activeTab, setActiveTab] = useState<'info' | 'combustible' | 'mantenimientos'>(
-    'info',
-  );
-  const [fuelOpen, setFuelOpen] = useState(false);
+  const [activeTab, setActiveTab] = useState<'info' | 'mantenimientos'>('info');
   const [maintenanceOpen, setMaintenanceOpen] = useState(false);
 
   const chartData = useMemo(
@@ -210,11 +198,6 @@ export default function EquipmentDetailPage() {
           icon={Calendar}
         />
         <KpiCard
-          label="Despachos combustible"
-          value={fuelPage?.total ?? 0}
-          icon={Droplet}
-        />
-        <KpiCard
           label="Mantenimientos"
           value={maintenancePage?.total ?? 0}
           icon={Wrench}
@@ -225,9 +208,6 @@ export default function EquipmentDetailPage() {
         <TabsList>
           <TabsTrigger value="info" icon={Settings}>
             Información
-          </TabsTrigger>
-          <TabsTrigger value="combustible" icon={Droplet} badge={fuelPage?.total ?? 0}>
-            Combustible
           </TabsTrigger>
           <TabsTrigger
             value="mantenimientos"
@@ -388,17 +368,6 @@ export default function EquipmentDetailPage() {
           )}
         </TabsContent>
 
-        <TabsContent value="combustible" className="mt-5">
-          <FuelDispatchesPanel
-            equipmentId={id}
-            headerAction={
-              <Button onClick={() => setFuelOpen(true)} className="gap-2">
-                <Plus className="h-4 w-4" /> Nuevo despacho
-              </Button>
-            }
-          />
-        </TabsContent>
-
         <TabsContent value="mantenimientos" className="mt-5">
           <MaintenancePanel
             equipmentId={id}
@@ -411,7 +380,6 @@ export default function EquipmentDetailPage() {
         </TabsContent>
       </Tabs>
 
-      <NewFuelDispatchDialog open={fuelOpen} onClose={() => setFuelOpen(false)} />
       <NewMaintenanceDialog
         open={maintenanceOpen}
         onClose={() => setMaintenanceOpen(false)}

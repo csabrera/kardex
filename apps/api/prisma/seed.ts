@@ -129,8 +129,6 @@ const BASE_PERMISSIONS = [
   { resource: 'maintenance', action: 'create' },
   { resource: 'maintenance', action: 'read' },
   { resource: 'maintenance', action: 'update' },
-  { resource: 'fuel', action: 'create' },
-  { resource: 'fuel', action: 'read' },
   // Workers & EPP
   { resource: 'workers', action: 'create' },
   { resource: 'workers', action: 'read' },
@@ -222,10 +220,6 @@ const ROLE_PERMISSIONS: Record<string, string[]> = {
     'equipment:read',
     'equipment:update',
 
-    // Combustible — despachos
-    'fuel:create',
-    'fuel:read',
-
     // Mantenimientos — programa, ejecuta, completa
     'maintenance:create',
     'maintenance:read',
@@ -285,7 +279,6 @@ const ROLE_PERMISSIONS: Record<string, string[]> = {
     // Consultas operativas
     'alerts:read',
     'equipment:read',
-    'fuel:read',
     'maintenance:read',
     'inventory:read',
 
@@ -495,11 +488,6 @@ const BASE_CATEGORIES = [
     description: 'Pinturas, barnices, disolventes, brochas',
   },
   { code: 'HERRAMIENTAS', name: 'Herramientas', description: 'Manuales y eléctricas' },
-  {
-    code: 'COMBUSTIBLES',
-    name: 'Combustibles y lubricantes',
-    description: 'Diesel, gasolina, aceites, grasas',
-  },
   {
     code: 'REPUESTOS',
     name: 'Repuestos',

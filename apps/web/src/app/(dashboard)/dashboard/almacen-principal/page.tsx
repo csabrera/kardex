@@ -4,7 +4,6 @@ import {
   AlertTriangle,
   Box,
   ClipboardCheck,
-  Droplet,
   FileText,
   Package,
   Shield,
@@ -17,7 +16,6 @@ import { useRouter, useSearchParams } from 'next/navigation';
 import { useCallback } from 'react';
 
 import { EppPanel } from '@/components/epp/epp-panel';
-import { FuelDispatchesPanel } from '@/components/fuel/fuel-dispatches-panel';
 import { InventoryCountsPanel } from '@/components/inventory/inventory-counts-panel';
 import { ItemsPanel } from '@/components/items/items-panel';
 import { MaintenancePanel } from '@/components/maintenance/maintenance-panel';
@@ -43,7 +41,6 @@ type TabId =
   | 'transferencias'
   | 'prestamos'
   | 'epp'
-  | 'combustible'
   | 'mantenimientos'
   | 'inventarios';
 
@@ -53,7 +50,6 @@ const TABS: { id: TabId; label: string; icon: React.ElementType }[] = [
   { id: 'transferencias', label: 'Transferencias', icon: WarehouseIcon },
   { id: 'prestamos', label: 'Préstamos', icon: Wrench },
   { id: 'epp', label: 'EPP', icon: Shield },
-  { id: 'combustible', label: 'Combustible', icon: Droplet },
   { id: 'mantenimientos', label: 'Mantenimientos', icon: Wrench },
   { id: 'inventarios', label: 'Inventarios', icon: ClipboardCheck },
 ];
@@ -195,10 +191,6 @@ export default function AlmacenPrincipalPage() {
 
         <TabsContent value="epp" className="mt-5">
           <EppPanel />
-        </TabsContent>
-
-        <TabsContent value="combustible" className="mt-5">
-          <FuelDispatchesPanel />
         </TabsContent>
 
         <TabsContent value="mantenimientos" className="mt-5">

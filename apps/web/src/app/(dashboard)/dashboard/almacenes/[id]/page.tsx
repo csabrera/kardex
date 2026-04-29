@@ -33,7 +33,6 @@ const TYPE_COLORS: Record<string, string> = {
   MATERIAL: 'hsl(217 91% 60%)',
   HERRAMIENTA: 'hsl(38 92% 55%)',
   EPP: 'hsl(142 71% 45%)',
-  COMBUSTIBLE: 'hsl(0 72% 55%)',
   EQUIPO: 'hsl(270 60% 55%)',
   REPUESTO: 'hsl(200 30% 50%)',
 };
@@ -42,7 +41,6 @@ const TYPE_LABELS: Record<string, string> = {
   MATERIAL: 'Material',
   HERRAMIENTA: 'Herramienta',
   EPP: 'EPP',
-  COMBUSTIBLE: 'Combustible',
   EQUIPO: 'Equipo',
   REPUESTO: 'Repuesto',
 };

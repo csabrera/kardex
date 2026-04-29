@@ -33,7 +33,6 @@ enum ItemType {
   MATERIAL
   HERRAMIENTA
   EPP
-  COMBUSTIBLE
   EQUIPO
   REPUESTO
 }
@@ -106,7 +105,6 @@ model User {
   toolLoansReturned   ToolLoan[]           @relation("ToolLoanReturnedBy")
   obrasResponsible    Obra[]               @relation("ObraResponsible")
   eppAssigned         EPPAssignment[]      @relation("EPPAssignedBy")
-  fuelDispatches      FuelDispatch[]       @relation("FuelDispatchDispatchedBy")
   maintenancesLed     Maintenance[]        @relation("MaintenanceTechnician")
   inventoryCountsStarted    InventoryCount[] @relation("InventoryCountStartedBy")
   inventoryCountsClosed     InventoryCount[] @relation("InventoryCountClosedBy")
@@ -222,7 +220,6 @@ model Warehouse {
   transfersTo      Transfer[]        @relation("TransferTo")
   toolLoans        ToolLoan[]
   eppAssignments   EPPAssignment[]
-  fuelDispatches   FuelDispatch[]
   inventoryCounts  InventoryCount[]
   maintenanceItems MaintenanceItem[]
 
@@ -284,7 +281,6 @@ model Item {
   transferItems    TransferItem[]
   toolLoans        ToolLoan[]
   eppAssignments   EPPAssignment[]
-  fuelDispatches   FuelDispatch[]
   maintenanceItems MaintenanceItem[]
   inventoryCountItems InventoryCountItem[]
 
@@ -363,7 +359,6 @@ model Movement {
   notes           String?
   items           MovementItem[]
   eppAssignment   EPPAssignment?   @relation("EPPMovement")
-  fuelDispatch    FuelDispatch?    @relation("FuelDispatchMovement")
   maintenanceItem MaintenanceItem? @relation("MaintenanceItemMovement")
   inventoryCount  InventoryCount?  @relation("InventoryCountAdjustment")
   createdAt       DateTime         @default(now())
@@ -657,7 +652,6 @@ model Equipment {
   deletedAt         DateTime?
 
   countReadings     EquipmentCountReading[]
-  fuelDispatches    FuelDispatch[]
   maintenances      Maintenance[]
 
   @@index([type])
@@ -675,13 +669,13 @@ model EquipmentSequence {
 }
 
 /// Histórico de lecturas del contador (horómetro/km) del equipo.
-/// Lo alimentan: despachos de combustible, inicio/fin de mantenimiento, y lecturas manuales.
+/// Lo alimentan: inicio/fin de mantenimiento y lecturas manuales.
 model EquipmentCountReading {
   id           String    @id @default(cuid())
   equipmentId  String
   equipment    Equipment @relation(fields: [equipmentId], references: [id], onDelete: Cascade)
   countValue   Decimal   @db.Decimal(12, 2)
-  source       String // 'FUEL_DISPATCH' | 'MAINTENANCE_START' | 'MAINTENANCE_END' | 'MANUAL'
+  source       String // 'MAINTENANCE_START' | 'MAINTENANCE_END' | 'MANUAL'
   sourceId     String?
   notes        String?
   recordedAt   DateTime  @default(now())
@@ -689,44 +683,6 @@ model EquipmentCountReading {
 
   @@index([equipmentId, recordedAt])
   @@map("equipment_count_readings")
-}
-
-// ============================================================================
-// COMBUSTIBLE (Fase 6D)
-// ============================================================================
-
-model FuelDispatch {
-  id              String    @id @default(cuid())
-  code            String    @unique
-  equipmentId     String
-  equipment       Equipment @relation(fields: [equipmentId], references: [id])
-  itemId          String
-  item            Item      @relation(fields: [itemId], references: [id])
-  warehouseId     String
-  warehouse       Warehouse @relation(fields: [warehouseId], references: [id])
-  quantity        Decimal   @db.Decimal(12, 3)
-  countReading    Decimal   @db.Decimal(12, 2)
-  operatorWorkerId String?
-  operatorWorker  Worker?   @relation("FuelDispatchOperator", fields: [operatorWorkerId], references: [id])
-  dispatchedById  String
-  dispatchedBy    User      @relation("FuelDispatchDispatchedBy", fields: [dispatchedById], references: [id])
-  movementId      String?   @unique
-  movement        Movement? @relation("FuelDispatchMovement", fields: [movementId], references: [id])
-  notes           String?
-  createdAt       DateTime  @default(now())
-
-  @@index([equipmentId])
-  @@index([itemId])
-  @@index([warehouseId])
-  @@index([createdAt])
-  @@map("fuel_dispatches")
-}
-
-model FuelDispatchSequence {
-  id        Int @id @default(1)
-  lastValue Int @default(0)
-
-  @@map("fuel_dispatch_sequence")
 }
 
 // ============================================================================
@@ -887,7 +843,6 @@ model Worker {
 
   toolLoans      ToolLoan[]      @relation("ToolLoanBorrower")
   eppAssignments EPPAssignment[]
-  fuelDispatches FuelDispatch[]  @relation("FuelDispatchOperator")
 
   @@unique([documentType, documentNumber, deletedAt])
   @@index([specialtyId])

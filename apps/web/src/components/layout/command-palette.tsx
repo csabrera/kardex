@@ -8,7 +8,6 @@ import {
   Building,
   Building2,
   ClipboardCheck,
-  Droplet,
   FileText,
   HardHat,
   LayoutDashboard,
@@ -91,12 +90,6 @@ const NAV_ITEMS: {
     href: '/dashboard/equipos',
     icon: Truck,
     keywords: 'maquinaria vehiculos horometro',
-  },
-  {
-    label: 'Combustible',
-    href: '/dashboard/almacen-principal?tab=combustible',
-    icon: Droplet,
-    keywords: 'gasolina diesel despacho abastecimiento',
   },
   {
     label: 'Mantenimientos',

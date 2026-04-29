@@ -18,7 +18,6 @@ import { DashboardModule } from './modules/dashboard/dashboard.module';
 import { EPPModule } from './modules/epp/epp.module';
 import { EquipmentModule } from './modules/equipment/equipment.module';
 import { ExportModule } from './modules/export/export.module';
-import { FuelModule } from './modules/fuel/fuel.module';
 import { InventoryCountsModule } from './modules/inventory-counts/inventory-counts.module';
 import { MaintenanceModule } from './modules/maintenance/maintenance.module';
 import { ObrasModule } from './modules/obras/obras.module';
@@ -64,7 +63,6 @@ import { PrismaModule } from './prisma/prisma.module';
     EPPModule,
     EquipmentModule,
     ExportModule,
-    FuelModule,
     InventoryCountsModule,
     MaintenanceModule,
     ReportsModule,

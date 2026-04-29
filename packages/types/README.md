@@ -39,7 +39,7 @@ import { BusinessErrorCode, isApiError } from '@kardex/types/errors';
 - `MovementType`: ENTRADA, SALIDA, AJUSTE
 - `MovementSourceType`: COMPRA, CONSUMO, TRANSFERENCIA, etc.
 - `TransferStatus`: SOLICITADA, APROBADA, EN_TRANSITO, RECIBIDA, etc.
-- `ItemType`: MATERIAL, HERRAMIENTA, EPP, COMBUSTIBLE, REPUESTO, EQUIPO
+- `ItemType`: MATERIAL, HERRAMIENTA, EPP, REPUESTO, EQUIPO
 - `WarehouseType`: CENTRAL, OBRA
 - `AlertType` / `AlertLevel`
 

@@ -9,7 +9,6 @@ import {
   Box,
   ChevronDown,
   Cog,
-  Droplet,
   Edit2,
   ExternalLink,
   FileUp,
@@ -98,12 +97,6 @@ const ITEM_TYPE_META: Record<
     description: 'Cascos, arneses, guantes',
     variant: 'success',
   },
-  COMBUSTIBLE: {
-    label: 'Combustible',
-    icon: Droplet,
-    description: 'Diesel, gasolina, GLP',
-    variant: 'destructive',
-  },
   EQUIPO: {
     label: 'Equipo',
     icon: Truck,
@@ -118,14 +111,7 @@ const ITEM_TYPE_META: Record<
   },
 };
 
-const ITEM_TYPES: ItemType[] = [
-  'MATERIAL',
-  'HERRAMIENTA',
-  'EPP',
-  'COMBUSTIBLE',
-  'EQUIPO',
-  'REPUESTO',
-];
+const ITEM_TYPES: ItemType[] = ['MATERIAL', 'HERRAMIENTA', 'EPP', 'EQUIPO', 'REPUESTO'];
 
 // Motivos del movimiento inicial (reflejan MovementSource del backend)
 const INITIAL_SOURCES = [
@@ -138,7 +124,7 @@ const schema = z
   .object({
     name: z.string().min(1, 'Requerido').max(200),
     description: z.string().max(1000).optional(),
-    type: z.enum(['MATERIAL', 'HERRAMIENTA', 'EPP', 'COMBUSTIBLE', 'EQUIPO', 'REPUESTO']),
+    type: z.enum(['MATERIAL', 'HERRAMIENTA', 'EPP', 'EQUIPO', 'REPUESTO']),
     categoryId: z.string().min(1, 'Requerido'),
     unitId: z.string().min(1, 'Requerido'),
     minStock: z.coerce.number().min(0).optional(),
