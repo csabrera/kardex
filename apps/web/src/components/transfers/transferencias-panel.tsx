@@ -131,37 +131,35 @@ export function TransferenciasPanel({ headerAction }: Props) {
 
   return (
     <div className="space-y-4">
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <div className="flex flex-wrap gap-3">
-          <Input
-            placeholder="Buscar por código..."
-            value={search}
-            onChange={(e) => {
-              setSearch(e.target.value);
-              setPage(1);
-            }}
-            className="max-w-xs"
-          />
-          <Select
-            value={status}
-            onValueChange={(v) => {
-              setStatus(v as TransferStatus | '_all');
-              setPage(1);
-            }}
-          >
-            <SelectTrigger className="w-48">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              {STATUS_OPTIONS.map((o) => (
-                <SelectItem key={o.value} value={o.value}>
-                  {o.label}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        </div>
-        {action}
+      <div className="flex flex-wrap items-center gap-3">
+        <Input
+          placeholder="Buscar por código..."
+          value={search}
+          onChange={(e) => {
+            setSearch(e.target.value);
+            setPage(1);
+          }}
+          className="w-full sm:w-72"
+        />
+        <Select
+          value={status}
+          onValueChange={(v) => {
+            setStatus(v as TransferStatus | '_all');
+            setPage(1);
+          }}
+        >
+          <SelectTrigger className="w-full sm:w-48">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            {STATUS_OPTIONS.map((o) => (
+              <SelectItem key={o.value} value={o.value}>
+                {o.label}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+        <div className="w-full sm:ml-auto sm:w-auto">{action}</div>
       </div>
 
       <DataTable

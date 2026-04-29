@@ -60,25 +60,23 @@ export function InventoryCountsPanel({ headerAction }: Props) {
 
   return (
     <div className="space-y-4">
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <div className="max-w-[240px]">
-          <Select
-            value={status}
-            onValueChange={(v) => setStatus(v as InventoryCountStatus | 'ALL')}
-          >
-            <SelectTrigger>
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              {STATUS_OPTIONS.map((o) => (
-                <SelectItem key={o.value} value={o.value}>
-                  {o.label}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        </div>
-        {action}
+      <div className="flex flex-wrap items-center gap-3">
+        <Select
+          value={status}
+          onValueChange={(v) => setStatus(v as InventoryCountStatus | 'ALL')}
+        >
+          <SelectTrigger className="w-full sm:w-60">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            {STATUS_OPTIONS.map((o) => (
+              <SelectItem key={o.value} value={o.value}>
+                {o.label}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+        <div className="w-full sm:ml-auto sm:w-auto">{action}</div>
       </div>
 
       <div className="rounded-lg border bg-card">

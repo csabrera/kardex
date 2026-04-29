@@ -189,40 +189,38 @@ export function EppPanel({
 
   return (
     <div className="space-y-4">
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <div className="flex flex-wrap gap-3">
-          <Input
-            placeholder="Buscar por código, empleado o EPP..."
-            value={search}
-            onChange={(e) => {
-              setSearch(e.target.value);
+      <div className="flex flex-wrap items-center gap-3">
+        <Input
+          placeholder="Buscar por código, empleado o EPP..."
+          value={search}
+          onChange={(e) => {
+            setSearch(e.target.value);
+            setPage(1);
+          }}
+          className="w-full sm:w-72"
+        />
+        {!hideObraFilter && (
+          <Select
+            value={obraId}
+            onValueChange={(v) => {
+              setObraId(v);
               setPage(1);
             }}
-            className="max-w-sm"
-          />
-          {!hideObraFilter && (
-            <Select
-              value={obraId}
-              onValueChange={(v) => {
-                setObraId(v);
-                setPage(1);
-              }}
-            >
-              <SelectTrigger className="w-56">
-                <SelectValue placeholder="Obra" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="_all">Todas las obras</SelectItem>
-                {obrasData?.items.map((o) => (
-                  <SelectItem key={o.id} value={o.id}>
-                    {o.name}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          )}
-        </div>
-        {action}
+          >
+            <SelectTrigger className="w-full sm:w-56">
+              <SelectValue placeholder="Obra" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="_all">Todas las obras</SelectItem>
+              {obrasData?.items.map((o) => (
+                <SelectItem key={o.id} value={o.id}>
+                  {o.name}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        )}
+        <div className="w-full sm:ml-auto sm:w-auto">{action}</div>
       </div>
 
       <DataTable

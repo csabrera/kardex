@@ -122,7 +122,7 @@ export function MovementsPanel({ warehouseId, headerAction }: Props) {
 
   return (
     <div className="space-y-4">
-      <div className="flex flex-wrap items-center justify-between gap-3">
+      <div className="flex flex-wrap items-center gap-3">
         <Select
           value={type}
           onValueChange={(v) => {
@@ -130,7 +130,7 @@ export function MovementsPanel({ warehouseId, headerAction }: Props) {
             setPage(1);
           }}
         >
-          <SelectTrigger className="w-44">
+          <SelectTrigger className="w-full sm:w-44">
             <SelectValue placeholder="Tipo" />
           </SelectTrigger>
           <SelectContent>
@@ -140,7 +140,9 @@ export function MovementsPanel({ warehouseId, headerAction }: Props) {
             <SelectItem value="AJUSTE">Ajustes</SelectItem>
           </SelectContent>
         </Select>
-        {headerAction}
+        {headerAction && (
+          <div className="w-full sm:ml-auto sm:w-auto">{headerAction}</div>
+        )}
       </div>
 
       <DataTable
