@@ -41,8 +41,13 @@ export interface Configuration {
 export default (): Configuration => ({
   app: {
     env: process.env.NODE_ENV ?? 'development',
-    port: parseInt(process.env.API_PORT ?? '4000', 10),
-    host: process.env.API_HOST ?? 'localhost',
+    // Railway inyecta PORT automáticamente; en local usamos API_PORT.
+    port: parseInt(process.env.PORT ?? process.env.API_PORT ?? '4000', 10),
+    // En producción bindeamos a 0.0.0.0 para escuchar todas las interfaces
+    // del contenedor (Railway requiere esto). En local default localhost.
+    host:
+      process.env.API_HOST ??
+      (process.env.NODE_ENV === 'production' ? '0.0.0.0' : 'localhost'),
     corsOrigin: process.env.CORS_ORIGIN ?? 'http://localhost:3000',
     logLevel: process.env.LOG_LEVEL ?? 'debug',
   },

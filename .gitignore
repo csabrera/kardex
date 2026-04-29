@@ -35,8 +35,8 @@ Thumbs.db
 .DS_Store
 
 # Docker
-.dockerignore
 docker-compose.override.yml
+# (.dockerignore SÍ se versiona en cada app — es config del build de la imagen)
 
 # Logs
 logs/
@@ -56,3 +56,7 @@ testing/.auth/
 
 # Claude Code local state
 .claude/scheduled_tasks.lock
+
+# Claude Code skills (local IDE artifacts, not part of project)
+.agents/skills/
+.claude/skills/

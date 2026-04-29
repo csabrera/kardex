@@ -1,0 +1,32 @@
+# Build output (lo regeneramos en el contenedor)
+node_modules
+dist
+.turbo
+
+# Tests
+test
+coverage
+*.spec.ts
+*.spec.js
+
+# IDE / OS
+.vscode
+.idea
+.DS_Store
+*.swp
+
+# Logs
+*.log
+
+# Env files (Railway inyecta env vars, NUNCA copiar .env al image)
+.env
+.env.*
+!.env.example
+
+# Git
+.git
+.gitignore
+
+# Docker
+Dockerfile
+.dockerignore

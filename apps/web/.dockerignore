@@ -1,0 +1,32 @@
+# Build output
+node_modules
+.next
+out
+.turbo
+
+# Tests
+*.test.ts
+*.test.tsx
+coverage
+
+# IDE / OS
+.vscode
+.idea
+.DS_Store
+*.swp
+
+# Logs
+*.log
+
+# Env files
+.env
+.env.*
+!.env.example
+
+# Git
+.git
+.gitignore
+
+# Docker
+Dockerfile
+.dockerignore

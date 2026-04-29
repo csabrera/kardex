@@ -114,6 +114,17 @@ describe('MovementsService', () => {
       item: {
         findFirst: jest.fn().mockResolvedValue({ id: 'item-1', deletedAt: null }),
       },
+      supplier: {
+        // Validación condicional: si source=COMPRA, el service hace findFirst del supplier.
+        // Mock por default devuelve un supplier válido para no bloquear tests.
+        findFirst: jest.fn().mockResolvedValue({
+          id: 'sup-1',
+          code: 'PRV-001',
+          name: 'Proveedor Test',
+          active: true,
+          deletedAt: null,
+        }),
+      },
       stock: {
         findMany: jest.fn().mockResolvedValue([]),
       },
@@ -152,13 +163,23 @@ describe('MovementsService', () => {
     service = module.get<MovementsService>(MovementsService);
   });
 
-  const baseDto = (overrides: Partial<CreateMovementDto> = {}): CreateMovementDto => ({
-    type: MovementType.ENTRADA,
-    source: MovementSource.COMPRA,
-    warehouseId: 'wh-1',
-    items: [{ itemId: 'item-1', quantity: 10 }],
-    ...overrides,
-  });
+  const baseDto = (overrides: Partial<CreateMovementDto> = {}): CreateMovementDto => {
+    const merged: CreateMovementDto = {
+      type: MovementType.ENTRADA,
+      source: MovementSource.COMPRA,
+      // supplierId requerido por backend cuando source=COMPRA (módulo Proveedores 2026-04-24).
+      // Se elimina automáticamente si el test sobrescribe source a algo distinto de COMPRA,
+      // porque el backend rechaza supplierId cuando source !== COMPRA.
+      supplierId: 'sup-1',
+      warehouseId: 'wh-1',
+      items: [{ itemId: 'item-1', quantity: 10 }],
+      ...overrides,
+    };
+    if (merged.source !== MovementSource.COMPRA && !overrides.supplierId) {
+      delete (merged as Partial<CreateMovementDto>).supplierId;
+    }
+    return merged;
+  };
 
   describe('create — ENTRADA', () => {
     it('increments stock when record already exists', async () => {
