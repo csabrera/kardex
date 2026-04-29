@@ -89,7 +89,7 @@ export function ToolLoansPanel({
     page,
     pageSize,
     status: status === '_all' || status === '_overdue' ? undefined : status,
-    overdueOnly: status === '_overdue',
+    overdueOnly: status === '_overdue' ? true : undefined,
     search: debouncedSearch || undefined,
     borrowerWorkerId: workerId,
   });

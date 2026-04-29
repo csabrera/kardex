@@ -2,7 +2,7 @@ import { Body, Controller, Get, Param, Patch, Post, Query, Req } from '@nestjs/c
 import { ApiTags } from '@nestjs/swagger';
 import { ToolLoanStatus } from '@prisma/client';
 import { IsEnum, IsOptional, IsString } from 'class-validator';
-import { Transform } from 'class-transformer';
+import { Transform, Type } from 'class-transformer';
 
 import { RequirePermissions } from '../auth/decorators/permissions.decorator';
 import { PaginationQueryDto } from '../../common/dto/pagination.dto';
@@ -28,6 +28,7 @@ class ToolLoanQueryDto extends PaginationQueryDto {
   borrowerWorkerId?: string;
 
   @IsOptional()
+  @Type(() => String)
   @Transform(({ value }) => {
     if (value === true || value === 'true') return true;
     if (value === false || value === 'false') return false;

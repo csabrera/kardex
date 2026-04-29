@@ -1,7 +1,7 @@
 import { Body, Controller, Get, Param, Patch, Post, Query } from '@nestjs/common';
 import { ApiTags } from '@nestjs/swagger';
 import { IsOptional } from 'class-validator';
-import { Transform } from 'class-transformer';
+import { Transform, Type } from 'class-transformer';
 
 import { RequirePermissions } from '../auth/decorators/permissions.decorator';
 import { PaginationQueryDto } from '../../common/dto/pagination.dto';
@@ -10,6 +10,7 @@ import { UsersService } from './users.service';
 
 class UserQueryDto extends PaginationQueryDto {
   @IsOptional()
+  @Type(() => String)
   @Transform(({ value }) => {
     if (value === true || value === 'true') return true;
     if (value === false || value === 'false') return false;

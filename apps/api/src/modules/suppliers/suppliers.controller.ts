@@ -1,6 +1,6 @@
 import { Body, Controller, Delete, Get, Param, Patch, Post, Query } from '@nestjs/common';
 import { ApiTags } from '@nestjs/swagger';
-import { Transform } from 'class-transformer';
+import { Transform, Type } from 'class-transformer';
 import { IsOptional } from 'class-validator';
 
 import { RequirePermissions } from '../auth/decorators/permissions.decorator';
@@ -11,6 +11,7 @@ import { SuppliersService } from './suppliers.service';
 class SupplierQueryDto extends PaginationQueryDto {
   // `search` se hereda de PaginationQueryDto
   @IsOptional()
+  @Type(() => String)
   @Transform(({ value }) => {
     if (value === true || value === 'true') return true;
     if (value === false || value === 'false') return false;

@@ -10,7 +10,7 @@ import {
   Req,
 } from '@nestjs/common';
 import { ApiTags } from '@nestjs/swagger';
-import { Transform } from 'class-transformer';
+import { Transform, Type } from 'class-transformer';
 import { IsOptional, IsString } from 'class-validator';
 
 import { RequirePermissions } from '../auth/decorators/permissions.decorator';
@@ -28,6 +28,7 @@ class WorkStationQueryDto {
   search?: string;
 
   @IsOptional()
+  @Type(() => String)
   @Transform(({ value }) => {
     if (value === true || value === 'true') return true;
     if (value === false || value === 'false') return false;
