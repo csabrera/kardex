@@ -18,11 +18,6 @@ export class CreateCategoryDto {
   @IsString()
   @MaxLength(500)
   description?: string;
-
-  @ApiPropertyOptional()
-  @IsOptional()
-  @IsString()
-  parentId?: string;
 }
 
 export class UpdateCategoryDto extends PartialType(CreateCategoryDto) {}

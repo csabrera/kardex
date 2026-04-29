@@ -8,9 +8,7 @@ export interface Category {
   code: string;
   name: string;
   description?: string | null;
-  parentId?: string | null;
-  parent?: { id: string; code: string; name: string } | null;
-  _count?: { children: number; items: number };
+  _count?: { items: number };
   createdAt: string;
 }
 
@@ -26,15 +24,15 @@ interface CategoryQuery {
   page?: number;
   pageSize?: number;
   search?: string;
-  parentId?: string;
 }
 
 interface CreateCategoryDto {
   code?: string;
   name: string;
   description?: string;
-  parentId?: string;
 }
+
+type UpdateCategoryDto = Partial<CreateCategoryDto>;
 
 const BASE = '/categories';
 
@@ -57,8 +55,26 @@ export function useCreateCategory() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: (dto: CreateCategoryDto) =>
-      apiClient.post(BASE, dto).then((r) => r.data.data),
-    onSuccess: () => {
+      apiClient.post(BASE, dto).then((r) => r.data.data as Category),
+    onSuccess: (created) => {
+      // Update optimista del cache para que la nueva categoría aparezca inmediatamente
+      // en cualquier listado activo (sin esperar el refetch). El predicate matchea todos
+      // los queries cuyo prefijo es ['categories'] independiente de los params (search,
+      // type, page, etc.) — incluimos la nueva categoría si su tipo es compatible
+      // con el filtro del query (NULL = global aplica a cualquier filtro).
+      qc.setQueriesData<CategoryPage>(
+        { queryKey: ['categories'], exact: false },
+        (old) => {
+          if (!old || !old.items) return old;
+          // Evitar duplicar si por algún race ya está
+          if (old.items.some((c) => c.id === created.id)) return old;
+          return {
+            ...old,
+            items: [created, ...old.items],
+            total: old.total + 1,
+          };
+        },
+      );
       qc.invalidateQueries({ queryKey: ['categories'] });
       toast.success('Categoría creada');
     },
@@ -70,7 +86,7 @@ export function useCreateCategory() {
 export function useUpdateCategory() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: ({ id, ...dto }: Partial<CreateCategoryDto> & { id: string }) =>
+    mutationFn: ({ id, ...dto }: UpdateCategoryDto & { id: string }) =>
       apiClient.patch(`${BASE}/${id}`, dto).then((r) => r.data.data),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['categories'] });

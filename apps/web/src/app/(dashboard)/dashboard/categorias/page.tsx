@@ -53,13 +53,15 @@ function CategoryForm({
     <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
       <div className="space-y-1.5">
         <Label>Nombre *</Label>
-        <Input {...register('name')} placeholder="Ferretería" />
+        <Input {...register('name')} placeholder="Cementos" />
         {errors.name && <p className="text-xs text-destructive">{errors.name.message}</p>}
       </div>
+
       <div className="space-y-1.5">
         <Label>Descripción</Label>
         <Input {...register('description')} placeholder="Descripción opcional" />
       </div>
+
       <Button type="submit" className="w-full" disabled={isPending}>
         {isPending ? 'Guardando...' : 'Guardar'}
       </Button>
@@ -89,14 +91,15 @@ export default function CategoriasPage() {
     rowNumberColumn<Category>({ page, pageSize }),
     { accessorKey: 'name', header: 'Nombre' },
     {
-      id: 'parent',
-      header: 'Categoría padre',
+      id: 'description',
+      header: 'Descripción',
       cell: ({ row }) =>
-        row.original.parent?.name ?? <span className="text-muted-foreground">—</span>,
+        row.original.description ?? <span className="text-muted-foreground">—</span>,
     },
     {
       id: 'items',
-      header: 'Ítems',
+      header: 'Total ítems',
+      size: 100,
       cell: ({ row }) => (
         <Badge variant="outline">{row.original._count?.items ?? 0}</Badge>
       ),
@@ -120,8 +123,7 @@ export default function CategoriasPage() {
             onClick={async () => {
               const ok = await confirm({
                 title: `Eliminar categoría "${row.original.name}"`,
-                description:
-                  'No podrá eliminarse si tiene ítems o subcategorías asociadas.',
+                description: 'No podrá eliminarse si tiene ítems asociados.',
                 confirmText: 'Eliminar',
                 tone: 'destructive',
               });
@@ -139,7 +141,7 @@ export default function CategoriasPage() {
         <div>
           <h1 className="text-2xl font-bold">Categorías</h1>
           <p className="text-sm text-muted-foreground">
-            Organización jerárquica de ítems
+            Etiquetas libres para agrupar ítems en reportes y filtros
           </p>
         </div>
         <Button onClick={() => setIsCreating(true)}>
@@ -190,7 +192,7 @@ export default function CategoriasPage() {
           {editTarget && (
             <CategoryForm
               defaultValues={{
-                ...editTarget,
+                name: editTarget.name,
                 description: editTarget.description ?? undefined,
               }}
               onSubmit={(dto) =>

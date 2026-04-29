@@ -1,17 +1,10 @@
 import { Body, Controller, Delete, Get, Param, Patch, Post, Query } from '@nestjs/common';
 import { ApiTags } from '@nestjs/swagger';
-import { IsOptional, IsString } from 'class-validator';
 
 import { RequirePermissions } from '../auth/decorators/permissions.decorator';
 import { PaginationQueryDto } from '../../common/dto/pagination.dto';
 import { CreateCategoryDto, UpdateCategoryDto } from './dto/category.dto';
 import { CategoriesService } from './categories.service';
-
-class CategoryQueryDto extends PaginationQueryDto {
-  @IsOptional()
-  @IsString()
-  parentId?: string;
-}
 
 @ApiTags('categories')
 @Controller('categories')
@@ -20,7 +13,7 @@ export class CategoriesController {
 
   @Get()
   @RequirePermissions('categories:read')
-  findAll(@Query() query: CategoryQueryDto) {
+  findAll(@Query() query: PaginationQueryDto) {
     return this.service.findAll(query);
   }
 
