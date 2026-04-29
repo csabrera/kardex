@@ -1,7 +1,8 @@
 'use client';
 
 import { type ColumnDef } from '@tanstack/react-table';
-import { ArrowRight, Eye } from 'lucide-react';
+import { ArrowRight, Eye, Plus } from 'lucide-react';
+import Link from 'next/link';
 import { useState } from 'react';
 
 import { DataTable } from '@/components/data-table/data-table';
@@ -9,6 +10,7 @@ import { rowNumberColumn } from '@/components/data-table/row-number-column';
 import { TransferDetail } from '@/components/transfers/transfer-detail';
 import { TransferStatusBadge } from '@/components/transfers/transfer-status-badge';
 import { ActionButton } from '@/components/ui/action-button';
+import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import {
@@ -53,6 +55,14 @@ export function TransferenciasPanel({ headerAction }: Props) {
     status: status === '_all' ? undefined : status,
     search: debouncedSearch || undefined,
   });
+
+  const action = headerAction ?? (
+    <Button asChild className="gap-2">
+      <Link href="/dashboard/transferencias/nueva">
+        <Plus className="h-4 w-4" /> Nueva transferencia
+      </Link>
+    </Button>
+  );
 
   const columns: ColumnDef<Transfer>[] = [
     rowNumberColumn<Transfer>({ page, pageSize }),
@@ -151,7 +161,7 @@ export function TransferenciasPanel({ headerAction }: Props) {
             </SelectContent>
           </Select>
         </div>
-        {headerAction}
+        {action}
       </div>
 
       <DataTable
