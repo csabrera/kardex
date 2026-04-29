@@ -105,7 +105,6 @@ model User {
   toolLoansReturned   ToolLoan[]           @relation("ToolLoanReturnedBy")
   obrasResponsible    Obra[]               @relation("ObraResponsible")
   eppAssigned         EPPAssignment[]      @relation("EPPAssignedBy")
-  maintenancesLed     Maintenance[]        @relation("MaintenanceTechnician")
   inventoryCountsStarted    InventoryCount[] @relation("InventoryCountStartedBy")
   inventoryCountsClosed     InventoryCount[] @relation("InventoryCountClosedBy")
   inventoryCountsCancelled  InventoryCount[] @relation("InventoryCountCancelledBy")
@@ -221,7 +220,6 @@ model Warehouse {
   toolLoans        ToolLoan[]
   eppAssignments   EPPAssignment[]
   inventoryCounts  InventoryCount[]
-  maintenanceItems MaintenanceItem[]
 
   @@index([deletedAt])
   @@index([type])
@@ -281,7 +279,6 @@ model Item {
   transferItems    TransferItem[]
   toolLoans        ToolLoan[]
   eppAssignments   EPPAssignment[]
-  maintenanceItems MaintenanceItem[]
   inventoryCountItems InventoryCountItem[]
 
   @@index([categoryId])
@@ -359,7 +356,6 @@ model Movement {
   notes           String?
   items           MovementItem[]
   eppAssignment   EPPAssignment?   @relation("EPPMovement")
-  maintenanceItem MaintenanceItem? @relation("MaintenanceItemMovement")
   inventoryCount  InventoryCount?  @relation("InventoryCountAdjustment")
   createdAt       DateTime         @default(now())
 
@@ -603,166 +599,6 @@ model EPPSequence {
 }
 
 // ============================================================================
-// EQUIPOS / MAQUINARIA (Fase 6C)
-// ============================================================================
-
-enum EquipmentType {
-  MAQUINARIA_PESADA
-  VEHICULO
-  EQUIPO_MENOR
-  HERRAMIENTA_ELECTRICA
-  OTRO
-}
-
-enum CountType {
-  HOROMETRO
-  KILOMETRAJE
-  NONE
-}
-
-enum EquipmentStatus {
-  OPERATIVO
-  EN_MANTENIMIENTO
-  AVERIADO
-  BAJA
-}
-
-model Equipment {
-  id                String                   @id @default(cuid())
-  code              String                   @unique
-  name              String
-  type              EquipmentType            @default(OTRO)
-  brand             String?
-  model             String?
-  serialNumber      String?
-  year              Int?
-  countType         CountType                @default(HOROMETRO)
-  currentCount      Decimal                  @default(0) @db.Decimal(12, 2)
-  initialCount      Decimal                  @default(0) @db.Decimal(12, 2)
-  initialCountDate  DateTime?
-  acquisitionDate   DateTime?
-  acquisitionCost   Decimal?                 @db.Decimal(14, 2)
-  status            EquipmentStatus          @default(OPERATIVO)
-  obraId            String?
-  obra              Obra?                    @relation(fields: [obraId], references: [id])
-  notes             String?
-  active            Boolean                  @default(true)
-  createdAt         DateTime                 @default(now())
-  updatedAt         DateTime                 @updatedAt
-  deletedAt         DateTime?
-
-  countReadings     EquipmentCountReading[]
-  maintenances      Maintenance[]
-
-  @@index([type])
-  @@index([status])
-  @@index([obraId])
-  @@index([deletedAt])
-  @@map("equipment")
-}
-
-model EquipmentSequence {
-  id        Int @id @default(1)
-  lastValue Int @default(0)
-
-  @@map("equipment_sequence")
-}
-
-/// Histórico de lecturas del contador (horómetro/km) del equipo.
-/// Lo alimentan: inicio/fin de mantenimiento y lecturas manuales.
-model EquipmentCountReading {
-  id           String    @id @default(cuid())
-  equipmentId  String
-  equipment    Equipment @relation(fields: [equipmentId], references: [id], onDelete: Cascade)
-  countValue   Decimal   @db.Decimal(12, 2)
-  source       String // 'MAINTENANCE_START' | 'MAINTENANCE_END' | 'MANUAL'
-  sourceId     String?
-  notes        String?
-  recordedAt   DateTime  @default(now())
-  recordedById String?
-
-  @@index([equipmentId, recordedAt])
-  @@map("equipment_count_readings")
-}
-
-// ============================================================================
-// MANTENIMIENTOS (Fase 6E)
-// ============================================================================
-
-enum MaintenanceType {
-  PREVENTIVO
-  CORRECTIVO
-}
-
-enum MaintenanceStatus {
-  PROGRAMADO
-  EN_CURSO
-  COMPLETADO
-  CANCELADO
-}
-
-model Maintenance {
-  id              String              @id @default(cuid())
-  code            String              @unique
-  equipmentId     String
-  equipment       Equipment           @relation(fields: [equipmentId], references: [id])
-  type            MaintenanceType
-  description     String
-  status          MaintenanceStatus   @default(PROGRAMADO)
-
-  scheduledDate   DateTime?
-  scheduledCount  Decimal?            @db.Decimal(12, 2)
-
-  startedAt       DateTime?
-  countAtStart    Decimal?            @db.Decimal(12, 2)
-  completedAt     DateTime?
-  countAtEnd      Decimal?            @db.Decimal(12, 2)
-  cancelledAt     DateTime?
-  cancelReason    String?
-
-  totalCost       Decimal?            @db.Decimal(14, 2)
-  technicianId    String?
-  technician      User?               @relation("MaintenanceTechnician", fields: [technicianId], references: [id])
-  notes           String?
-  createdAt       DateTime            @default(now())
-  updatedAt       DateTime            @updatedAt
-
-  items           MaintenanceItem[]
-
-  @@index([equipmentId])
-  @@index([status])
-  @@index([type])
-  @@index([scheduledDate])
-  @@map("maintenances")
-}
-
-model MaintenanceItem {
-  id             String      @id @default(cuid())
-  maintenanceId  String
-  maintenance    Maintenance @relation(fields: [maintenanceId], references: [id], onDelete: Cascade)
-  itemId         String
-  item           Item        @relation(fields: [itemId], references: [id])
-  warehouseId    String
-  warehouse      Warehouse   @relation(fields: [warehouseId], references: [id])
-  quantity       Decimal     @db.Decimal(12, 3)
-  movementId     String?     @unique
-  movement       Movement?   @relation("MaintenanceItemMovement", fields: [movementId], references: [id])
-  notes          String?
-  createdAt      DateTime    @default(now())
-
-  @@index([maintenanceId])
-  @@index([itemId])
-  @@map("maintenance_items")
-}
-
-model MaintenanceSequence {
-  id        Int @id @default(1)
-  lastValue Int @default(0)
-
-  @@map("maintenance_sequence")
-}
-
-// ============================================================================
 // OBRAS (Proyectos)
 // ============================================================================
 
@@ -787,7 +623,6 @@ model Obra {
   warehouses   Warehouse[]
   workers      Worker[]
   workStations WorkStation[]
-  equipment    Equipment[]
 
   @@index([status])
   @@index([responsibleUserId])

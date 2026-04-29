@@ -86,18 +86,6 @@ const NAV_ITEMS: {
     keywords: 'equipo proteccion personal casco guantes asignacion',
   },
   {
-    label: 'Equipos',
-    href: '/dashboard/equipos',
-    icon: Truck,
-    keywords: 'maquinaria vehiculos horometro',
-  },
-  {
-    label: 'Mantenimientos',
-    href: '/dashboard/almacen-principal?tab=mantenimientos',
-    icon: Wrench,
-    keywords: 'preventivo correctivo servicio',
-  },
-  {
     label: 'Préstamos de herramientas',
     href: '/dashboard/almacen-principal?tab=prestamos',
     icon: Wrench,

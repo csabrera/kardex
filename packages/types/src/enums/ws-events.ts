@@ -18,10 +18,6 @@ export const WS_EVENTS = {
   ALERT_CREATED: 'alert.created',
   ALERT_STOCK: 'alert.stock',
 
-  // Maintenance
-  MAINTENANCE_DUE: 'maintenance.due',
-  MAINTENANCE_COMPLETED: 'maintenance.completed',
-
   // Inventory counts
   INVENTORY_COUNT_CLOSED: 'inventory_count.closed',
   INVENTORY_COUNT_CANCELLED: 'inventory_count.cancelled',

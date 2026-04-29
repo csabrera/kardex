@@ -36,10 +36,6 @@ export enum BusinessErrorCode {
   REQUISITION_NOT_FOUND = 'REQUISITION_NOT_FOUND',
   REQUISITION_INVALID_STATE = 'REQUISITION_INVALID_STATE',
 
-  // Maintenance errors
-  MAINTENANCE_NOT_FOUND = 'MAINTENANCE_NOT_FOUND',
-  EQUIPMENT_NOT_FOUND = 'EQUIPMENT_NOT_FOUND',
-
   // EPP & Tools
   WORKER_NOT_FOUND = 'WORKER_NOT_FOUND',
   TOOL_LOAN_NOT_FOUND = 'TOOL_LOAN_NOT_FOUND',
@@ -100,9 +96,6 @@ export const ERROR_MESSAGES: Record<BusinessErrorCode, string> = {
   [BusinessErrorCode.REQUISITION_NOT_FOUND]: 'Requisición no encontrada',
   [BusinessErrorCode.REQUISITION_INVALID_STATE]:
     'La requisición no está en un estado válido para esta acción',
-
-  [BusinessErrorCode.MAINTENANCE_NOT_FOUND]: 'Mantenimiento no encontrado',
-  [BusinessErrorCode.EQUIPMENT_NOT_FOUND]: 'Equipo no encontrado',
 
   [BusinessErrorCode.WORKER_NOT_FOUND]: 'Trabajador no encontrado',
   [BusinessErrorCode.TOOL_LOAN_NOT_FOUND]: 'Préstamo de herramienta no encontrado',

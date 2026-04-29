@@ -117,22 +117,11 @@ const BASE_PERMISSIONS = [
   { resource: 'suppliers', action: 'read' },
   { resource: 'suppliers', action: 'update' },
   { resource: 'suppliers', action: 'delete' },
-  // Workers (Empleados)
-  { resource: 'workers', action: 'create' },
-  { resource: 'workers', action: 'update' },
-  { resource: 'workers', action: 'delete' },
-  // Equipment & Maintenance
-  { resource: 'equipment', action: 'create' },
-  { resource: 'equipment', action: 'read' },
-  { resource: 'equipment', action: 'update' },
-  { resource: 'equipment', action: 'delete' },
-  { resource: 'maintenance', action: 'create' },
-  { resource: 'maintenance', action: 'read' },
-  { resource: 'maintenance', action: 'update' },
   // Workers & EPP
   { resource: 'workers', action: 'create' },
   { resource: 'workers', action: 'read' },
   { resource: 'workers', action: 'update' },
+  { resource: 'workers', action: 'delete' },
   { resource: 'epp', action: 'assign' },
   { resource: 'epp', action: 'read' },
   // Reports
@@ -215,16 +204,6 @@ const ROLE_PERMISSIONS: Record<string, string[]> = {
     'suppliers:read',
     'suppliers:update',
 
-    // Equipos — CRUD operativo
-    'equipment:create',
-    'equipment:read',
-    'equipment:update',
-
-    // Mantenimientos — programa, ejecuta, completa
-    'maintenance:create',
-    'maintenance:read',
-    'maintenance:update',
-
     // Inventarios físicos (Fase 7B) — ejecuta conteos y cierra
     'inventory:read',
     'inventory:create',
@@ -278,8 +257,6 @@ const ROLE_PERMISSIONS: Record<string, string[]> = {
 
     // Consultas operativas
     'alerts:read',
-    'equipment:read',
-    'maintenance:read',
     'inventory:read',
 
     // Reportes (para su obra)

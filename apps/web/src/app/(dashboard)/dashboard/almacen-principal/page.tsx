@@ -18,7 +18,6 @@ import { useCallback } from 'react';
 import { EppPanel } from '@/components/epp/epp-panel';
 import { InventoryCountsPanel } from '@/components/inventory/inventory-counts-panel';
 import { ItemsPanel } from '@/components/items/items-panel';
-import { MaintenancePanel } from '@/components/maintenance/maintenance-panel';
 import { MovementsPanel } from '@/components/movements/movements-panel';
 import { ToolLoansPanel } from '@/components/tool-loans/tool-loans-panel';
 import { TransferenciasPanel } from '@/components/transfers/transferencias-panel';
@@ -41,7 +40,6 @@ type TabId =
   | 'transferencias'
   | 'prestamos'
   | 'epp'
-  | 'mantenimientos'
   | 'inventarios';
 
 const TABS: { id: TabId; label: string; icon: React.ElementType }[] = [
@@ -50,7 +48,6 @@ const TABS: { id: TabId; label: string; icon: React.ElementType }[] = [
   { id: 'transferencias', label: 'Transferencias', icon: WarehouseIcon },
   { id: 'prestamos', label: 'Préstamos', icon: Wrench },
   { id: 'epp', label: 'EPP', icon: Shield },
-  { id: 'mantenimientos', label: 'Mantenimientos', icon: Wrench },
   { id: 'inventarios', label: 'Inventarios', icon: ClipboardCheck },
 ];
 
@@ -191,10 +188,6 @@ export default function AlmacenPrincipalPage() {
 
         <TabsContent value="epp" className="mt-5">
           <EppPanel />
-        </TabsContent>
-
-        <TabsContent value="mantenimientos" className="mt-5">
-          <MaintenancePanel />
         </TabsContent>
 
         <TabsContent value="inventarios" className="mt-5">

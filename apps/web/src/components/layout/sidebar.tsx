@@ -61,7 +61,6 @@ const ALMACENERO_SECTIONS: NavSection[] = [
       { label: 'Obras', href: '/dashboard/obras', icon: Building },
       { label: 'Empleados', href: '/dashboard/empleados', icon: HardHat },
       { label: 'Almacenes', href: '/dashboard/almacenes', icon: Warehouse },
-      { label: 'Equipos', href: '/dashboard/equipos', icon: Truck },
       { label: 'Proveedores', href: '/dashboard/proveedores', icon: Truck },
     ],
   },

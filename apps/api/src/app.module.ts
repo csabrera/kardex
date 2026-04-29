@@ -16,10 +16,8 @@ import { AlertsModule } from './modules/alerts/alerts.module';
 import { AuditLogsModule } from './modules/audit-logs/audit-logs.module';
 import { DashboardModule } from './modules/dashboard/dashboard.module';
 import { EPPModule } from './modules/epp/epp.module';
-import { EquipmentModule } from './modules/equipment/equipment.module';
 import { ExportModule } from './modules/export/export.module';
 import { InventoryCountsModule } from './modules/inventory-counts/inventory-counts.module';
-import { MaintenanceModule } from './modules/maintenance/maintenance.module';
 import { ObrasModule } from './modules/obras/obras.module';
 import { ReportsModule } from './modules/reports/reports.module';
 import { RealtimeModule } from './modules/realtime/realtime.module';
@@ -61,10 +59,8 @@ import { PrismaModule } from './prisma/prisma.module';
     AuditLogsModule,
     DashboardModule,
     EPPModule,
-    EquipmentModule,
     ExportModule,
     InventoryCountsModule,
-    MaintenanceModule,
     ReportsModule,
     TransfersModule,
     UsersModule,
