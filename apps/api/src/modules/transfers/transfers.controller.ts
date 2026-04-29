@@ -21,6 +21,11 @@ class TransferQueryDto extends PaginationQueryDto {
   @IsOptional()
   @IsString()
   warehouseId?: string;
+
+  /** Filtra transferencias que incluyan al menos una línea con este itemId. */
+  @IsOptional()
+  @IsString()
+  itemId?: string;
 }
 
 @ApiTags('transfers')

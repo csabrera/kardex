@@ -41,6 +41,7 @@ interface TransferQuery {
   pageSize?: number;
   status?: TransferStatus;
   warehouseId?: string;
+  itemId?: string;
   search?: string;
   enabled?: boolean;
 }

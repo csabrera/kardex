@@ -62,9 +62,10 @@ export class TransfersService {
     pageSize?: number;
     status?: TransferStatus;
     warehouseId?: string;
+    itemId?: string;
     search?: string;
   }) {
-    const { page = 1, pageSize = 20, status, warehouseId, search } = query;
+    const { page = 1, pageSize = 20, status, warehouseId, itemId, search } = query;
     const skip = (page - 1) * pageSize;
 
     const andConditions: Prisma.TransferWhereInput[] = [];
@@ -73,6 +74,7 @@ export class TransfersService {
       andConditions.push({
         OR: [{ fromWarehouseId: warehouseId }, { toWarehouseId: warehouseId }],
       });
+    if (itemId) andConditions.push({ items: { some: { itemId } } });
     if (search)
       andConditions.push({
         OR: [

@@ -67,6 +67,7 @@ import {
   type ItemType,
   type CreateItemDto,
   useItems,
+  useItem,
   useCreateItem,
   useUpdateItem,
   useDeleteItem,
@@ -633,6 +634,19 @@ export function ItemsPanel({
     const qs = params.toString();
     router.replace(`${cleanUrlBase}${qs ? `?${qs}` : ''}`, { scroll: false });
   }, [searchParams, router, cleanUrlBase]);
+
+  // Deep-link `?edit=<id>` (e.g. botón "Editar" desde la ficha del ítem):
+  // hace fetch del ítem y abre el modal de edición. Limpia el query param.
+  const editIdFromUrl = searchParams.get('edit') ?? '';
+  const { data: editItemFetched } = useItem(editIdFromUrl);
+  useEffect(() => {
+    if (!editIdFromUrl || !editItemFetched) return;
+    setEditTarget(editItemFetched);
+    const params = new URLSearchParams(searchParams.toString());
+    params.delete('edit');
+    const qs = params.toString();
+    router.replace(`${cleanUrlBase}${qs ? `?${qs}` : ''}`, { scroll: false });
+  }, [editIdFromUrl, editItemFetched, searchParams, router, cleanUrlBase]);
 
   const { data, isLoading } = useItems({
     page,
