@@ -8,7 +8,6 @@ import {
   ArrowUpCircle,
   Box,
   ChevronDown,
-  Cog,
   Edit2,
   ExternalLink,
   FileUp,
@@ -16,7 +15,6 @@ import {
   Shield,
   SlidersHorizontal,
   Trash2,
-  Truck,
   Wrench,
 } from 'lucide-react';
 import Link from 'next/link';
@@ -80,52 +78,41 @@ const ITEM_TYPE_META: Record<
   ItemType,
   { label: string; icon: React.ElementType; description: string; variant: string }
 > = {
-  MATERIAL: {
-    label: 'Material',
+  CONSUMO: {
+    label: 'Consumo',
     icon: Box,
-    description: 'Cemento, arena, agregados',
+    description: 'Materiales y repuestos que salen del almacén',
     variant: 'info',
   },
-  HERRAMIENTA: {
-    label: 'Herramienta',
+  PRESTAMO: {
+    label: 'Préstamo',
     icon: Wrench,
-    description: 'Taladros, llaves, que se prestan',
+    description: 'Herramientas y equipos que se prestan y vuelven',
     variant: 'warning',
   },
-  EPP: {
-    label: 'EPP',
+  ASIGNACION: {
+    label: 'Asignación (EPP)',
     icon: Shield,
-    description: 'Cascos, arneses, guantes',
+    description: 'EPP entregado individualmente con reposición',
     variant: 'success',
-  },
-  EQUIPO: {
-    label: 'Equipo',
-    icon: Truck,
-    description: 'Maquinaria con horómetro',
-    variant: 'secondary',
-  },
-  REPUESTO: {
-    label: 'Repuesto',
-    icon: Cog,
-    description: 'Repuestos y consumibles',
-    variant: 'outline',
   },
 };
 
-const ITEM_TYPES: ItemType[] = ['MATERIAL', 'HERRAMIENTA', 'EPP', 'EQUIPO', 'REPUESTO'];
+const ITEM_TYPES: ItemType[] = ['CONSUMO', 'PRESTAMO', 'ASIGNACION'];
 
-// Motivos del movimiento inicial (reflejan MovementSource del backend)
+// Motivos válidos para el PRIMER movimiento de un ítem recién creado.
+// AJUSTE queda fuera a propósito: conceptualmente requiere stock previo
+// que estés corrigiendo, y al crear el ítem todavía no hay nada.
 const INITIAL_SOURCES = [
   { value: 'COMPRA', label: 'Compra a proveedor' },
   { value: 'DEVOLUCION', label: 'Devolución de obra' },
-  { value: 'AJUSTE', label: 'Ajuste de inventario' },
 ] as const;
 
 const schema = z
   .object({
     name: z.string().min(1, 'Requerido').max(200),
     description: z.string().max(1000).optional(),
-    type: z.enum(['MATERIAL', 'HERRAMIENTA', 'EPP', 'EQUIPO', 'REPUESTO']),
+    type: z.enum(['CONSUMO', 'PRESTAMO', 'ASIGNACION']),
     categoryId: z.string().min(1, 'Requerido'),
     unitId: z.string().min(1, 'Requerido'),
     minStock: z.coerce.number().min(0).optional(),
@@ -134,7 +121,7 @@ const schema = z
     loadInitialStock: z.boolean().optional(),
     initialStock: z.coerce.number().min(0).optional(),
     initialUnitCost: z.coerce.number().min(0).optional(),
-    initialSource: z.enum(['COMPRA', 'DEVOLUCION', 'AJUSTE']).optional(),
+    initialSource: z.enum(['COMPRA', 'DEVOLUCION']).optional(),
     initialSupplierId: z.string().optional(),
     initialNotes: z.string().max(500).optional(),
   })
@@ -158,9 +145,6 @@ const schema = z
   );
 type FormData = z.infer<typeof schema>;
 
-const LS_LAST_CATEGORY = 'kardex-item-form:last-category';
-const LS_LAST_UNIT = 'kardex-item-form:last-unit';
-
 function ItemForm({
   defaultValues,
   onSubmit,
@@ -172,16 +156,6 @@ function ItemForm({
   isPending: boolean;
   isEdit?: boolean;
 }) {
-  // Recordar última categoría/unidad (solo en modo crear, no en edit)
-  const rememberedCategoryId =
-    !isEdit && typeof window !== 'undefined'
-      ? (localStorage.getItem(LS_LAST_CATEGORY) ?? undefined)
-      : undefined;
-  const rememberedUnitId =
-    !isEdit && typeof window !== 'undefined'
-      ? (localStorage.getItem(LS_LAST_UNIT) ?? undefined)
-      : undefined;
-
   const {
     register,
     handleSubmit,
@@ -191,10 +165,12 @@ function ItemForm({
   } = useForm<FormData>({
     resolver: zodResolver(schema),
     defaultValues: {
-      type: 'MATERIAL',
-      categoryId: rememberedCategoryId,
-      unitId: rememberedUnitId,
+      type: 'CONSUMO',
       initialSource: 'COMPRA',
+      // En modo crear, asumir que el cliente quiere cargar stock al mismo tiempo
+      // (caso típico: "compré cemento, lo registro"). Si solo cataloga, desmarca.
+      // En modo edit la sección no se renderiza, este valor es irrelevante.
+      loadInitialStock: !isEdit,
       ...defaultValues,
     },
   });
@@ -204,10 +180,14 @@ function ItemForm({
   const [unitSearch, setUnitSearch] = useState('');
   const [supplierSearch, setSupplierSearch] = useState('');
 
+  // Categorías: lista global (independiente del Tipo del ítem).
+  // Tipo y Categoría son dimensiones ortogonales — el Tipo determina comportamiento,
+  // la Categoría es solo etiqueta de agrupación.
   const { data: categoriesData, isFetching: catLoading } = useCategories({
     search: categorySearch || undefined,
     pageSize: 30,
   });
+
   const { data: unitsData, isFetching: unitLoading } = useUnits({
     search: unitSearch || undefined,
     pageSize: 30,
@@ -217,21 +197,24 @@ function ItemForm({
     pageSize: 30,
   });
 
-  // Selected objects (para mostrar en el combobox cuando es pre-cargado)
+  // Selected objects (para mostrar en el combobox cuando es pre-cargado).
+  // Importante: usar el valor watcheado como dep — si solo dependiera de la data,
+  // el memo quedaría stale al cambiar la selección sin refetch del listado.
+  const watchedCategoryId = watch('categoryId');
+  const watchedUnitId = watch('unitId');
+  const watchedSupplierId = watch('initialSupplierId');
+
   const selectedCategory = useMemo<Category | null>(() => {
-    const id = watch('categoryId');
-    return (categoriesData?.items ?? []).find((c) => c.id === id) ?? null;
-  }, [categoriesData, watch]);
+    return (categoriesData?.items ?? []).find((c) => c.id === watchedCategoryId) ?? null;
+  }, [categoriesData, watchedCategoryId]);
 
   const selectedUnit = useMemo<Unit | null>(() => {
-    const id = watch('unitId');
-    return (unitsData?.items ?? []).find((u) => u.id === id) ?? null;
-  }, [unitsData, watch]);
+    return (unitsData?.items ?? []).find((u) => u.id === watchedUnitId) ?? null;
+  }, [unitsData, watchedUnitId]);
 
   const selectedSupplier = useMemo<Supplier | null>(() => {
-    const id = watch('initialSupplierId');
-    return (suppliersData?.items ?? []).find((s) => s.id === id) ?? null;
-  }, [suppliersData, watch]);
+    return (suppliersData?.items ?? []).find((s) => s.id === watchedSupplierId) ?? null;
+  }, [suppliersData, watchedSupplierId]);
 
   // ── Sub-modales de creación rápida ─────────────────────────
   const [catDialogOpen, setCatDialogOpen] = useState(false);
@@ -253,25 +236,13 @@ function ItemForm({
   const onKeyDown = (e: React.KeyboardEvent<HTMLFormElement>) => {
     if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') {
       e.preventDefault();
-      handleSubmit(submitWithMemory)();
+      handleSubmit(onSubmit)();
     }
-  };
-
-  const submitWithMemory = (d: FormData) => {
-    if (!isEdit && typeof window !== 'undefined') {
-      if (d.categoryId) localStorage.setItem(LS_LAST_CATEGORY, d.categoryId);
-      if (d.unitId) localStorage.setItem(LS_LAST_UNIT, d.unitId);
-    }
-    onSubmit(d);
   };
 
   return (
     <>
-      <form
-        onSubmit={handleSubmit(submitWithMemory)}
-        onKeyDown={onKeyDown}
-        className="space-y-5"
-      >
+      <form onSubmit={handleSubmit(onSubmit)} onKeyDown={onKeyDown} className="space-y-5">
         {/* Sección 1 — Identificación */}
         <div className="space-y-4">
           <div className="space-y-1.5">
@@ -293,7 +264,7 @@ function ItemForm({
             <Label>
               Tipo <span className="text-destructive">*</span>
             </Label>
-            <div className="grid grid-cols-2 md:grid-cols-3 gap-2">
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
               {ITEM_TYPES.map((t) => {
                 const meta = ITEM_TYPE_META[t];
                 const selected = watch('type') === t;
@@ -303,7 +274,7 @@ function ItemForm({
                     type="button"
                     onClick={() => setValue('type', t, { shouldValidate: true })}
                     className={cn(
-                      'flex items-start gap-2 rounded-md border p-2.5 text-left transition-all',
+                      'flex items-start gap-2 rounded-md border p-3 text-left transition-all',
                       selected
                         ? 'border-accent bg-accent/5 ring-1 ring-accent/30'
                         : 'border-border hover:border-foreground/20 hover:bg-muted/40',
@@ -317,7 +288,7 @@ function ItemForm({
                     />
                     <div className="min-w-0">
                       <p className="text-sm font-medium leading-tight">{meta.label}</p>
-                      <p className="text-[11px] text-muted-foreground leading-tight mt-0.5 truncate">
+                      <p className="text-[11px] text-muted-foreground leading-tight mt-0.5">
                         {meta.description}
                       </p>
                     </div>
@@ -328,7 +299,7 @@ function ItemForm({
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            {/* Categoría — Combobox buscable + "+ Nueva" */}
+            {/* Categoría — Combobox buscable filtrado por Tipo + "+ Nueva" */}
             <div className="space-y-1.5">
               <Label>
                 Categoría <span className="text-destructive">*</span>
@@ -343,7 +314,7 @@ function ItemForm({
                 getId={(c) => c.id}
                 getLabel={(c) => c.name}
                 placeholder="Buscar categoría..."
-                emptyMessage="No hay categorías que coincidan"
+                emptyMessage="Sin categorías. Crea una."
                 error={!!errors.categoryId}
               />
               <button
@@ -490,7 +461,7 @@ function ItemForm({
                   <Select
                     value={initialSource ?? 'COMPRA'}
                     onValueChange={(v) =>
-                      setValue('initialSource', v as 'COMPRA' | 'DEVOLUCION' | 'AJUSTE', {
+                      setValue('initialSource', v as 'COMPRA' | 'DEVOLUCION', {
                         shouldValidate: true,
                       })
                     }
@@ -892,7 +863,7 @@ export function ItemsPanel({
       <ImportDialog open={isImporting} onOpenChange={setIsImporting} />
 
       <Dialog open={isCreating} onOpenChange={setIsCreating}>
-        <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto">
+        <DialogContent className="max-w-3xl">
           <DialogHeader>
             <DialogTitle>Nuevo ítem</DialogTitle>
           </DialogHeader>
@@ -928,7 +899,7 @@ export function ItemsPanel({
       </Dialog>
 
       <Dialog open={!!editTarget} onOpenChange={(v) => !v && setEditTarget(null)}>
-        <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto">
+        <DialogContent className="max-w-3xl">
           <DialogHeader>
             <DialogTitle>Editar ítem</DialogTitle>
           </DialogHeader>

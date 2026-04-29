@@ -83,7 +83,6 @@ export function InventoryCountsPanel({ headerAction }: Props) {
         <Table>
           <TableHeader>
             <TableRow>
-              <TableHead className="w-[140px]">Código</TableHead>
               <TableHead>Almacén</TableHead>
               <TableHead className="w-[130px]">Estado</TableHead>
               <TableHead className="w-[100px] text-right">Líneas</TableHead>
@@ -96,7 +95,7 @@ export function InventoryCountsPanel({ headerAction }: Props) {
             {isLoading && (
               <TableRow>
                 <TableCell
-                  colSpan={7}
+                  colSpan={6}
                   className="text-center text-sm text-muted-foreground py-8"
                 >
                   Cargando...
@@ -105,7 +104,7 @@ export function InventoryCountsPanel({ headerAction }: Props) {
             )}
             {!isLoading && items.length === 0 && (
               <TableRow>
-                <TableCell colSpan={7}>
+                <TableCell colSpan={6}>
                   <EmptyState
                     icon={ClipboardCheck}
                     title="Sin conteos registrados"
@@ -122,9 +121,6 @@ export function InventoryCountsPanel({ headerAction }: Props) {
             )}
             {items.map((c) => (
               <TableRow key={c.id}>
-                <TableCell className="font-mono text-sm font-semibold">
-                  {c.code}
-                </TableCell>
                 <TableCell>{c.warehouse.name}</TableCell>
                 <TableCell>
                   <InventoryStatusBadge status={c.status} />

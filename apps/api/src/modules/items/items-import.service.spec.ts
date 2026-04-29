@@ -244,7 +244,7 @@ describe('ItemsImportService', () => {
       row: 2,
       code: 'NEW-01',
       name: 'Nuevo ítem',
-      type: ItemType.MATERIAL,
+      type: ItemType.CONSUMO,
       categoryCode: 'CONSTRUCCION',
       unitCode: 'BLS',
       minStock: 0,

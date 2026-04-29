@@ -3,7 +3,7 @@ import { toast } from 'sonner';
 
 import { apiClient } from '@/lib/api-client';
 
-export type ItemType = 'MATERIAL' | 'HERRAMIENTA' | 'EPP' | 'EQUIPO' | 'REPUESTO';
+export type ItemType = 'CONSUMO' | 'PRESTAMO' | 'ASIGNACION';
 
 export interface Item {
   id: string;
@@ -63,8 +63,9 @@ export interface CreateItemDto {
   initialStock?: number;
   /** Costo unitario opcional asociado a la ENTRADA inicial. */
   initialUnitCost?: number;
-  /** Motivo del movimiento inicial (default COMPRA en backend). */
-  initialSource?: 'COMPRA' | 'DEVOLUCION' | 'AJUSTE';
+  /** Motivo del movimiento inicial (default COMPRA en backend). AJUSTE no aplica
+   *  porque conceptualmente requiere stock previo que estés corrigiendo. */
+  initialSource?: 'COMPRA' | 'DEVOLUCION';
   /** Proveedor para la carga inicial (requerido si initialSource=COMPRA). */
   initialSupplierId?: string;
   /** Notas libres para el movimiento inicial. */

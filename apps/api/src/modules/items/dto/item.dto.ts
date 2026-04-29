@@ -29,7 +29,7 @@ export class CreateItemDto {
   @MaxLength(1000)
   description?: string;
 
-  @ApiPropertyOptional({ enum: ItemType, default: ItemType.MATERIAL })
+  @ApiPropertyOptional({ enum: ItemType, default: ItemType.CONSUMO })
   @IsOptional()
   @IsEnum(ItemType)
   type?: ItemType;

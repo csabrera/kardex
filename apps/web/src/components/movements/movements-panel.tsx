@@ -42,14 +42,6 @@ export function MovementsPanel({ warehouseId, headerAction }: Props) {
   const columns: ColumnDef<Movement>[] = [
     rowNumberColumn<Movement>({ page, pageSize }),
     {
-      accessorKey: 'code',
-      header: 'Código',
-      size: 110,
-      cell: ({ row }) => (
-        <span className="font-mono text-sm font-semibold">{row.original.code}</span>
-      ),
-    },
-    {
       accessorKey: 'type',
       header: 'Tipo',
       size: 110,

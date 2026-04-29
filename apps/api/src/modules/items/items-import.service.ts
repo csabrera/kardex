@@ -21,12 +21,19 @@ interface ParsedRow {
   description?: string;
 }
 
+// Mapping flexible: acepta los 3 nombres canónicos + sinónimos del modelo legacy
+// (MATERIAL/REPUESTO → CONSUMO, HERRAMIENTA/EQUIPO → PRESTAMO, EPP → ASIGNACION)
+// para que las plantillas Excel viejas sigan funcionando.
 const ITEM_TYPE_MAP: Record<string, ItemType> = {
-  MATERIAL: ItemType.MATERIAL,
-  HERRAMIENTA: ItemType.HERRAMIENTA,
-  EPP: ItemType.EPP,
-  EQUIPO: ItemType.EQUIPO,
-  REPUESTO: ItemType.REPUESTO,
+  CONSUMO: ItemType.CONSUMO,
+  PRESTAMO: ItemType.PRESTAMO,
+  ASIGNACION: ItemType.ASIGNACION,
+  // Sinónimos legacy (compatibilidad con plantillas Excel del modelo de 5 tipos)
+  MATERIAL: ItemType.CONSUMO,
+  REPUESTO: ItemType.CONSUMO,
+  HERRAMIENTA: ItemType.PRESTAMO,
+  EQUIPO: ItemType.PRESTAMO,
+  EPP: ItemType.ASIGNACION,
 };
 
 const REQUIRED_HEADERS = ['codigo', 'nombre', 'tipo', 'categoria', 'unidad'];
@@ -288,7 +295,7 @@ export class ItemsImportService {
     sheet.addRow({
       codigo: 'CEMEN-42',
       nombre: 'Cemento Portland 42.5kg',
-      tipo: 'MATERIAL',
+      tipo: 'CONSUMO',
       categoria: 'CONSTRUCCION',
       unidad: 'BLS',
       stockmin: 10,
@@ -299,7 +306,7 @@ export class ItemsImportService {
     sheet.addRow({
       codigo: 'CASCO-01',
       nombre: 'Casco de seguridad',
-      tipo: 'EPP',
+      tipo: 'ASIGNACION',
       categoria: 'SEGURIDAD',
       unidad: 'UND',
       stockmin: 5,

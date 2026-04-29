@@ -177,7 +177,7 @@ export class ItemsService {
           code: code!,
           name: dto.name,
           description: dto.description,
-          type: dto.type ?? ItemType.MATERIAL,
+          type: dto.type ?? ItemType.CONSUMO,
           categoryId: dto.categoryId,
           unitId: dto.unitId,
           minStock: dto.minStock ?? 0,

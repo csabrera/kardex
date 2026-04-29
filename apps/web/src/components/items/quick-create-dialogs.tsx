@@ -32,7 +32,7 @@ interface BaseProps {
 }
 
 // ────────────────────────────────────────────────────────────────
-// Categoría
+// Categoría — taxonomía libre, independiente del Tipo del ítem
 // ────────────────────────────────────────────────────────────────
 export function QuickCreateCategoryDialog({ open, onClose, onCreated }: BaseProps) {
   const [name, setName] = useState('');
@@ -43,7 +43,10 @@ export function QuickCreateCategoryDialog({ open, onClose, onCreated }: BaseProp
     e.preventDefault();
     if (!name.trim()) return;
     createMut.mutate(
-      { name: name.trim(), description: description.trim() || undefined },
+      {
+        name: name.trim(),
+        description: description.trim() || undefined,
+      },
       {
         onSuccess: (created: any) => {
           onCreated?.(created.id);
