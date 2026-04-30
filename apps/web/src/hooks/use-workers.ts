@@ -72,14 +72,14 @@ export function useCreateWorker() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: (dto: CreateWorkerDto) =>
-      apiClient.post(BASE, dto).then((r) => r.data.data),
+      apiClient.post(BASE, dto).then((r) => r.data.data as Worker),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['workers'] });
       qc.invalidateQueries({ queryKey: ['dashboard-stats'] });
-      toast.success('Empleado creado');
+      // Toast lo maneja el componente — info enriquecida con nombre/documento.
     },
-    onError: (e: any) =>
-      toast.error(e.response?.data?.error?.message ?? 'Error al crear empleado'),
+    // Error toast también lo maneja el componente: distingue duplicados
+    // (inline en campo) de errores genéricos (toast).
   });
 }
 
@@ -92,14 +92,11 @@ export function useUpdateWorker() {
     }: {
       id: string;
       dto: Partial<CreateWorkerDto> & { active?: boolean };
-    }) => apiClient.patch(`${BASE}/${id}`, dto).then((r) => r.data.data),
+    }) => apiClient.patch(`${BASE}/${id}`, dto).then((r) => r.data.data as Worker),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['workers'] });
       qc.invalidateQueries({ queryKey: ['dashboard-stats'] });
-      toast.success('Empleado actualizado');
     },
-    onError: (e: any) =>
-      toast.error(e.response?.data?.error?.message ?? 'Error al actualizar'),
   });
 }
 
