@@ -229,10 +229,13 @@ export default function MiObraPage() {
     warehouseName: string;
   } | null>(null);
 
+  // Para items PRESTAMO usamos availableQty (descuenta los actualmente prestados)
+  // así el residente no intenta sacar stock que no está en estante. Para otros
+  // tipos availableQty == quantity.
   const openAdjustForEntry = (s: StockEntry) => {
     setAdjustTarget({
       item: s.item as unknown as Item,
-      availableQty: Number(s.quantity),
+      availableQty: Number(s.availableQty ?? s.quantity),
       warehouseId: s.warehouseId,
       warehouseName: s.warehouse.name,
     });
@@ -240,7 +243,7 @@ export default function MiObraPage() {
   const openOutgoingForEntry = (s: StockEntry) => {
     setOutgoingTarget({
       item: s.item as unknown as Item,
-      availableQty: Number(s.quantity),
+      availableQty: Number(s.availableQty ?? s.quantity),
       warehouseId: s.warehouseId,
       warehouseName: s.warehouse.name,
     });
@@ -304,6 +307,12 @@ export default function MiObraPage() {
     itemId: string;
     item: StockEntry['item'];
     totalQty: number;
+    /** Para items PRESTAMO suma de availableQty entre warehouses; otros = totalQty. */
+    availableQty: number;
+    /** Para items PRESTAMO suma de loanedQty entre warehouses; otros = 0. */
+    loanedQty: number;
+    /** Para items PRESTAMO suma de damagedReturnedQty entre warehouses; otros = 0. */
+    damagedReturnedQty: number;
     breakdown: Array<{ warehouseId: string; warehouseName: string; qty: number }>;
   }
   const aggregatedStock = useMemo<AggregatedStockRow[]>(() => {
@@ -311,9 +320,15 @@ export default function MiObraPage() {
     const map = new Map<string, AggregatedStockRow>();
     for (const entry of allStock) {
       const qty = Number(entry.quantity);
+      const avail = Number(entry.availableQty ?? qty);
+      const loaned = Number(entry.loanedQty ?? 0);
+      const damaged = Number(entry.damagedReturnedQty ?? 0);
       const existing = map.get(entry.itemId);
       if (existing) {
         existing.totalQty += qty;
+        existing.availableQty += avail;
+        existing.loanedQty += loaned;
+        existing.damagedReturnedQty += damaged;
         existing.breakdown.push({
           warehouseId: entry.warehouseId,
           warehouseName: entry.warehouse.name,
@@ -324,6 +339,9 @@ export default function MiObraPage() {
           itemId: entry.itemId,
           item: entry.item,
           totalQty: qty,
+          availableQty: avail,
+          loanedQty: loaned,
+          damagedReturnedQty: damaged,
           breakdown: [
             {
               warehouseId: entry.warehouseId,
@@ -661,19 +679,37 @@ export default function MiObraPage() {
                       <th className="text-left px-4 py-3 font-medium">Ítem</th>
                       <th className="text-left px-4 py-3 font-medium">Tipo</th>
                       <th className="text-left px-4 py-3 font-medium">En almacenes</th>
-                      <th className="text-right px-4 py-3 font-medium">Cant. total</th>
+                      <th
+                        className="text-right px-4 py-3 font-medium"
+                        title="Disponible / Total. Para préstamos: disponible = total − en préstamo activo."
+                      >
+                        Disp. / Total
+                      </th>
+                      <th className="text-right px-4 py-3 font-medium">Prestados</th>
                       <th className="text-left px-4 py-3 font-medium">Estado</th>
                     </tr>
                   </thead>
                   <tbody>
                     {(filteredStock as AggregatedStockRow[]).map((r) => {
                       const min = Number(r.item.minStock);
-                      const out = r.totalQty === 0 && min > 0;
-                      const low = !out && min > 0 && r.totalQty < min;
+                      const isLoan = r.item.type === 'PRESTAMO';
+                      const available = r.availableQty;
+                      const out = available === 0 && min > 0;
+                      const low = !out && min > 0 && available < min;
                       return (
                         <tr key={r.itemId} className="border-t hover:bg-muted/20">
                           <td className="px-4 py-3 font-mono text-xs">{r.item.code}</td>
-                          <td className="px-4 py-3 font-medium">{r.item.name}</td>
+                          <td className="px-4 py-3 font-medium">
+                            {r.item.name}
+                            {isLoan && r.damagedReturnedQty > 0 && (
+                              <span
+                                className="ml-2 text-[10px] text-destructive"
+                                title="Devueltos en condición DAMAGED — no utilizables"
+                              >
+                                ⚠ {r.damagedReturnedQty} no utilizables
+                              </span>
+                            )}
+                          </td>
                           <td className="px-4 py-3">
                             <Badge variant="outline" className="text-[10px]">
                               {r.item.type}
@@ -705,16 +741,39 @@ export default function MiObraPage() {
                               low && 'text-amber-600 dark:text-amber-400',
                             )}
                           >
-                            {r.totalQty.toLocaleString('es-PE', {
-                              maximumFractionDigits: 3,
-                            })}{' '}
+                            {isLoan ? (
+                              <>
+                                {available.toLocaleString('es-PE', {
+                                  maximumFractionDigits: 3,
+                                })}
+                                <span className="text-muted-foreground font-normal">
+                                  {' / '}
+                                  {r.totalQty.toLocaleString('es-PE', {
+                                    maximumFractionDigits: 3,
+                                  })}
+                                </span>
+                              </>
+                            ) : (
+                              r.totalQty.toLocaleString('es-PE', {
+                                maximumFractionDigits: 3,
+                              })
+                            )}{' '}
                             <span className="text-xs text-muted-foreground font-normal">
                               {r.item.unit.abbreviation}
                             </span>
                           </td>
+                          <td className="px-4 py-3 text-right tabular-nums text-xs">
+                            {isLoan && r.loanedQty > 0 ? (
+                              <span className="text-blue-600 dark:text-blue-400 font-medium">
+                                {r.loanedQty}
+                              </span>
+                            ) : (
+                              <span className="text-muted-foreground">—</span>
+                            )}
+                          </td>
                           <td className="px-4 py-3">
                             {out ? (
-                              <Badge variant="destructive">Sin stock</Badge>
+                              <Badge variant="destructive">Sin disponible</Badge>
                             ) : low ? (
                               <Badge variant="warning">Bajo mínimo</Badge>
                             ) : (
@@ -733,7 +792,13 @@ export default function MiObraPage() {
                       <th className="text-left px-4 py-3 font-medium">Código</th>
                       <th className="text-left px-4 py-3 font-medium">Ítem</th>
                       <th className="text-left px-4 py-3 font-medium">Tipo</th>
-                      <th className="text-right px-4 py-3 font-medium">Cantidad</th>
+                      <th
+                        className="text-right px-4 py-3 font-medium"
+                        title="Disponible / Total. Para préstamos: disponible = total − en préstamo activo."
+                      >
+                        Disp. / Total
+                      </th>
+                      <th className="text-right px-4 py-3 font-medium">Prestados</th>
                       <th className="text-left px-4 py-3 font-medium">Estado</th>
                       <th className="text-right px-4 py-3 font-medium">Acciones</th>
                     </tr>
@@ -745,12 +810,26 @@ export default function MiObraPage() {
                       .map((s) => {
                         const qty = Number(s.quantity);
                         const min = Number(s.item.minStock);
-                        const out = qty === 0 && min > 0;
-                        const low = !out && min > 0 && qty < min;
+                        const isLoan = s.item.type === 'PRESTAMO';
+                        const available = Number(s.availableQty ?? qty);
+                        const loaned = Number(s.loanedQty ?? 0);
+                        const damaged = Number(s.damagedReturnedQty ?? 0);
+                        const out = available === 0 && min > 0;
+                        const low = !out && min > 0 && available < min;
                         return (
                           <tr key={s.id} className="border-t hover:bg-muted/20">
                             <td className="px-4 py-3 font-mono text-xs">{s.item.code}</td>
-                            <td className="px-4 py-3 font-medium">{s.item.name}</td>
+                            <td className="px-4 py-3 font-medium">
+                              {s.item.name}
+                              {isLoan && damaged > 0 && (
+                                <span
+                                  className="ml-2 text-[10px] text-destructive"
+                                  title="Devueltos en condición DAMAGED — no utilizables"
+                                >
+                                  ⚠ {damaged} no utilizables
+                                </span>
+                              )}
+                            </td>
                             <td className="px-4 py-3">
                               <Badge variant="outline" className="text-[10px]">
                                 {s.item.type}
@@ -763,14 +842,37 @@ export default function MiObraPage() {
                                 low && 'text-amber-600 dark:text-amber-400',
                               )}
                             >
-                              {qty.toLocaleString('es-PE', { maximumFractionDigits: 3 })}{' '}
+                              {isLoan ? (
+                                <>
+                                  {available.toLocaleString('es-PE', {
+                                    maximumFractionDigits: 3,
+                                  })}
+                                  <span className="text-muted-foreground font-normal">
+                                    {' / '}
+                                    {qty.toLocaleString('es-PE', {
+                                      maximumFractionDigits: 3,
+                                    })}
+                                  </span>
+                                </>
+                              ) : (
+                                qty.toLocaleString('es-PE', { maximumFractionDigits: 3 })
+                              )}{' '}
                               <span className="text-xs text-muted-foreground font-normal">
                                 {s.item.unit.abbreviation}
                               </span>
                             </td>
+                            <td className="px-4 py-3 text-right tabular-nums text-xs">
+                              {isLoan && loaned > 0 ? (
+                                <span className="text-blue-600 dark:text-blue-400 font-medium">
+                                  {loaned}
+                                </span>
+                              ) : (
+                                <span className="text-muted-foreground">—</span>
+                              )}
+                            </td>
                             <td className="px-4 py-3">
                               {out ? (
-                                <Badge variant="destructive">Sin stock</Badge>
+                                <Badge variant="destructive">Sin disponible</Badge>
                               ) : low ? (
                                 <Badge variant="warning">Bajo mínimo</Badge>
                               ) : (
@@ -793,7 +895,7 @@ export default function MiObraPage() {
                                   size="sm"
                                   variant="outline"
                                   onClick={() => openOutgoingForEntry(s)}
-                                  disabled={qty === 0}
+                                  disabled={available === 0}
                                   className="gap-1 h-8 px-2.5"
                                   title="Registrar salida (consumo / baja)"
                                 >
