@@ -2,6 +2,7 @@ import { Module } from '@nestjs/common';
 import { ConfigModule } from '@nestjs/config';
 import { APP_FILTER, APP_GUARD, APP_INTERCEPTOR } from '@nestjs/core';
 
+import { BootstrapService } from './bootstrap/bootstrap.service';
 import { AuditInterceptor } from './common/interceptors/audit.interceptor';
 import { AllExceptionsFilter } from './common/filters/all-exceptions.filter';
 import { LoggingInterceptor } from './common/interceptors/logging.interceptor';
@@ -73,6 +74,8 @@ import { PrismaModule } from './prisma/prisma.module';
     WorkStationsModule,
   ],
   providers: [
+    // Self-healing: en arranque siembra roles+permissions si la BD está vacía.
+    BootstrapService,
     // Guards — order matters: JWT → Roles → Permissions
     { provide: APP_GUARD, useClass: JwtAuthGuard },
     { provide: APP_GUARD, useClass: RolesGuard },
