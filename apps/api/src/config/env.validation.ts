@@ -26,7 +26,10 @@ export class EnvironmentVariables {
 
   @IsString()
   @IsOptional()
-  API_HOST = 'localhost';
+  // En producción (Railway, Docker, K8s) bindeamos a 0.0.0.0 para escuchar
+  // todas las interfaces — `localhost` no es alcanzable desde fuera del
+  // contenedor y rompe el healthcheck del proxy. En local default localhost.
+  API_HOST = process.env.NODE_ENV === 'production' ? '0.0.0.0' : 'localhost';
 
   @IsString()
   DATABASE_URL!: string;
