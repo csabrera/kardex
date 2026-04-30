@@ -15,35 +15,26 @@ interface DatePickerProps {
   value: string;
   onChange: (value: string) => void;
   placeholder?: string;
-  /** Texto a mostrar cuando no hay valor. Default: "Selecciona fecha". */
   disabled?: boolean;
-  /** Restringe selecciones. Función de react-day-picker. */
-  fromYear?: number;
-  toYear?: number;
-  /** Si min y max se proveen, calendar se abre en captionLayout="dropdown" para
-   *  que el usuario pueda saltar rápido entre años (útil para fechas de
-   *  nacimiento de hace 50 años). */
+  /** Restricción de rango. Si rango > 5 años, captionLayout cambia a dropdown
+   *  para que el usuario pueda saltar entre meses/años con selects. */
   fromDate?: Date;
   toDate?: Date;
   className?: string;
   /** Permite borrar la selección con un botón X. Default true. */
   clearable?: boolean;
-  /** Título accesible y para el botón. */
   ariaLabel?: string;
 }
 
 /**
  * DatePicker — combinación Popover + Calendar localizada a español.
- * Valor controlado en formato ISO YYYY-MM-DD para integración fácil con forms
- * (react-hook-form recibe el string que envía al backend con DTO IsDateString).
+ * Valor controlado en formato ISO YYYY-MM-DD para integración con react-hook-form.
  */
 export function DatePicker({
   value,
   onChange,
   placeholder = 'Selecciona fecha',
   disabled = false,
-  fromYear,
-  toYear,
   fromDate,
   toDate,
   className,
@@ -52,8 +43,7 @@ export function DatePicker({
 }: DatePickerProps) {
   const [open, setOpen] = React.useState(false);
 
-  // Parse value (YYYY-MM-DD) → Date local. Tratamos como fecha local sin TZ
-  // para evitar shifts (ej. 2026-04-30 viajando a 29 por timezone).
+  // Parse value (YYYY-MM-DD) → Date local sin TZ shifts.
   const selectedDate = React.useMemo(() => {
     if (!value) return undefined;
     const parts = value.split('-').map(Number);
@@ -70,7 +60,6 @@ export function DatePicker({
     if (!date) {
       onChange('');
     } else {
-      // Format en local sin TZ para evitar off-by-one por DST/UTC.
       const y = date.getFullYear();
       const m = String(date.getMonth() + 1).padStart(2, '0');
       const d = String(date.getDate()).padStart(2, '0');
@@ -84,11 +73,9 @@ export function DatePicker({
     onChange('');
   };
 
-  // Si pasaron rangos amplios (más de 5 años), usar dropdown layout para que
-  // el usuario pueda elegir año/mes rápido sin clickear flechas 50 veces.
+  // Si el rango es amplio, usar dropdowns de mes/año para saltar rápido.
   const useDropdownLayout =
-    (fromYear && toYear && toYear - fromYear > 5) ||
-    (fromDate && toDate && toDate.getFullYear() - fromDate.getFullYear() > 5);
+    fromDate && toDate && toDate.getFullYear() - fromDate.getFullYear() > 5;
 
   return (
     <Popover open={open} onOpenChange={setOpen}>
@@ -133,10 +120,16 @@ export function DatePicker({
           selected={selectedDate}
           onSelect={handleSelect}
           captionLayout={useDropdownLayout ? 'dropdown' : 'label'}
-          fromYear={fromYear}
-          toYear={toYear}
-          fromDate={fromDate}
-          toDate={toDate}
+          startMonth={fromDate}
+          endMonth={toDate}
+          disabled={
+            fromDate || toDate
+              ? [
+                  ...(fromDate ? [{ before: fromDate }] : []),
+                  ...(toDate ? [{ after: toDate }] : []),
+                ]
+              : undefined
+          }
           defaultMonth={selectedDate ?? toDate ?? new Date()}
         />
       </PopoverContent>

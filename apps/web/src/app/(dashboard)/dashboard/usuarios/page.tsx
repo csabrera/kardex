@@ -190,7 +190,7 @@ function CreateUserDialog({ open, onClose }: { open: boolean; onClose: () => voi
 
   return (
     <Dialog open={open} onOpenChange={(v) => !v && onClose()}>
-      <DialogContent className="max-w-lg max-h-[calc(100vh-2rem)] overflow-y-auto">
+      <DialogContent className="max-w-lg">
         <DialogHeader>
           <DialogTitle>Nuevo usuario</DialogTitle>
         </DialogHeader>
@@ -324,23 +324,16 @@ function CreateUserDialog({ open, onClose }: { open: boolean; onClose: () => voi
               <SelectContent>
                 {roles?.map((r) => (
                   <SelectItem key={r.id} value={r.id}>
-                    <div className="flex flex-col items-start gap-0.5">
-                      <span className="font-medium">{r.name}</span>
-                      {ROLE_DESCRIPTIONS[r.name] && (
-                        <span className="text-[11px] text-muted-foreground">
-                          {ROLE_DESCRIPTIONS[r.name]}
-                        </span>
-                      )}
-                    </div>
+                    {r.name}
                   </SelectItem>
                 ))}
               </SelectContent>
             </Select>
-            {selectedRole && ROLE_DESCRIPTIONS[selectedRole.name] && (
-              <p className="text-[11px] text-muted-foreground">
-                {ROLE_DESCRIPTIONS[selectedRole.name]}
-              </p>
-            )}
+            <p className="text-[11px] text-muted-foreground">
+              {selectedRole && ROLE_DESCRIPTIONS[selectedRole.name]
+                ? ROLE_DESCRIPTIONS[selectedRole.name]
+                : 'Selecciona el rol del usuario'}
+            </p>
             {errors.roleId && (
               <p className="text-xs text-destructive">{errors.roleId.message}</p>
             )}

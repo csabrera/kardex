@@ -81,8 +81,7 @@ const NOTES_MAX = 500;
 const MIN_AGE_YEARS = 14;
 const MAX_AGE_YEARS = 80;
 
-// Mínimo desde 1925 (alguien de 100 años, defensiva). Hire desde 2000.
-const MIN_BIRTH_YEAR = new Date().getFullYear() - 100;
+// Hire desde 2000 (defensiva contra dedazos en años raros).
 const MIN_HIRE_YEAR = 2000;
 
 const schema = z
@@ -377,7 +376,7 @@ export function WorkerFormDialog({ open, onClose, worker }: Props) {
 
   return (
     <Dialog open={open} onOpenChange={(v) => !v && onClose()}>
-      <DialogContent className="max-w-2xl max-h-[calc(100vh-2rem)] overflow-y-auto">
+      <DialogContent className="max-w-2xl">
         <DialogHeader>
           <DialogTitle>{isEdit ? 'Editar empleado' : 'Nuevo empleado'}</DialogTitle>
           <DialogDescription>
@@ -528,8 +527,6 @@ export function WorkerFormDialog({ open, onClose, worker }: Props) {
                 placeholder="Selecciona fecha"
                 fromDate={minBirth}
                 toDate={maxBirth}
-                fromYear={MIN_BIRTH_YEAR}
-                toYear={maxBirth.getFullYear()}
               />
               <p className="text-[11px] text-muted-foreground">
                 Opcional · entre {MIN_AGE_YEARS} y {MAX_AGE_YEARS} años
@@ -578,23 +575,15 @@ export function WorkerFormDialog({ open, onClose, worker }: Props) {
                 <SelectContent>
                   {specialties?.map((s) => (
                     <SelectItem key={s.id} value={s.id}>
-                      <div className="flex flex-col items-start gap-0.5">
-                        <span className="font-medium">{s.name}</span>
-                        {s.description && (
-                          <span className="text-[11px] text-muted-foreground">
-                            {s.description}
-                          </span>
-                        )}
-                      </div>
+                      {s.name}
                     </SelectItem>
                   ))}
                 </SelectContent>
               </Select>
-              {selectedSpecialty?.description && (
-                <p className="text-[11px] text-muted-foreground">
-                  {selectedSpecialty.description}
-                </p>
-              )}
+              <p className="text-[11px] text-muted-foreground">
+                {selectedSpecialty?.description ??
+                  'Oficio del trabajador (Albañil, Electricista, etc.)'}
+              </p>
               {errors.specialtyId && (
                 <p className="text-xs text-destructive">{errors.specialtyId.message}</p>
               )}
@@ -607,8 +596,6 @@ export function WorkerFormDialog({ open, onClose, worker }: Props) {
                 placeholder="Selecciona fecha"
                 fromDate={minHire}
                 toDate={maxHire}
-                fromYear={MIN_HIRE_YEAR}
-                toYear={maxHire.getFullYear()}
               />
               <p className="text-[11px] text-muted-foreground">
                 Opcional · desde {MIN_HIRE_YEAR}
@@ -637,33 +624,19 @@ export function WorkerFormDialog({ open, onClose, worker }: Props) {
                 />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="_none">
-                  <span className="text-muted-foreground">Sin asignar</span>
-                </SelectItem>
+                <SelectItem value="_none">Sin asignar</SelectItem>
                 {obras?.items?.map((o) => (
                   <SelectItem key={o.id} value={o.id}>
-                    <div className="flex flex-col items-start gap-0.5">
-                      <span className="font-medium">
-                        [{o.code}] {o.name}
-                      </span>
-                      {o.client && (
-                        <span className="text-[11px] text-muted-foreground">
-                          Cliente: {o.client}
-                        </span>
-                      )}
-                    </div>
+                    [{o.code}] {o.name}
                   </SelectItem>
                 ))}
               </SelectContent>
             </Select>
             <p className="text-[11px] text-muted-foreground">
-              Opcional · se podrá asignar/cambiar después
+              {selectedObra?.client
+                ? `Cliente: ${selectedObra.client}`
+                : 'Opcional · se podrá asignar/cambiar después'}
             </p>
-            {selectedObra && (
-              <p className="text-[11px] text-info">
-                Asignado a: [{selectedObra.code}] {selectedObra.name}
-              </p>
-            )}
           </div>
 
           {/* Notas */}
