@@ -9,8 +9,10 @@ export type MovementSource =
   | 'CONSUMO'
   | 'TRANSFERENCIA'
   | 'AJUSTE'
+  | 'INVENTARIO'
   | 'DEVOLUCION'
-  | 'BAJA';
+  | 'BAJA'
+  | 'LOST_LOAN';
 
 export interface MovementItem {
   id: string;

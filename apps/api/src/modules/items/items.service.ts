@@ -97,7 +97,54 @@ export class ItemsService {
         HttpStatus.NOT_FOUND,
       );
     }
-    return item;
+
+    // Para items PRESTAMO, anotar cada stock con loanedQty/availableQty/damagedReturnedQty.
+    if (item.type === 'PRESTAMO' && item.stocks.length > 0) {
+      const warehouseIds = item.stocks.map((s) => s.warehouseId);
+      const [activeLoans, damagedReturns] = await Promise.all([
+        this.prisma.toolLoan.groupBy({
+          by: ['warehouseId'],
+          where: { itemId: id, warehouseId: { in: warehouseIds }, status: 'ACTIVE' },
+          _sum: { quantity: true },
+        }),
+        this.prisma.toolLoan.groupBy({
+          by: ['warehouseId'],
+          where: {
+            itemId: id,
+            warehouseId: { in: warehouseIds },
+            status: 'RETURNED',
+            returnCondition: 'DAMAGED',
+          },
+          _sum: { quantity: true },
+        }),
+      ]);
+      const loanedMap = new Map(
+        activeLoans.map((r) => [r.warehouseId, Number(r._sum.quantity ?? 0)]),
+      );
+      const damagedMap = new Map(
+        damagedReturns.map((r) => [r.warehouseId, Number(r._sum.quantity ?? 0)]),
+      );
+      const stocks = item.stocks.map((s) => {
+        const loaned = loanedMap.get(s.warehouseId) ?? 0;
+        const damaged = damagedMap.get(s.warehouseId) ?? 0;
+        return {
+          ...s,
+          loanedQty: loaned,
+          availableQty: Math.max(0, Number(s.quantity) - loaned),
+          damagedReturnedQty: damaged,
+        };
+      });
+      return { ...item, stocks };
+    }
+
+    // Otros tipos: anotar campos en 0 para consistencia de shape en el frontend.
+    const stocks = item.stocks.map((s) => ({
+      ...s,
+      loanedQty: 0,
+      availableQty: Number(s.quantity),
+      damagedReturnedQty: 0,
+    }));
+    return { ...item, stocks };
   }
 
   async create(dto: CreateItemDto, userId?: string) {

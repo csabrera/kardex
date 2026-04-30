@@ -7,6 +7,7 @@ import {
 } from '@prisma/client';
 
 import { PrismaService } from '../../prisma/prisma.service';
+import { RealtimeService } from '../realtime/realtime.service';
 import { ToolLoansService } from './tool-loans.service';
 
 function makeLoan(overrides: any = {}) {
@@ -115,10 +116,28 @@ describe('ToolLoansService', () => {
       toolLoanSequence: {
         upsert: jest.fn().mockResolvedValue({ lastValue: 1 }),
       },
+      // markLost ahora usa transacción + stock.updateMany + movement.create + movementSequence
+      movement: { create: jest.fn().mockResolvedValue({ id: 'mov-new' }) },
+      movementSequence: {
+        upsert: jest.fn().mockResolvedValue({ type: 'SALIDA', lastValue: 1 }),
+      },
+      $transaction: jest.fn().mockImplementation((cb: any) => cb(prismaMock)),
+    };
+    // Stock.updateMany default: éxito (sin conflicto). Tests pueden sobreescribir.
+    prismaMock.stock.updateMany = jest.fn().mockResolvedValue({ count: 1 });
+
+    const realtimeMock = {
+      emitToWarehouse: jest.fn(),
+      emitToUser: jest.fn(),
+      emitToRole: jest.fn(),
     };
 
     const module: TestingModule = await Test.createTestingModule({
-      providers: [ToolLoansService, { provide: PrismaService, useValue: prismaMock }],
+      providers: [
+        ToolLoansService,
+        { provide: PrismaService, useValue: prismaMock },
+        { provide: RealtimeService, useValue: realtimeMock },
+      ],
     }).compile();
 
     service = module.get<ToolLoansService>(ToolLoansService);
@@ -305,6 +324,51 @@ describe('ToolLoansService', () => {
     it('transiciona ACTIVE → LOST', async () => {
       await service.markLost('loan-1', {}, 'u-1');
       expect(loanState.status).toBe(ToolLoanStatus.LOST);
+    });
+
+    it('descuenta stock con optimistic lock + crea Movement SALIDA con source=LOST_LOAN', async () => {
+      loanState.quantity = 2;
+      prismaMock.stock.findUnique.mockResolvedValueOnce({ quantity: 5, version: 3 });
+      await service.markLost('loan-1', {}, 'u-1');
+
+      expect(prismaMock.stock.updateMany).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: expect.objectContaining({
+            itemId: 'item-1',
+            warehouseId: 'wh-1',
+            version: 3,
+          }),
+          data: expect.objectContaining({
+            quantity: 3,
+            version: { increment: 1 },
+          }),
+        }),
+      );
+      expect(prismaMock.movement.create).toHaveBeenCalledWith(
+        expect.objectContaining({
+          data: expect.objectContaining({
+            type: 'SALIDA',
+            source: 'LOST_LOAN',
+            warehouseId: 'wh-1',
+          }),
+        }),
+      );
+    });
+
+    it('rechaza markLost si stock insuficiente para registrar la pérdida', async () => {
+      loanState.quantity = 5;
+      prismaMock.stock.findUnique.mockResolvedValueOnce({ quantity: 2, version: 0 });
+      await expect(service.markLost('loan-1', {}, 'u-1')).rejects.toMatchObject({
+        errorCode: 'STOCK_INSUFFICIENT',
+      });
+    });
+
+    it('rechaza markLost si conflicto de concurrencia en stock (version cambió)', async () => {
+      prismaMock.stock.findUnique.mockResolvedValueOnce({ quantity: 5, version: 1 });
+      prismaMock.stock.updateMany.mockResolvedValueOnce({ count: 0 });
+      await expect(service.markLost('loan-1', {}, 'u-1')).rejects.toMatchObject({
+        errorCode: 'STOCK_CONFLICT',
+      });
     });
   });
 

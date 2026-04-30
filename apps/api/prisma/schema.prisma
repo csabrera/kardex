@@ -55,6 +55,7 @@ enum MovementSource {
   INVENTARIO
   DEVOLUCION
   BAJA
+  LOST_LOAN
 }
 
 enum AlertType {

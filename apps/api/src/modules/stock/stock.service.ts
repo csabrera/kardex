@@ -1,4 +1,5 @@
 import { Injectable } from '@nestjs/common';
+import { ToolLoanCondition, ToolLoanStatus } from '@prisma/client';
 
 import { PrismaService } from '../../prisma/prisma.service';
 
@@ -47,7 +48,76 @@ export class StockService {
       orderBy: [{ warehouse: { code: 'asc' } }, { item: { code: 'asc' } }],
     });
 
-    return items;
+    // Para items tipo PRESTAMO, calcular loanedQty (préstamos ACTIVE) y
+    // damagedReturnedQty (préstamos RETURNED con condición DAMAGED).
+    // Para los demás tipos availableQty == quantity (no aplica el concepto).
+    const prestamoStocks = items.filter((s) => s.item.type === 'PRESTAMO');
+    const loanAggregates = await this.aggregateLoans(prestamoStocks);
+
+    return items.map((s) => {
+      const key = `${s.itemId}:${s.warehouseId}`;
+      const agg = loanAggregates.get(key);
+      const loanedQty = agg?.loaned ?? 0;
+      const damagedReturnedQty = agg?.damaged ?? 0;
+      const totalQty = Number(s.quantity);
+      return {
+        ...s,
+        loanedQty,
+        availableQty: Math.max(0, totalQty - loanedQty),
+        damagedReturnedQty,
+      };
+    });
+  }
+
+  /**
+   * Para los stocks pasados, devuelve un map (itemId:warehouseId) → {loaned, damaged}.
+   * Hace 2 aggregates groupBy en paralelo para minimizar round-trips.
+   */
+  private async aggregateLoans(
+    stocks: Array<{ itemId: string; warehouseId: string }>,
+  ): Promise<Map<string, { loaned: number; damaged: number }>> {
+    const map = new Map<string, { loaned: number; damaged: number }>();
+    if (stocks.length === 0) return map;
+
+    const itemIds = Array.from(new Set(stocks.map((s) => s.itemId)));
+    const warehouseIds = Array.from(new Set(stocks.map((s) => s.warehouseId)));
+
+    const [activeLoans, damagedReturns] = await Promise.all([
+      this.prisma.toolLoan.groupBy({
+        by: ['itemId', 'warehouseId'],
+        where: {
+          itemId: { in: itemIds },
+          warehouseId: { in: warehouseIds },
+          status: ToolLoanStatus.ACTIVE,
+        },
+        _sum: { quantity: true },
+      }),
+      this.prisma.toolLoan.groupBy({
+        by: ['itemId', 'warehouseId'],
+        where: {
+          itemId: { in: itemIds },
+          warehouseId: { in: warehouseIds },
+          status: ToolLoanStatus.RETURNED,
+          returnCondition: ToolLoanCondition.DAMAGED,
+        },
+        _sum: { quantity: true },
+      }),
+    ]);
+
+    for (const row of activeLoans) {
+      const key = `${row.itemId}:${row.warehouseId}`;
+      const entry = map.get(key) ?? { loaned: 0, damaged: 0 };
+      entry.loaned = Number(row._sum.quantity ?? 0);
+      map.set(key, entry);
+    }
+    for (const row of damagedReturns) {
+      const key = `${row.itemId}:${row.warehouseId}`;
+      const entry = map.get(key) ?? { loaned: 0, damaged: 0 };
+      entry.damaged = Number(row._sum.quantity ?? 0);
+      map.set(key, entry);
+    }
+
+    return map;
   }
 
   async summary(warehouseId?: string) {

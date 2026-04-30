@@ -109,6 +109,17 @@ export default function ItemDetailPage() {
     [item],
   );
 
+  const totalLoaned = useMemo(
+    () => (item?.stocks ?? []).reduce((acc, s) => acc + Number(s.loanedQty ?? 0), 0),
+    [item],
+  );
+  const totalDamagedReturned = useMemo(
+    () =>
+      (item?.stocks ?? []).reduce((acc, s) => acc + Number(s.damagedReturnedQty ?? 0), 0),
+    [item],
+  );
+  const isLoanItem = item?.type === 'PRESTAMO';
+
   // Serie para la gráfica: stockAfter del Principal según kardex
   const chartData = useMemo(() => {
     return kardex
@@ -277,6 +288,28 @@ export default function ItemDetailPage() {
           icon={TrendingUp}
           tone={status.tone}
         />
+        {isLoanItem && (
+          <>
+            <KpiCard
+              label="Prestados"
+              value={totalLoaned.toLocaleString('es-PE', { maximumFractionDigits: 3 })}
+              unit={item.unit.abbreviation}
+              icon={ArrowRight}
+              tone={totalLoaned > 0 ? 'info' : 'default'}
+              hint="En préstamo activo (todos los almacenes)"
+            />
+            <KpiCard
+              label="Devueltos dañados"
+              value={totalDamagedReturned.toLocaleString('es-PE', {
+                maximumFractionDigits: 3,
+              })}
+              unit={item.unit.abbreviation}
+              icon={TrendingDown}
+              tone={totalDamagedReturned > 0 ? 'destructive' : 'default'}
+              hint="Cuentan en stock total pero no son utilizables"
+            />
+          </>
+        )}
       </div>
 
       {pendingItemLines.length > 0 && (
@@ -571,7 +604,7 @@ export default function ItemDetailPage() {
   );
 }
 
-type Tone = 'default' | 'success' | 'warning' | 'destructive';
+type Tone = 'default' | 'success' | 'warning' | 'destructive' | 'info';
 
 function KpiCard({
   label,
@@ -609,6 +642,11 @@ function KpiCard({
       bg: 'bg-red-500/10',
       fg: 'text-red-600 dark:text-red-400',
       ring: 'ring-red-500/20',
+    },
+    info: {
+      bg: 'bg-blue-500/10',
+      fg: 'text-blue-600 dark:text-blue-400',
+      ring: 'ring-blue-500/20',
     },
   };
   const t = tones[tone];

@@ -8,6 +8,12 @@ export interface StockEntry {
   warehouseId: string;
   quantity: number;
   version: number;
+  /** Para items PRESTAMO: cantidad actualmente en préstamo activo. Para otros tipos: 0. */
+  loanedQty: number;
+  /** quantity - loanedQty. Para items no-PRESTAMO == quantity. */
+  availableQty: number;
+  /** Para items PRESTAMO: cantidad devuelta con condición DAMAGED (cuenta en quantity pero "no utilizable"). */
+  damagedReturnedQty: number;
   item: {
     id: string;
     code: string;

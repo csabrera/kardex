@@ -31,6 +31,12 @@ export interface ItemDetail extends Item {
     version: number;
     warehouseId: string;
     warehouse: { id: string; code: string; name: string; type?: string };
+    /** Préstamo activo en este almacén. 0 si no aplica. */
+    loanedQty: number;
+    /** quantity - loanedQty. Para items no-PRESTAMO == quantity. */
+    availableQty: number;
+    /** Devueltos con condición DAMAGED en este almacén. */
+    damagedReturnedQty: number;
   }[];
 }
 

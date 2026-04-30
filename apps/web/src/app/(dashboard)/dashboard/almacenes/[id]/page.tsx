@@ -535,7 +535,13 @@ function InformacionSection({
                   <th className="text-left px-4 py-2.5 font-medium">Código</th>
                   <th className="text-left px-4 py-2.5 font-medium">Ítem</th>
                   <th className="text-left px-4 py-2.5 font-medium">Tipo</th>
-                  <th className="text-right px-4 py-2.5 font-medium">Cantidad</th>
+                  <th
+                    className="text-right px-4 py-2.5 font-medium"
+                    title="Disponible / Total. Para préstamos: disponible = total − en préstamo activo."
+                  >
+                    Disp. / Total
+                  </th>
+                  <th className="text-right px-4 py-2.5 font-medium">Prestados</th>
                   <th className="text-right px-4 py-2.5 font-medium">Mínimo</th>
                   <th className="text-left px-4 py-2.5 font-medium">Estado</th>
                 </tr>
@@ -546,8 +552,12 @@ function InformacionSection({
                   .map((s) => {
                     const qty = Number(s.quantity);
                     const min = Number(s.item.minStock);
-                    const out = qty === 0 && min > 0;
-                    const low = !out && min > 0 && qty < min;
+                    const isLoan = s.item.type === 'PRESTAMO';
+                    const loaned = Number(s.loanedQty ?? 0);
+                    const damaged = Number(s.damagedReturnedQty ?? 0);
+                    const available = Number(s.availableQty ?? qty);
+                    const out = available === 0 && min > 0;
+                    const low = !out && min > 0 && available < min;
                     return (
                       <tr key={s.id} className="border-t hover:bg-muted/20">
                         <td className="px-4 py-2.5 font-mono text-xs">{s.item.code}</td>
@@ -558,6 +568,14 @@ function InformacionSection({
                           >
                             {s.item.name}
                           </Link>
+                          {isLoan && damaged > 0 && (
+                            <span
+                              className="ml-2 text-[10px] text-destructive"
+                              title="Devueltos en condición DAMAGED — no utilizables"
+                            >
+                              ⚠ {damaged} no utilizables
+                            </span>
+                          )}
                         </td>
                         <td className="px-4 py-2.5">
                           <Badge variant="outline" className="text-[10px]">
@@ -571,15 +589,36 @@ function InformacionSection({
                             low && 'text-amber-600 dark:text-amber-400',
                           )}
                         >
-                          {qty.toLocaleString('es-PE', { maximumFractionDigits: 3 })}{' '}
+                          {isLoan ? (
+                            <>
+                              {available.toLocaleString('es-PE', {
+                                maximumFractionDigits: 3,
+                              })}
+                              <span className="text-muted-foreground font-normal">
+                                {' / '}
+                                {qty.toLocaleString('es-PE', {
+                                  maximumFractionDigits: 3,
+                                })}
+                              </span>
+                            </>
+                          ) : (
+                            qty.toLocaleString('es-PE', { maximumFractionDigits: 3 })
+                          )}{' '}
                           {s.item.unit.abbreviation}
+                        </td>
+                        <td className="px-4 py-2.5 text-right tabular-nums text-xs">
+                          {isLoan && loaned > 0 ? (
+                            <span className="text-info font-medium">{loaned}</span>
+                          ) : (
+                            <span className="text-muted-foreground">—</span>
+                          )}
                         </td>
                         <td className="px-4 py-2.5 text-right tabular-nums text-muted-foreground text-xs">
                           {min > 0 ? min : '—'}
                         </td>
                         <td className="px-4 py-2.5">
                           {out ? (
-                            <Badge variant="destructive">Sin stock</Badge>
+                            <Badge variant="destructive">Sin disponible</Badge>
                           ) : low ? (
                             <Badge variant="warning">Bajo mínimo</Badge>
                           ) : (

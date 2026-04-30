@@ -25,8 +25,10 @@ const SOURCE_LABELS: Record<string, string> = {
   CONSUMO: 'Consumo',
   TRANSFERENCIA: 'Transferencia',
   AJUSTE: 'Ajuste',
+  INVENTARIO: 'Inventario',
   DEVOLUCION: 'Devolución',
   BAJA: 'Baja',
+  LOST_LOAN: 'Pérdida de préstamo',
 };
 
 function MovementDetail({ movement }: { movement: Movement }) {

@@ -1,6 +1,8 @@
 import { Injectable, HttpStatus } from '@nestjs/common';
 import {
   ItemType,
+  MovementSource,
+  MovementType,
   Prisma,
   ToolLoanCondition,
   ToolLoanStatus,
@@ -9,7 +11,8 @@ import {
 
 import { PrismaService } from '../../prisma/prisma.service';
 import { BusinessException } from '../../common/exceptions/business.exception';
-import { BusinessErrorCode } from '@kardex/types';
+import { BusinessErrorCode, WS_EVENTS } from '@kardex/types';
+import { RealtimeService } from '../realtime/realtime.service';
 import {
   assertOverrideReasonIfNeeded,
   assertWarehouseScope,
@@ -59,7 +62,10 @@ const TOOL_LOAN_INCLUDE = {
 
 @Injectable()
 export class ToolLoansService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly realtime: RealtimeService,
+  ) {}
 
   async findAll(query: {
     page?: number;
@@ -382,18 +388,87 @@ export class ToolLoansService {
       dto.overrideReason,
     );
 
-    return this.prisma.toolLoan.update({
-      where: { id },
-      data: {
-        status: ToolLoanStatus.LOST,
-        returnedAt: new Date(),
-        returnedById: userId,
-        returnCondition: ToolLoanCondition.DAMAGED,
-        returnNotes: 'Marcado como perdido',
-        returnOverrideReason: dto.overrideReason?.trim() || null,
-      },
-      include: TOOL_LOAN_INCLUDE,
+    // Atomic: marcar LOST + descontar stock + generar Movement SALIDA con
+    // source=LOST_LOAN. Optimistic lock por Stock.version (igual que movements).
+    const lostQty = Number(loan.quantity);
+    const updated = await this.prisma.$transaction(async (tx) => {
+      const stock = await tx.stock.findUnique({
+        where: {
+          itemId_warehouseId: { itemId: loan.itemId, warehouseId: loan.warehouseId },
+        },
+      });
+      const currentQty = Number(stock?.quantity ?? 0);
+      if (currentQty < lostQty) {
+        throw new BusinessException(
+          BusinessErrorCode.STOCK_INSUFFICIENT,
+          `Stock insuficiente para registrar pérdida: disponible ${currentQty}, requerido ${lostQty}`,
+          HttpStatus.CONFLICT,
+        );
+      }
+      const version = stock?.version ?? 0;
+      const newQty = currentQty - lostQty;
+
+      const stockUpdate = await tx.stock.updateMany({
+        where: { itemId: loan.itemId, warehouseId: loan.warehouseId, version },
+        data: { quantity: newQty, version: { increment: 1 } },
+      });
+      if (stockUpdate.count === 0) {
+        throw new BusinessException(
+          BusinessErrorCode.STOCK_CONFLICT,
+          'Conflicto de concurrencia al actualizar stock. Intente nuevamente.',
+          HttpStatus.CONFLICT,
+        );
+      }
+
+      const seq = await tx.movementSequence.upsert({
+        where: { type: MovementType.SALIDA },
+        update: { lastValue: { increment: 1 } },
+        create: { type: MovementType.SALIDA, lastValue: 1 },
+      });
+      const code = `SAL-${String(seq.lastValue).padStart(5, '0')}`;
+
+      await tx.movement.create({
+        data: {
+          code,
+          type: MovementType.SALIDA,
+          source: MovementSource.LOST_LOAN,
+          warehouseId: loan.warehouseId,
+          userId,
+          notes: `Pérdida de préstamo ${loan.code}`,
+          items: {
+            create: [
+              {
+                itemId: loan.itemId,
+                quantity: lostQty,
+                stockBefore: currentQty,
+                stockAfter: newQty,
+              },
+            ],
+          },
+        },
+      });
+
+      return tx.toolLoan.update({
+        where: { id },
+        data: {
+          status: ToolLoanStatus.LOST,
+          returnedAt: new Date(),
+          returnedById: userId,
+          returnCondition: ToolLoanCondition.DAMAGED,
+          returnNotes: 'Marcado como perdido',
+          returnOverrideReason: dto.overrideReason?.trim() || null,
+        },
+        include: TOOL_LOAN_INCLUDE,
+      });
     });
+
+    this.realtime.emitToWarehouse(loan.warehouseId, WS_EVENTS.STOCK_CHANGED, {
+      warehouseId: loan.warehouseId,
+      type: MovementType.SALIDA,
+      itemIds: [loan.itemId],
+    });
+
+    return updated;
   }
 
   async findOverdue() {

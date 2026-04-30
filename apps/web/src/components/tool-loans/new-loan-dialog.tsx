@@ -172,7 +172,19 @@ export function NewLoanDialog({
     warehouseId: warehouseId || undefined,
     enabled: !!(itemId && warehouseId),
   } as any);
+  // Para préstamos: lo que cuenta es availableQty (= stock − préstamos ACTIVE),
+  // no quantity (que incluye los ya prestados). Si el endpoint aún no lo trae
+  // (cliente desactualizado), fallback a quantity para no romper.
   const availableQty = useMemo(() => {
+    if (!itemId || !warehouseId) return null;
+    const entry = (itemStock ?? []).find(
+      (s) => s.itemId === itemId && s.warehouseId === warehouseId,
+    );
+    if (!entry) return 0;
+    const avail = (entry as any).availableQty;
+    return avail !== undefined ? Number(avail) : Number(entry.quantity);
+  }, [itemStock, itemId, warehouseId]);
+  const totalQty = useMemo(() => {
     if (!itemId || !warehouseId) return null;
     const entry = (itemStock ?? []).find(
       (s) => s.itemId === itemId && s.warehouseId === warehouseId,
@@ -450,18 +462,29 @@ export function NewLoanDialog({
                 {errors.itemId && (
                   <p className="text-xs text-destructive">{errors.itemId.message}</p>
                 )}
-                {itemId && warehouseId && availableQty !== null && (
+                {itemId && warehouseId && availableQty !== null && totalQty !== null && (
                   <p
                     className={`text-[11px] tabular-nums ${
                       availableQty === 0 ? 'text-destructive' : 'text-muted-foreground'
                     }`}
                   >
-                    Stock disponible en este almacén:{' '}
+                    Disponible para prestar:{' '}
                     <span className="font-semibold">
                       {availableQty.toLocaleString('es-PE', { maximumFractionDigits: 3 })}
                     </span>
                     {selectedItem && (
                       <span className="ml-1">{selectedItem.unit.abbreviation}</span>
+                    )}
+                    {totalQty > availableQty && (
+                      <span className="ml-2 text-muted-foreground/70">
+                        (de{' '}
+                        {totalQty.toLocaleString('es-PE', { maximumFractionDigits: 3 })}{' '}
+                        totales ·{' '}
+                        {(totalQty - availableQty).toLocaleString('es-PE', {
+                          maximumFractionDigits: 3,
+                        })}{' '}
+                        en préstamo)
+                      </span>
                     )}
                   </p>
                 )}
