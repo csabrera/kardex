@@ -430,9 +430,10 @@ export class BootstrapService implements OnApplicationBootstrap {
     }
   }
 
+  // Cada upsert es idempotente por su `code` único — si ya existe no toca nada,
+  // y no pisa registros creados manualmente por el usuario (esos tienen códigos
+  // auto-generados tipo CAT-XXXXXX, distintos de los códigos base).
   private async seedUnits(): Promise<void> {
-    const count = await this.prisma.unit.count();
-    if (count > 0) return;
     for (const unit of BASE_UNITS) {
       await this.prisma.unit.upsert({
         where: { code: unit.code },
@@ -440,12 +441,10 @@ export class BootstrapService implements OnApplicationBootstrap {
         create: unit,
       });
     }
-    this.logger.log(`  ✓ ${BASE_UNITS.length} units seeded`);
+    this.logger.log(`  ✓ ${BASE_UNITS.length} units ensured`);
   }
 
   private async seedCategories(): Promise<void> {
-    const count = await this.prisma.category.count();
-    if (count > 0) return;
     for (const cat of BASE_CATEGORIES) {
       await this.prisma.category.upsert({
         where: { code: cat.code },
@@ -453,12 +452,10 @@ export class BootstrapService implements OnApplicationBootstrap {
         create: cat,
       });
     }
-    this.logger.log(`  ✓ ${BASE_CATEGORIES.length} categories seeded`);
+    this.logger.log(`  ✓ ${BASE_CATEGORIES.length} categories ensured`);
   }
 
   private async seedSpecialties(): Promise<void> {
-    const count = await this.prisma.specialty.count();
-    if (count > 0) return;
     for (const spec of BASE_SPECIALTIES) {
       await this.prisma.specialty.upsert({
         where: { code: spec.code },
@@ -466,7 +463,7 @@ export class BootstrapService implements OnApplicationBootstrap {
         create: spec,
       });
     }
-    this.logger.log(`  ✓ ${BASE_SPECIALTIES.length} specialties seeded`);
+    this.logger.log(`  ✓ ${BASE_SPECIALTIES.length} specialties ensured`);
   }
 
   private async seedSupplierEventual(): Promise<void> {
