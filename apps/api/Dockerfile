@@ -38,17 +38,18 @@ RUN apk add --no-cache libc6-compat openssl
 COPY --from=deps /app/node_modules ./node_modules
 COPY . .
 
+# Buildear packages compartidos PRIMERO (apps/api los importa por su `dist/`).
+# Tanto @kardex/types como @kardex/utils tienen package.json con
+# "main": "./dist/index.js" — sin este build, nest build falla con TS2307.
+RUN npm run build --workspace=@kardex/types --if-present \
+ && npm run build --workspace=@kardex/utils --if-present
+
 # Generar Prisma client (necesita schema.prisma)
 WORKDIR /app/apps/api
 RUN npx prisma generate
 
 # Build NestJS — produce apps/api/dist/main.js
 RUN npm run build
-
-# Build de packages compartidos (si tienen dist propio)
-WORKDIR /app
-RUN npm run build --workspace=@kardex/types --if-present \
- && npm run build --workspace=@kardex/utils --if-present
 
 
 # Stage 3: runner — imagen final mínima
