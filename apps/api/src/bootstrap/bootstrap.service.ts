@@ -218,6 +218,126 @@ const ROLE_PERMISSIONS: Record<string, string[]> = {
   ],
 };
 
+const BASE_UNITS = [
+  { code: 'UND', name: 'Unidad', abbreviation: 'und' },
+  { code: 'KG', name: 'Kilogramo', abbreviation: 'kg' },
+  { code: 'G', name: 'Gramo', abbreviation: 'g' },
+  { code: 'TN', name: 'Tonelada', abbreviation: 'tn' },
+  { code: 'M', name: 'Metro', abbreviation: 'm' },
+  { code: 'CM', name: 'Centímetro', abbreviation: 'cm' },
+  { code: 'MM', name: 'Milímetro', abbreviation: 'mm' },
+  { code: 'M2', name: 'Metro cuadrado', abbreviation: 'm²' },
+  { code: 'M3', name: 'Metro cúbico', abbreviation: 'm³' },
+  { code: 'L', name: 'Litro', abbreviation: 'l' },
+  { code: 'ML', name: 'Mililitro', abbreviation: 'ml' },
+  { code: 'GL', name: 'Galón', abbreviation: 'gl' },
+  { code: 'PAR', name: 'Par', abbreviation: 'par' },
+  { code: 'CJA', name: 'Caja', abbreviation: 'cja' },
+  { code: 'BLS', name: 'Bolsa', abbreviation: 'bls' },
+  { code: 'BLD', name: 'Balde', abbreviation: 'bld' },
+  { code: 'ROL', name: 'Rollo', abbreviation: 'rol' },
+  { code: 'PLG', name: 'Pulgada', abbreviation: 'plg' },
+  { code: 'PZA', name: 'Pieza', abbreviation: 'pza' },
+  { code: 'JGO', name: 'Juego', abbreviation: 'jgo' },
+];
+
+const BASE_CATEGORIES = [
+  {
+    code: 'CONSTRUCCION',
+    name: 'Materiales de construcción',
+    description: 'Cemento, fierro, agregados, ladrillos, etc.',
+  },
+  {
+    code: 'SEGURIDAD',
+    name: 'Equipos de protección personal (EPP)',
+    description: 'Cascos, guantes, arneses, lentes, etc.',
+  },
+  {
+    code: 'FERRETERIA',
+    name: 'Ferretería general',
+    description: 'Clavos, tornillos, alambres, herramientas menores',
+  },
+  {
+    code: 'ELECTRICA',
+    name: 'Material eléctrico',
+    description: 'Cables, interruptores, tomacorrientes, luminarias',
+  },
+  {
+    code: 'GASFITERIA',
+    name: 'Gasfitería y plomería',
+    description: 'Tuberías, accesorios, grifería',
+  },
+  {
+    code: 'PINTURAS',
+    name: 'Pinturas y acabados',
+    description: 'Pinturas, barnices, disolventes, brochas',
+  },
+  { code: 'HERRAMIENTAS', name: 'Herramientas', description: 'Manuales y eléctricas' },
+  {
+    code: 'REPUESTOS',
+    name: 'Repuestos',
+    description: 'Repuestos de maquinaria y vehículos',
+  },
+  {
+    code: 'OFICINA',
+    name: 'Útiles de oficina',
+    description: 'Papelería, útiles, consumibles',
+  },
+];
+
+const BASE_SPECIALTIES = [
+  {
+    code: 'ALBANIL',
+    name: 'Albañil',
+    description: 'Construcción de muros, pisos, enlucidos, asentado de ladrillos',
+  },
+  {
+    code: 'ELECTRICISTA',
+    name: 'Electricista',
+    description: 'Instalaciones eléctricas, conexiones, tableros',
+  },
+  {
+    code: 'GASFITERO',
+    name: 'Gasfitero',
+    description: 'Instalaciones sanitarias, tuberías de agua y desagüe',
+  },
+  {
+    code: 'OPERADOR',
+    name: 'Operador',
+    description: 'Manejo de maquinaria pesada y equipos',
+  },
+  {
+    code: 'MAESTRO_OBRA',
+    name: 'Maestro de obra',
+    description: 'Supervisor de obra, coordina cuadrilla',
+  },
+  {
+    code: 'OFICIAL',
+    name: 'Oficial',
+    description: 'Obrero con especialidad, asiste al maestro',
+  },
+  {
+    code: 'AYUDANTE',
+    name: 'Ayudante',
+    description: 'Apoyo general en obra, sin especialidad específica',
+  },
+  {
+    code: 'SOLDADOR',
+    name: 'Soldador',
+    description: 'Soldadura de estructuras metálicas, mallas, perfiles',
+  },
+  {
+    code: 'PINTOR',
+    name: 'Pintor',
+    description: 'Aplicación de pinturas, barnices, acabados',
+  },
+  {
+    code: 'CARPINTERO',
+    name: 'Carpintero',
+    description: 'Carpintería de obra (encofrados) y mueble',
+  },
+];
+
 @Injectable()
 export class BootstrapService implements OnApplicationBootstrap {
   private readonly logger = new Logger(BootstrapService.name);
@@ -228,22 +348,27 @@ export class BootstrapService implements OnApplicationBootstrap {
     try {
       const permissionCount = await this.prisma.permission.count();
 
-      if (permissionCount > 0) {
-        this.logger.log(
-          `Bootstrap skipped: ${permissionCount} permissions ya están sembradas.`,
+      if (permissionCount === 0) {
+        this.logger.warn(
+          'BD sin permissions — sembrando roles, permissions y assignments...',
         );
-        return;
+        await this.seedRoles();
+        await this.seedPermissions();
+        await this.assignPermissionsByRole();
+      } else {
+        this.logger.log(
+          `Roles/Permissions OK: ${permissionCount} permissions ya sembradas.`,
+        );
       }
 
-      this.logger.warn(
-        'BD sin permissions — sembrando roles, permissions y assignments...',
-      );
+      // Catálogos base — cada uno es idempotente y solo siembra si está vacío.
+      await this.seedUnits();
+      await this.seedCategories();
+      await this.seedSpecialties();
+      await this.seedSupplierEventual();
+      await this.seedMainWarehouse();
 
-      await this.seedRoles();
-      await this.seedPermissions();
-      await this.assignPermissionsByRole();
-
-      this.logger.log('✓ Bootstrap completed: roles + permissions sembradas.');
+      this.logger.log('✓ Bootstrap completed.');
     } catch (err) {
       // No tirar para no impedir el arranque del API. El admin puede correr el
       // seed manual si esto falla. Pero loggear bien fuerte.
@@ -303,5 +428,79 @@ export class BootstrapService implements OnApplicationBootstrap {
 
       this.logger.log(`  ✓ ${permIds.length} permissions → role ${role.name}`);
     }
+  }
+
+  private async seedUnits(): Promise<void> {
+    const count = await this.prisma.unit.count();
+    if (count > 0) return;
+    for (const unit of BASE_UNITS) {
+      await this.prisma.unit.upsert({
+        where: { code: unit.code },
+        update: {},
+        create: unit,
+      });
+    }
+    this.logger.log(`  ✓ ${BASE_UNITS.length} units seeded`);
+  }
+
+  private async seedCategories(): Promise<void> {
+    const count = await this.prisma.category.count();
+    if (count > 0) return;
+    for (const cat of BASE_CATEGORIES) {
+      await this.prisma.category.upsert({
+        where: { code: cat.code },
+        update: {},
+        create: cat,
+      });
+    }
+    this.logger.log(`  ✓ ${BASE_CATEGORIES.length} categories seeded`);
+  }
+
+  private async seedSpecialties(): Promise<void> {
+    const count = await this.prisma.specialty.count();
+    if (count > 0) return;
+    for (const spec of BASE_SPECIALTIES) {
+      await this.prisma.specialty.upsert({
+        where: { code: spec.code },
+        update: {},
+        create: spec,
+      });
+    }
+    this.logger.log(`  ✓ ${BASE_SPECIALTIES.length} specialties seeded`);
+  }
+
+  private async seedSupplierEventual(): Promise<void> {
+    await this.prisma.supplier.upsert({
+      where: { code: 'PRV-EVENTUAL' },
+      update: {},
+      create: {
+        code: 'PRV-EVENTUAL',
+        name: 'Proveedor eventual - Efectivo',
+        notes:
+          'Catch-all para compras menores en efectivo sin factura de proveedor registrado.',
+        active: true,
+      },
+    });
+    this.logger.log('  ✓ Supplier PRV-EVENTUAL ensured');
+  }
+
+  private async seedMainWarehouse(): Promise<void> {
+    const existing = await this.prisma.warehouse.findFirst({
+      where: { type: 'CENTRAL', deletedAt: null },
+    });
+    if (existing) return;
+    await this.prisma.warehouse.upsert({
+      where: { code: 'ALM-PRINCIPAL' },
+      update: {},
+      create: {
+        code: 'ALM-PRINCIPAL',
+        name: 'Almacén Principal',
+        type: 'CENTRAL',
+        description:
+          'Inventario matriz de la empresa. Punto de entrada para todas las compras.',
+        active: true,
+      },
+    });
+    this.logger.log('  ✓ Almacén Principal seeded');
   }
 }

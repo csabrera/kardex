@@ -91,6 +91,7 @@ const ADMIN_SECTIONS: NavSection[] = [
     items: [
       { label: 'Categorías', href: '/dashboard/categorias', icon: Tag },
       { label: 'Unidades', href: '/dashboard/unidades', icon: Ruler },
+      { label: 'Especialidades', href: '/dashboard/especialidades', icon: HardHat },
     ],
   },
 ];

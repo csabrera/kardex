@@ -24,6 +24,11 @@ describe('ObrasService', () => {
         count: jest.fn().mockResolvedValue(0),
         findFirst: jest.fn().mockResolvedValue(baseObra),
         findUnique: jest.fn().mockResolvedValue(null),
+        findUniqueOrThrow: jest
+          .fn()
+          .mockImplementation(({ where }) =>
+            Promise.resolve({ id: where.id, ...baseObra }),
+          ),
         create: jest
           .fn()
           .mockImplementation(({ data }) => Promise.resolve({ id: 'obra-new', ...data })),
@@ -36,9 +41,16 @@ describe('ObrasService', () => {
           .fn()
           .mockResolvedValue({ id: 'u-1', active: true, deletedAt: null }),
       },
-      warehouse: { count: jest.fn().mockResolvedValue(0) },
+      warehouse: {
+        count: jest.fn().mockResolvedValue(0),
+        findUnique: jest.fn().mockResolvedValue(null),
+        create: jest
+          .fn()
+          .mockImplementation(({ data }) => Promise.resolve({ id: 'wh-new', ...data })),
+      },
       worker: { count: jest.fn().mockResolvedValue(0) },
       toolLoan: { count: jest.fn().mockResolvedValue(0) },
+      $transaction: jest.fn().mockImplementation((cb: any) => cb(prismaMock)),
     };
 
     const module: TestingModule = await Test.createTestingModule({
@@ -78,6 +90,23 @@ describe('ObrasService', () => {
       expect(prismaMock.obra.create).toHaveBeenCalledWith(
         expect.objectContaining({
           data: expect.objectContaining({ status: ObraStatus.PLANIFICACION }),
+        }),
+      );
+    });
+
+    it('crea automáticamente un almacén OBRA con código ALM-{OBRA_CODE}', async () => {
+      await service.create({
+        code: 'OBR-99',
+        name: 'Edif Lima',
+        responsibleUserId: 'u-1',
+      });
+      expect(prismaMock.warehouse.create).toHaveBeenCalledWith(
+        expect.objectContaining({
+          data: expect.objectContaining({
+            code: 'ALM-OBR-99',
+            type: 'OBRA',
+            obraId: 'obra-new',
+          }),
         }),
       );
     });

@@ -116,19 +116,50 @@ export class ObrasService {
       );
     }
 
-    return this.prisma.obra.create({
-      data: {
-        code,
-        name: dto.name.trim(),
-        address: dto.address?.trim(),
-        client: dto.client?.trim(),
-        description: dto.description?.trim(),
-        startDate: dto.startDate ? new Date(dto.startDate) : undefined,
-        endDate: dto.endDate ? new Date(dto.endDate) : undefined,
-        status: dto.status ?? ObraStatus.PLANIFICACION,
-        responsibleUserId: dto.responsibleUserId,
-      },
-      include: OBRA_INCLUDE,
+    // Auto-crear almacén OBRA con código ALM-{OBRA_CODE}. Una obra sin almacén
+    // no es operativa en este sistema (las transferencias y préstamos viven en
+    // el almacén). Si el código de almacén ya existe (raro), reintenta con
+    // sufijo numérico.
+    const baseWarehouseCode = `ALM-${code}`;
+    let warehouseCode = baseWarehouseCode;
+    for (let i = 2; i <= 5; i++) {
+      const dup = await this.prisma.warehouse.findUnique({
+        where: { code: warehouseCode },
+      });
+      if (!dup) break;
+      warehouseCode = `${baseWarehouseCode}-${i}`;
+    }
+
+    return this.prisma.$transaction(async (tx) => {
+      const obra = await tx.obra.create({
+        data: {
+          code: code!,
+          name: dto.name.trim(),
+          address: dto.address?.trim(),
+          client: dto.client?.trim(),
+          description: dto.description?.trim(),
+          startDate: dto.startDate ? new Date(dto.startDate) : undefined,
+          endDate: dto.endDate ? new Date(dto.endDate) : undefined,
+          status: dto.status ?? ObraStatus.PLANIFICACION,
+          responsibleUserId: dto.responsibleUserId,
+        },
+      });
+
+      await tx.warehouse.create({
+        data: {
+          code: warehouseCode,
+          name: `Almacén ${obra.name}`,
+          type: 'OBRA',
+          obraId: obra.id,
+          description: `Almacén operativo de la obra ${obra.code}`,
+          active: true,
+        },
+      });
+
+      return tx.obra.findUniqueOrThrow({
+        where: { id: obra.id },
+        include: OBRA_INCLUDE,
+      });
     });
   }
 
