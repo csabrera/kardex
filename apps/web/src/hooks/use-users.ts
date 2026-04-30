@@ -76,12 +76,14 @@ export function useCreateUser() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: (dto: CreateUserDto) =>
-      apiClient.post(BASE, dto).then((r) => r.data.data),
+      apiClient.post(BASE, dto).then((r) => r.data.data as User),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['users'] });
-      toast.success('Usuario creado');
+      // Toast de éxito lo muestra el componente para incluir el documento como
+      // contraseña inicial — info accionable que el admin debe comunicar.
     },
-    onError: () => toast.error('Error al crear usuario'),
+    // Error toast lo muestra el componente: distingue duplicados (inline) de
+    // errores genéricos (toast).
   });
 }
 
