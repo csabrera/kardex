@@ -73,16 +73,16 @@ Follow the shadcn docs manually (components are copied into `src/components/ui/`
 
 ## 📜 Scripts
 
-| Command                | What it does                  |
-| ---------------------- | ----------------------------- |
-| `npm run dev`          | Start dev server (:3000)      |
-| `npm run build`        | Build for production          |
-| `npm run start`        | Start production build        |
-| `npm run lint`         | Lint + auto-fix               |
-| `npm run type-check`   | TypeScript check              |
-| `npm run test`         | Unit tests (Vitest)           |
-| `npm run test:watch`   | Tests in watch mode           |
-| `npm run test:coverage`| Tests with coverage           |
+| Command                 | What it does             |
+| ----------------------- | ------------------------ |
+| `npm run dev`           | Start dev server (:3000) |
+| `npm run build`         | Build for production     |
+| `npm run start`         | Start production build   |
+| `npm run lint`          | Lint + auto-fix          |
+| `npm run type-check`    | TypeScript check         |
+| `npm run test`          | Unit tests (Vitest)      |
+| `npm run test:watch`    | Tests in watch mode      |
+| `npm run test:coverage` | Tests with coverage      |
 
 ## 🔐 Auth State (Fase 2)
 
