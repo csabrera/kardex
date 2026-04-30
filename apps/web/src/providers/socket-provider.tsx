@@ -73,7 +73,13 @@ const NOTIF_TITLES: Record<WsEvent, string> = {
   [WS_EVENTS.DISCONNECTED]: '',
 };
 
-const SOCKET_URL = process.env.NEXT_PUBLIC_WS_URL ?? 'http://localhost:4000';
+// socket.io-client convierte automáticamente http://→ws:// y https://→wss://.
+// Fallback a NEXT_PUBLIC_API_URL para no requerir una variable separada en deploy
+// (Railway expone solo NEXT_PUBLIC_API_URL por convención).
+const SOCKET_URL =
+  process.env.NEXT_PUBLIC_WS_URL ??
+  process.env.NEXT_PUBLIC_API_URL ??
+  'http://localhost:4000';
 
 export function SocketProvider({ children }: { children: ReactNode }): JSX.Element {
   const accessToken = useAuthStore((s) => s.accessToken);
