@@ -232,7 +232,7 @@ export function ObraFormDialog({ open, onClose, obra }: Props) {
 
   return (
     <Dialog open={open} onOpenChange={(v) => !v && onClose()}>
-      <DialogContent className="max-w-lg">
+      <DialogContent className="max-w-2xl">
         <DialogHeader>
           <DialogTitle>{isEdit ? 'Editar obra' : 'Nueva obra'}</DialogTitle>
           <DialogDescription>
@@ -369,13 +369,13 @@ export function ObraFormDialog({ open, onClose, obra }: Props) {
                 isLoading={usersFetching}
                 onSearchChange={setUserSearch}
                 getId={(u) => u.id}
-                getLabel={(u) => `${u.firstName} ${u.lastName}`}
+                getLabel={(u) => `${u.firstName} ${u.lastName}`.toUpperCase()}
                 selectedItem={selectedUser}
                 placeholder="Buscar usuario..."
                 emptyMessage="Sin resultados"
                 renderItem={(u) => (
                   <div className="flex items-center justify-between w-full gap-2">
-                    <span className="truncate text-sm">
+                    <span className="truncate text-sm uppercase">
                       {u.firstName} {u.lastName}
                     </span>
                     <span
