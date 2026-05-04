@@ -110,7 +110,9 @@ export function ObraFormDialog({ open, onClose, obra }: Props) {
     pageSize: 20,
     active: true,
   });
-  const users = usersData?.items ?? [];
+  const users = (usersData?.items ?? []).filter(
+    (u) => u.role.name === 'ADMIN' || u.role.name === 'RESIDENTE',
+  );
 
   const createMut = useCreateObra();
   const updateMut = useUpdateObra();
