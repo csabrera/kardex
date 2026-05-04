@@ -1,7 +1,7 @@
 'use client';
 
 import { zodResolver } from '@hookform/resolvers/zod';
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import { useForm } from 'react-hook-form';
 import { toast } from 'sonner';
 import { z } from 'zod';
@@ -24,6 +24,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
+import { SearchCombobox } from '@/components/ui/search-combobox';
 import { Textarea } from '@/components/ui/textarea';
 import {
   useCreateObra,
@@ -31,7 +32,7 @@ import {
   type Obra,
   type ObraStatus,
 } from '@/hooks/use-obras';
-import { useUsers } from '@/hooks/use-users';
+import { useUsers, type User } from '@/hooks/use-users';
 
 const STATUS_META: { value: ObraStatus; label: string; description: string }[] = [
   {
@@ -89,8 +90,28 @@ interface Props {
   obra?: Obra | null;
 }
 
+const ROLE_LABEL: Record<string, string> = {
+  ADMIN: 'Admin',
+  ALMACENERO: 'Almacenero',
+  RESIDENTE: 'Residente',
+};
+
+const ROLE_CLASS: Record<string, string> = {
+  ADMIN: 'bg-destructive/10 text-destructive',
+  ALMACENERO: 'bg-info/10 text-info',
+  RESIDENTE: 'bg-success/10 text-success',
+};
+
 export function ObraFormDialog({ open, onClose, obra }: Props) {
-  const { data: users } = useUsers({ pageSize: 100, active: true });
+  const [userSearch, setUserSearch] = useState('');
+  const [lastSelectedUser, setLastSelectedUser] = useState<User | null>(null);
+  const { data: usersData, isFetching: usersFetching } = useUsers({
+    search: userSearch,
+    pageSize: 20,
+    active: true,
+  });
+  const users = usersData?.items ?? [];
+
   const createMut = useCreateObra();
   const updateMut = useUpdateObra();
   const isEdit = !!obra;
@@ -142,6 +163,7 @@ export function ObraFormDialog({ open, onClose, obra }: Props) {
         responsibleUserId: '',
         description: '',
       });
+      setLastSelectedUser(null);
     }
   }, [obra, open, reset]);
 
@@ -202,8 +224,11 @@ export function ObraFormDialog({ open, onClose, obra }: Props) {
   const status = watch('status');
   const startDate = watch('startDate');
   const description = watch('description') ?? '';
+  const responsibleUserId = watch('responsibleUserId');
   const selectedStatusMeta = STATUS_META.find((s) => s.value === status);
   const startDateObj = startDate ? new Date(startDate + 'T00:00:00') : undefined;
+  const selectedUser =
+    users.find((u) => u.id === responsibleUserId) ?? lastSelectedUser ?? null;
 
   return (
     <Dialog open={open} onOpenChange={(v) => !v && onClose()}>
@@ -334,23 +359,34 @@ export function ObraFormDialog({ open, onClose, obra }: Props) {
               <Label>
                 Responsable <span className="text-destructive">*</span>
               </Label>
-              <Select
-                value={watch('responsibleUserId') || undefined}
-                onValueChange={(v) =>
-                  setValue('responsibleUserId', v, { shouldValidate: true })
-                }
-              >
-                <SelectTrigger>
-                  <SelectValue placeholder="Seleccionar" />
-                </SelectTrigger>
-                <SelectContent>
-                  {users?.items.map((u) => (
-                    <SelectItem key={u.id} value={u.id}>
+              <SearchCombobox<User>
+                value={responsibleUserId}
+                onChange={(id, user) => {
+                  setValue('responsibleUserId', id, { shouldValidate: true });
+                  if (user) setLastSelectedUser(user);
+                }}
+                items={users}
+                isLoading={usersFetching}
+                onSearchChange={setUserSearch}
+                getId={(u) => u.id}
+                getLabel={(u) => `${u.firstName} ${u.lastName}`}
+                selectedItem={selectedUser}
+                placeholder="Buscar usuario..."
+                emptyMessage="Sin resultados"
+                renderItem={(u) => (
+                  <div className="flex items-center justify-between w-full gap-2">
+                    <span className="truncate text-sm">
                       {u.firstName} {u.lastName}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+                    </span>
+                    <span
+                      className={`shrink-0 rounded px-1.5 py-0.5 text-[10px] font-medium ${ROLE_CLASS[u.role.name] ?? 'bg-muted text-muted-foreground'}`}
+                    >
+                      {ROLE_LABEL[u.role.name] ?? u.role.name}
+                    </span>
+                  </div>
+                )}
+                error={!!errors.responsibleUserId}
+              />
               <p className="text-[11px] text-muted-foreground">
                 Usuario que gestiona esta obra
               </p>
