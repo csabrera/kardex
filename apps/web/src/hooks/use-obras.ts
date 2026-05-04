@@ -86,10 +86,7 @@ export function useCreateObra() {
       apiClient.post(BASE, dto).then((r) => r.data.data),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['obras'] });
-      toast.success('Obra creada');
     },
-    onError: (e: any) =>
-      toast.error(e.response?.data?.error?.message ?? 'Error al crear obra'),
   });
 }
 
@@ -100,10 +97,7 @@ export function useUpdateObra() {
       apiClient.patch(`${BASE}/${id}`, dto).then((r) => r.data.data),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['obras'] });
-      toast.success('Obra actualizada');
     },
-    onError: (e: any) =>
-      toast.error(e.response?.data?.error?.message ?? 'Error al actualizar'),
   });
 }
 
