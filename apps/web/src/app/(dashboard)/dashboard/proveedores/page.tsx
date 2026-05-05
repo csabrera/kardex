@@ -2,7 +2,7 @@
 
 import { zodResolver } from '@hookform/resolvers/zod';
 import { type ColumnDef } from '@tanstack/react-table';
-import { Edit2, Mail, Phone, Plus, Trash2, Truck, User } from 'lucide-react';
+import { Edit2, Mail, Phone, Plus, Truck, User } from 'lucide-react';
 import { useState } from 'react';
 import { type UseFormSetError, useForm } from 'react-hook-form';
 import { toast } from 'sonner';
@@ -18,12 +18,13 @@ import { useConfirm } from '@/components/ui/confirm-provider';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { Switch } from '@/components/ui/switch';
 import { Textarea } from '@/components/ui/textarea';
+import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
 import { useDebounce } from '@/hooks/use-debounce';
 import {
   type Supplier,
   useCreateSupplier,
-  useDeleteSupplier,
   useSuppliers,
   useUpdateSupplier,
 } from '@/hooks/use-suppliers';
@@ -268,7 +269,6 @@ export default function ProveedoresPage() {
   });
   const createMutation = useCreateSupplier();
   const updateMutation = useUpdateSupplier();
-  const deleteMutation = useDeleteSupplier();
   const confirm = useConfirm();
 
   const handleCreate = (dto: FormData, setError: UseFormSetError<FormData>) => {
@@ -414,32 +414,59 @@ export default function ProveedoresPage() {
     {
       id: 'actions',
       header: 'Acciones',
-      size: 130,
-      cell: ({ row }) => (
-        <div className="flex gap-1.5 justify-center">
-          <ActionButton
-            icon={Edit2}
-            label="Editar proveedor"
-            tone="accent"
-            onClick={() => setEditTarget(row.original)}
-          />
-          <ActionButton
-            icon={Trash2}
-            label="Eliminar proveedor"
-            tone="destructive"
-            onClick={async () => {
-              const ok = await confirm({
-                title: `Eliminar proveedor "${row.original.name}"`,
-                description:
-                  'No podrá eliminarse si tiene movimientos de compra vinculados. Considera desactivarlo para preservar el histórico.',
-                confirmText: 'Eliminar',
-                tone: 'destructive',
-              });
-              if (ok) deleteMutation.mutate(row.original.id);
-            }}
-          />
-        </div>
-      ),
+      size: 110,
+      cell: ({ row }) => {
+        const { id, name, active } = row.original;
+        return (
+          <div className="flex items-center gap-3 justify-center">
+            <ActionButton
+              icon={Edit2}
+              label="Editar proveedor"
+              tone="accent"
+              onClick={() => setEditTarget(row.original)}
+            />
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <span>
+                  <Switch
+                    checked={active}
+                    onCheckedChange={async (checked) => {
+                      const ok = await confirm({
+                        title: checked ? `Activar "${name}"` : `Desactivar "${name}"`,
+                        description: checked
+                          ? 'El proveedor volverá a estar disponible para registrar compras.'
+                          : 'El proveedor no aparecerá en los selectores de compra. El historial se conserva.',
+                        confirmText: checked ? 'Activar' : 'Desactivar',
+                        tone: checked ? 'default' : 'destructive',
+                      });
+                      if (!ok) return;
+                      updateMutation.mutate(
+                        { id, dto: { active: checked } },
+                        {
+                          onSuccess: () =>
+                            toast.success(
+                              checked
+                                ? `Proveedor "${name}" activado`
+                                : `Proveedor "${name}" desactivado`,
+                            ),
+                          onError: (e: any) =>
+                            toast.error(
+                              e.response?.data?.error?.message ??
+                                'Error al cambiar estado',
+                            ),
+                        },
+                      );
+                    }}
+                  />
+                </span>
+              </TooltipTrigger>
+              <TooltipContent side="left">
+                {active ? 'Desactivar proveedor' : 'Activar proveedor'}
+              </TooltipContent>
+            </Tooltip>
+          </div>
+        );
+      },
     },
   ];
 
