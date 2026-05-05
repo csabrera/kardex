@@ -3,11 +3,12 @@
 import { zodResolver } from '@hookform/resolvers/zod';
 import { AlertCircle, ArrowRight, Building } from 'lucide-react';
 import { useEffect, useMemo, useState } from 'react';
-import { useForm } from 'react-hook-form';
+import { Controller, useForm } from 'react-hook-form';
 import { z } from 'zod';
 
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
+import { DatePicker } from '@/components/ui/date-picker';
 import {
   Dialog,
   DialogContent,
@@ -15,7 +16,6 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog';
-import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { SearchCombobox } from '@/components/ui/search-combobox';
 import { Textarea } from '@/components/ui/textarea';
@@ -35,19 +35,29 @@ import { useWorkStations } from '@/hooks/use-work-stations';
 import { useWorkers } from '@/hooks/use-workers';
 import { useAuthStore } from '@/stores/use-auth-store';
 
+function defaultReturnDate() {
+  return new Date(Date.now() + 7 * 86400000).toISOString().slice(0, 10);
+}
+
 const schema = z.object({
   obraId: z.string().min(1, 'Requerida'),
   warehouseId: z.string().min(1, 'Requerido'),
   workStationId: z.string().min(1, 'Requerida'),
   borrowerWorkerId: z.string().min(1, 'Requerido'),
   itemId: z.string().min(1, 'Requerido'),
-  quantity: z.coerce.number().min(0.001, 'Debe ser > 0'),
+  quantity: z.coerce.number().min(0.001, 'Debe ser mayor a 0'),
   expectedReturnAt: z
     .string()
     .min(1, 'Requerida')
-    .refine((v) => new Date(v).getTime() > Date.now(), {
-      message: 'La fecha de devolución debe ser futura',
-    }),
+    .refine(
+      (v) => {
+        const today = new Date();
+        today.setHours(0, 0, 0, 0);
+        const [y, m, d] = v.split('-').map(Number) as [number, number, number];
+        return new Date(y, m - 1, d) >= today;
+      },
+      { message: 'La fecha de devolución no puede ser en el pasado' },
+    ),
   borrowerNotes: z.string().max(500).optional(),
   overrideReason: z.string().max(500).optional(),
 });
@@ -72,11 +82,8 @@ export function NewLoanDialog({
   const user = useAuthStore((s) => s.user);
   const isResidente = user?.role?.name === 'RESIDENTE';
   const isAdmin = user?.role?.name === 'ADMIN';
-  // Admin actuando por excepción debe justificar (residente y almacenero son flujo normal).
   const needsOverride = isAdmin;
 
-  // Si es RESIDENTE, limita las obras a las que él lidera.
-  // En modo lockedObraId no hace falta listar nada (cargamos solo la obra única).
   const { data: obrasData } = useObras({
     pageSize: 100,
     status: 'ACTIVA',
@@ -85,44 +92,37 @@ export function NewLoanDialog({
   });
   const activeObras = obrasData?.items ?? [];
 
-  // Cargamos la obra bloqueada (si aplica) para mostrarla en la card read-only.
   const { data: lockedObra } = useObra(lockedObraId ?? null);
 
-  const {
-    register,
-    handleSubmit,
-    setValue,
-    watch,
-    reset,
-    setError,
-    formState: { errors },
-  } = useForm<FormData>({
-    resolver: zodResolver(schema),
-    defaultValues: {
-      obraId: lockedObraId ?? '',
-      warehouseId: defaultWarehouseId ?? '',
-      workStationId: '',
-      borrowerWorkerId: '',
-      itemId: '',
-      quantity: 1,
-      expectedReturnAt: new Date(Date.now() + 7 * 86400000).toISOString().slice(0, 16),
-      borrowerNotes: '',
-      overrideReason: '',
-    },
-  });
+  const { control, register, handleSubmit, setValue, watch, reset, setError, formState } =
+    useForm<FormData>({
+      resolver: zodResolver(schema),
+      mode: 'onBlur',
+      defaultValues: {
+        obraId: lockedObraId ?? '',
+        warehouseId: defaultWarehouseId ?? '',
+        workStationId: '',
+        borrowerWorkerId: '',
+        itemId: '',
+        quantity: 1,
+        expectedReturnAt: defaultReturnDate(),
+        borrowerNotes: '',
+        overrideReason: '',
+      },
+    });
+
+  const { errors, isSubmitted, isValid } = formState;
 
   const obraId = watch('obraId');
   const warehouseId = watch('warehouseId');
   const itemId = watch('itemId');
 
-  // Cuando el diálogo abre con obraId/warehouseId pre-cargados, sincroniza el form.
   useEffect(() => {
     if (!open) return;
     if (lockedObraId) setValue('obraId', lockedObraId);
     if (defaultWarehouseId) setValue('warehouseId', defaultWarehouseId);
   }, [open, lockedObraId, defaultWarehouseId, setValue]);
 
-  // 1. Almacenes tipo OBRA de esa obra
   const { data: warehousesData } = useWarehouses({
     pageSize: 50,
     type: 'OBRA',
@@ -131,10 +131,8 @@ export function NewLoanDialog({
   } as any);
   const obraWarehouses = warehousesData?.items ?? [];
 
-  // 2. Estaciones de esa obra
   const { data: stations } = useWorkStations({ obraId, enabled: !!obraId });
 
-  // 3. Empleados de esa obra
   const { data: workersData } = useWorkers({
     pageSize: 100,
     obraId,
@@ -143,7 +141,6 @@ export function NewLoanDialog({
   });
   const obraWorkers = workersData?.items ?? [];
 
-  // 4. Items buscables tipo HERRAMIENTA/EQUIPO (SearchCombobox maneja el debounce internamente)
   const [itemSearch, setItemSearch] = useState('');
   const { data: itemsData, isFetching: itemsLoading } = useItems({
     search: itemSearch || undefined,
@@ -157,7 +154,6 @@ export function NewLoanDialog({
 
   const mutation = useCreateToolLoan();
 
-  // Reset cascade cuando cambia la obra (preserva defaultWarehouseId si aplica).
   useEffect(() => {
     setValue('warehouseId', defaultWarehouseId ?? '');
     setValue('workStationId', '');
@@ -166,15 +162,12 @@ export function NewLoanDialog({
     setItemSearch('');
   }, [obraId, defaultWarehouseId, setValue]);
 
-  // Stock del ítem seleccionado en el almacén elegido (tip informativo)
   const { data: itemStock } = useStock({
     itemId: itemId || undefined,
     warehouseId: warehouseId || undefined,
     enabled: !!(itemId && warehouseId),
   } as any);
-  // Para préstamos: lo que cuenta es availableQty (= stock − préstamos ACTIVE),
-  // no quantity (que incluye los ya prestados). Si el endpoint aún no lo trae
-  // (cliente desactualizado), fallback a quantity para no romper.
+
   const availableQty = useMemo(() => {
     if (!itemId || !warehouseId) return null;
     const entry = (itemStock ?? []).find(
@@ -184,6 +177,7 @@ export function NewLoanDialog({
     const avail = (entry as any).availableQty;
     return avail !== undefined ? Number(avail) : Number(entry.quantity);
   }, [itemStock, itemId, warehouseId]);
+
   const totalQty = useMemo(() => {
     if (!itemId || !warehouseId) return null;
     const entry = (itemStock ?? []).find(
@@ -202,6 +196,8 @@ export function NewLoanDialog({
         return;
       }
     }
+    // Convierte fecha (YYYY-MM-DD) al fin del día en hora local → ISO UTC.
+    const returnDate = new Date(`${data.expectedReturnAt}T23:59:59`).toISOString();
     mutation.mutate(
       {
         itemId: data.itemId,
@@ -209,8 +205,8 @@ export function NewLoanDialog({
         workStationId: data.workStationId,
         borrowerWorkerId: data.borrowerWorkerId,
         quantity: data.quantity,
-        expectedReturnAt: new Date(data.expectedReturnAt).toISOString(),
-        borrowerNotes: data.borrowerNotes,
+        expectedReturnAt: returnDate,
+        borrowerNotes: data.borrowerNotes?.trim() || undefined,
         overrideReason: needsOverride ? data.overrideReason?.trim() : undefined,
       },
       {
@@ -230,7 +226,7 @@ export function NewLoanDialog({
       borrowerWorkerId: '',
       itemId: '',
       quantity: 1,
-      expectedReturnAt: new Date(Date.now() + 7 * 86400000).toISOString().slice(0, 16),
+      expectedReturnAt: defaultReturnDate(),
       borrowerNotes: '',
       overrideReason: '',
     });
@@ -243,6 +239,11 @@ export function NewLoanDialog({
   };
 
   const noActiveObras = !lockedObraId && activeObras.length === 0;
+  const today = useMemo(() => {
+    const d = new Date();
+    d.setHours(0, 0, 0, 0);
+    return d;
+  }, []);
 
   return (
     <Dialog open={open} onOpenChange={(v) => !v && handleClose()}>
@@ -250,9 +251,9 @@ export function NewLoanDialog({
         <DialogHeader>
           <DialogTitle>Nuevo préstamo de herramienta</DialogTitle>
           <DialogDescription>
-            Flujo:{' '}
-            <strong>Obra → Almacén de obra → Estación → Empleado → Herramienta</strong>.
-            El stock no se descuenta, solo se registra el préstamo activo.
+            El stock <strong>no se descuenta</strong> — el préstamo solo registra que la
+            herramienta está en uso. Al devolver, el sistema la devuelve al pool
+            disponible.
           </DialogDescription>
         </DialogHeader>
 
@@ -272,9 +273,11 @@ export function NewLoanDialog({
         )}
 
         <form onSubmit={handleSubmit(onSubmit)} className="space-y-3">
-          {/* 1. Obra (bloqueada o seleccionable) */}
+          {/* 1. Obra */}
           <div className="space-y-1.5">
-            <Label>1. Obra (fuente de trabajo) *</Label>
+            <Label>
+              Obra <span className="text-destructive">*</span>
+            </Label>
             {lockedObraId ? (
               <div className="flex items-center gap-3 rounded-md border bg-muted/30 p-2.5">
                 <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-md bg-accent/10 text-accent ring-1 ring-accent/20">
@@ -299,7 +302,9 @@ export function NewLoanDialog({
             ) : (
               <Select
                 value={obraId}
-                onValueChange={(v) => setValue('obraId', v)}
+                onValueChange={(v) =>
+                  setValue('obraId', v, { shouldValidate: isSubmitted })
+                }
                 disabled={noActiveObras}
               >
                 <SelectTrigger>
@@ -314,6 +319,9 @@ export function NewLoanDialog({
                 </SelectContent>
               </Select>
             )}
+            <p className="text-[11px] text-muted-foreground">
+              Obra constructora donde se usa la herramienta
+            </p>
             {errors.obraId && (
               <p className="text-xs text-destructive">{errors.obraId.message}</p>
             )}
@@ -321,9 +329,11 @@ export function NewLoanDialog({
 
           {obraId && (
             <>
-              {/* 2. Almacén de la obra */}
+              {/* 2. Almacén */}
               <div className="space-y-1.5">
-                <Label>2. Almacén de obra *</Label>
+                <Label>
+                  Almacén de obra <span className="text-destructive">*</span>
+                </Label>
                 {obraWarehouses.length === 0 ? (
                   <div className="rounded-md border border-amber-300 bg-amber-50/70 dark:bg-amber-950/20 p-2 text-xs">
                     <p className="text-amber-800 dark:text-amber-200">
@@ -337,7 +347,9 @@ export function NewLoanDialog({
                 ) : (
                   <Select
                     value={warehouseId}
-                    onValueChange={(v) => setValue('warehouseId', v)}
+                    onValueChange={(v) =>
+                      setValue('warehouseId', v, { shouldValidate: isSubmitted })
+                    }
                   >
                     <SelectTrigger>
                       <SelectValue placeholder="Seleccionar almacén..." />
@@ -351,25 +363,32 @@ export function NewLoanDialog({
                     </SelectContent>
                   </Select>
                 )}
+                <p className="text-[11px] text-muted-foreground">
+                  Almacén OBRA de donde sale la herramienta prestada
+                </p>
                 {errors.warehouseId && (
                   <p className="text-xs text-destructive">{errors.warehouseId.message}</p>
                 )}
               </div>
 
-              {/* 3. Estación de trabajo */}
+              {/* 3. Estación */}
               <div className="space-y-1.5">
-                <Label>3. Estación de trabajo *</Label>
+                <Label>
+                  Estación de trabajo <span className="text-destructive">*</span>
+                </Label>
                 {(stations?.length ?? 0) === 0 ? (
                   <div className="rounded-md border border-amber-300 bg-amber-50/70 dark:bg-amber-950/20 p-2 text-xs">
                     <p className="text-amber-800 dark:text-amber-200">
-                      Esta obra no tiene estaciones. Creá estaciones en la tab{' '}
+                      Esta obra no tiene estaciones. Crea estaciones en la tab{' '}
                       <strong>Estaciones</strong> de Mi Obra.
                     </p>
                   </div>
                 ) : (
                   <Select
                     value={watch('workStationId')}
-                    onValueChange={(v) => setValue('workStationId', v)}
+                    onValueChange={(v) =>
+                      setValue('workStationId', v, { shouldValidate: isSubmitted })
+                    }
                   >
                     <SelectTrigger>
                       <SelectValue placeholder="Seleccionar estación..." />
@@ -383,6 +402,9 @@ export function NewLoanDialog({
                     </SelectContent>
                   </Select>
                 )}
+                <p className="text-[11px] text-muted-foreground">
+                  Zona o punto de trabajo donde se usa la herramienta
+                </p>
                 {errors.workStationId && (
                   <p className="text-xs text-destructive">
                     {errors.workStationId.message}
@@ -392,11 +414,13 @@ export function NewLoanDialog({
 
               {/* 4. Empleado */}
               <div className="space-y-1.5">
-                <Label>4. Empleado (responsable) *</Label>
+                <Label>
+                  Empleado responsable <span className="text-destructive">*</span>
+                </Label>
                 {obraWorkers.length === 0 ? (
                   <div className="rounded-md border border-amber-300 bg-amber-50/70 dark:bg-amber-950/20 p-2 text-xs">
                     <p className="text-amber-800 dark:text-amber-200">
-                      Esta obra no tiene empleados activos. Agrega o asigna empleados en{' '}
+                      Esta obra no tiene empleados activos. Agrega empleados en{' '}
                       <a href="/dashboard/empleados" className="underline">
                         Maestros → Empleados
                       </a>
@@ -406,7 +430,9 @@ export function NewLoanDialog({
                 ) : (
                   <Select
                     value={watch('borrowerWorkerId')}
-                    onValueChange={(v) => setValue('borrowerWorkerId', v)}
+                    onValueChange={(v) =>
+                      setValue('borrowerWorkerId', v, { shouldValidate: isSubmitted })
+                    }
                   >
                     <SelectTrigger>
                       <SelectValue
@@ -422,6 +448,9 @@ export function NewLoanDialog({
                     </SelectContent>
                   </Select>
                 )}
+                <p className="text-[11px] text-muted-foreground">
+                  Empleado que recibe y es responsable de la herramienta
+                </p>
                 {errors.borrowerWorkerId && (
                   <p className="text-xs text-destructive">
                     {errors.borrowerWorkerId.message}
@@ -431,13 +460,14 @@ export function NewLoanDialog({
 
               {/* 5. Herramienta */}
               <div className="space-y-1.5">
-                <Label>5. Herramienta *</Label>
-                <p className="text-[11px] text-muted-foreground">
-                  Solo ítems tipo HERRAMIENTA o EQUIPO.
-                </p>
+                <Label>
+                  Herramienta <span className="text-destructive">*</span>
+                </Label>
                 <SearchCombobox<Item>
                   value={itemId}
-                  onChange={(id) => setValue('itemId', id)}
+                  onChange={(id) =>
+                    setValue('itemId', id, { shouldValidate: isSubmitted })
+                  }
                   items={filteredItems}
                   selectedItem={selectedItem ?? null}
                   isLoading={itemsLoading}
@@ -450,15 +480,15 @@ export function NewLoanDialog({
                         {i.code}
                       </span>
                       {i.name}
-                      <span className="ml-1 text-[10px] text-muted-foreground">
-                        ({i.type})
-                      </span>
                     </>
                   )}
                   placeholder="Buscar herramienta por código o nombre..."
-                  emptyMessage="No se encontraron herramientas ni equipos que coincidan."
+                  emptyMessage="No se encontraron herramientas o equipos."
                   error={!!errors.itemId}
                 />
+                <p className="text-[11px] text-muted-foreground">
+                  Solo ítems de tipo Préstamo (herramientas y equipos)
+                </p>
                 {errors.itemId && (
                   <p className="text-xs text-destructive">{errors.itemId.message}</p>
                 )}
@@ -468,7 +498,7 @@ export function NewLoanDialog({
                       availableQty === 0 ? 'text-destructive' : 'text-muted-foreground'
                     }`}
                   >
-                    Disponible para prestar:{' '}
+                    Disponible:{' '}
                     <span className="font-semibold">
                       {availableQty.toLocaleString('es-PE', { maximumFractionDigits: 3 })}
                     </span>
@@ -493,20 +523,41 @@ export function NewLoanDialog({
               {/* 6. Cantidad + fecha */}
               <div className="grid grid-cols-2 gap-3">
                 <div className="space-y-1.5">
-                  <Label>Cantidad *</Label>
-                  <Input
+                  <Label>
+                    Cantidad <span className="text-destructive">*</span>
+                  </Label>
+                  <input
                     type="number"
                     step="0.001"
                     min="0.001"
+                    className="flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm transition-colors file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50"
                     {...register('quantity')}
                   />
+                  <p className="text-[11px] text-muted-foreground">Unidades a prestar</p>
                   {errors.quantity && (
                     <p className="text-xs text-destructive">{errors.quantity.message}</p>
                   )}
                 </div>
                 <div className="space-y-1.5">
-                  <Label>Devolver antes de *</Label>
-                  <Input type="datetime-local" {...register('expectedReturnAt')} />
+                  <Label>
+                    Devolver antes de <span className="text-destructive">*</span>
+                  </Label>
+                  <Controller
+                    control={control}
+                    name="expectedReturnAt"
+                    render={({ field }) => (
+                      <DatePicker
+                        value={field.value}
+                        onChange={(v) => field.onChange(v)}
+                        fromDate={today}
+                        placeholder="Seleccionar fecha..."
+                        clearable={false}
+                      />
+                    )}
+                  />
+                  <p className="text-[11px] text-muted-foreground">
+                    Fecha límite de devolución
+                  </p>
                   {errors.expectedReturnAt && (
                     <p className="text-xs text-destructive">
                       {errors.expectedReturnAt.message}
@@ -515,11 +566,26 @@ export function NewLoanDialog({
                 </div>
               </div>
 
+              {/* 7. Observaciones */}
               <div className="space-y-1.5">
                 <Label>Observaciones</Label>
-                <Input {...register('borrowerNotes')} placeholder="Opcional" />
+                <Textarea
+                  {...register('borrowerNotes')}
+                  onChange={(e) =>
+                    setValue('borrowerNotes', e.target.value.toUpperCase(), {
+                      shouldValidate: isSubmitted,
+                    })
+                  }
+                  placeholder="OPCIONAL · ESTADO DE ENTREGA, ACCESORIOS INCLUIDOS..."
+                  rows={2}
+                  className="text-sm uppercase placeholder:normal-case placeholder:opacity-60"
+                />
+                <p className="text-[11px] text-muted-foreground">
+                  Opcional · estado de la herramienta al entregar, accesorios, etc.
+                </p>
               </div>
 
+              {/* Override para admin */}
               {needsOverride && (
                 <div className="rounded-md border border-amber-300 bg-amber-50/70 dark:bg-amber-950/30 p-3 space-y-2">
                   <div className="flex items-start gap-2">
@@ -530,21 +596,25 @@ export function NewLoanDialog({
                       </p>
                       <p className="text-amber-800 dark:text-amber-200/90">
                         El flujo normal lo realiza el residente o almacenero. Como
-                        excepción, debes dejar constancia del motivo (queda en el registro
-                        de auditoría).
+                        excepción, debes dejar constancia del motivo (queda en auditoría).
                       </p>
                     </div>
                   </div>
                   <div className="space-y-1.5 pl-6">
                     <Label htmlFor="overrideReason" className="text-xs">
-                      Motivo de excepción *
+                      Motivo de excepción <span className="text-destructive">*</span>
                     </Label>
                     <Textarea
                       id="overrideReason"
                       {...register('overrideReason')}
-                      placeholder="Ej: Residente ausente — entrega urgente albañil García"
+                      onChange={(e) =>
+                        setValue('overrideReason', e.target.value.toUpperCase(), {
+                          shouldValidate: isSubmitted,
+                        })
+                      }
+                      placeholder="EJ: RESIDENTE AUSENTE — ENTREGA URGENTE ALBAÑIL GARCÍA"
                       rows={2}
-                      className="text-sm"
+                      className="text-sm uppercase placeholder:normal-case placeholder:opacity-60"
                     />
                     {errors.overrideReason && (
                       <p className="text-xs text-destructive">
@@ -563,7 +633,7 @@ export function NewLoanDialog({
             </Button>
             <Button
               type="submit"
-              disabled={!obraId || mutation.isPending}
+              disabled={!obraId || mutation.isPending || (isSubmitted && !isValid)}
               className="gap-2"
             >
               <ArrowRight className="h-4 w-4" />
