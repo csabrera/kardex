@@ -68,10 +68,7 @@ export function useCreateSupplier() {
       apiClient.post(BASE, dto).then((r) => r.data.data as Supplier),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['suppliers'] });
-      toast.success('Proveedor creado');
     },
-    onError: (e: any) =>
-      toast.error(e.response?.data?.error?.message ?? 'Error al crear proveedor'),
   });
 }
 
@@ -87,10 +84,7 @@ export function useUpdateSupplier() {
     }) => apiClient.patch(`${BASE}/${id}`, dto).then((r) => r.data.data),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['suppliers'] });
-      toast.success('Proveedor actualizado');
     },
-    onError: (e: any) =>
-      toast.error(e.response?.data?.error?.message ?? 'Error al actualizar'),
   });
 }
 

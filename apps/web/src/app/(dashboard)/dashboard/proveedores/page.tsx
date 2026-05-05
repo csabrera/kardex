@@ -4,7 +4,8 @@ import { zodResolver } from '@hookform/resolvers/zod';
 import { type ColumnDef } from '@tanstack/react-table';
 import { Edit2, Mail, Phone, Plus, Trash2, Truck, User } from 'lucide-react';
 import { useState } from 'react';
-import { useForm } from 'react-hook-form';
+import { type UseFormSetError, useForm } from 'react-hook-form';
+import { toast } from 'sonner';
 import { z } from 'zod';
 
 import { DataTable } from '@/components/data-table/data-table';
@@ -17,6 +18,7 @@ import { useConfirm } from '@/components/ui/confirm-provider';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { Textarea } from '@/components/ui/textarea';
 import { useDebounce } from '@/hooks/use-debounce';
 import {
   type Supplier,
@@ -27,14 +29,34 @@ import {
 } from '@/hooks/use-suppliers';
 
 const schema = z.object({
-  name: z.string().min(2, 'Requerido, mínimo 2 caracteres').max(200),
-  taxId: z.string().max(20).optional().or(z.literal('')),
-  contactName: z.string().max(100).optional().or(z.literal('')),
-  phone: z.string().max(30).optional().or(z.literal('')),
-  email: z.string().email('Email inválido').max(120).optional().or(z.literal('')),
-  address: z.string().max(300).optional().or(z.literal('')),
-  notes: z.string().max(500).optional().or(z.literal('')),
+  name: z.string().min(2, 'Mínimo 2 caracteres').max(200, 'Máximo 200 caracteres'),
+  taxId: z
+    .string()
+    .max(20, 'Máximo 20 caracteres')
+    .refine((v) => !v || /^\d{11}$/.test(v), {
+      message: 'El RUC debe tener exactamente 11 dígitos',
+    })
+    .optional()
+    .or(z.literal('')),
+  contactName: z.string().max(100, 'Máximo 100 caracteres').optional().or(z.literal('')),
+  phone: z
+    .string()
+    .max(15, 'Máximo 15 caracteres')
+    .refine((v) => !v || /^[+\d\s\-()]{7,15}$/.test(v), {
+      message: 'Formato inválido (ej: 987654321 o +51987654321)',
+    })
+    .optional()
+    .or(z.literal('')),
+  email: z
+    .string()
+    .email('Email inválido (ej: ventas@proveedor.com)')
+    .max(120)
+    .optional()
+    .or(z.literal('')),
+  address: z.string().max(300, 'Máximo 300 caracteres').optional().or(z.literal('')),
+  notes: z.string().max(500, 'Máximo 500 caracteres').optional().or(z.literal('')),
 });
+
 type FormData = z.infer<typeof schema>;
 
 function SupplierForm({
@@ -44,74 +66,189 @@ function SupplierForm({
   isEdit = false,
 }: {
   defaultValues?: Partial<FormData>;
-  onSubmit: (data: FormData) => void;
+  onSubmit: (data: FormData, setError: UseFormSetError<FormData>) => void;
   isPending: boolean;
   isEdit?: boolean;
 }) {
   const {
     register,
     handleSubmit,
-    formState: { errors },
+    setValue,
+    watch,
+    setError,
+    formState: { errors, isSubmitted, isValid },
   } = useForm<FormData>({
     resolver: zodResolver(schema),
-    defaultValues,
+    mode: 'onBlur',
+    defaultValues: defaultValues ?? {
+      name: '',
+      taxId: '',
+      contactName: '',
+      phone: '',
+      email: '',
+      address: '',
+      notes: '',
+    },
   });
 
+  const notes = watch('notes') ?? '';
+
+  const toUpper = (field: keyof FormData) => (e: React.ChangeEvent<HTMLInputElement>) => {
+    setValue(field, e.target.value.toUpperCase(), { shouldValidate: isSubmitted });
+  };
+
+  const digitsOnly =
+    (field: keyof FormData, maxLen: number) =>
+    (e: React.ChangeEvent<HTMLInputElement>) => {
+      const val = e.target.value.replace(/\D/g, '').slice(0, maxLen);
+      setValue(field, val, { shouldValidate: isSubmitted });
+    };
+
+  const phoneFilter = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const val = e.target.value.replace(/[^\d+\s\-()]/g, '').slice(0, 15);
+    setValue('phone', val, { shouldValidate: isSubmitted });
+  };
+
   return (
-    <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
+    <form
+      onSubmit={handleSubmit((data) => onSubmit(data, setError))}
+      className="space-y-4"
+    >
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        {/* Razón social */}
         <div className="space-y-1.5 md:col-span-2">
-          <Label>Razón social *</Label>
-          <Input {...register('name')} placeholder="Cementos Pacasmayo S.A.A." />
+          <Label htmlFor="sup-name">
+            Razón social <span className="text-destructive">*</span>
+          </Label>
+          <Input
+            id="sup-name"
+            {...register('name')}
+            onChange={toUpper('name')}
+            placeholder="CEMENTOS PACASMAYO S.A.A."
+            autoComplete="off"
+          />
+          <p className="text-[11px] text-muted-foreground">
+            Nombre oficial de la empresa · Se escribe en mayúsculas automáticamente
+          </p>
           {errors.name && (
             <p className="text-xs text-destructive">{errors.name.message}</p>
           )}
         </div>
 
+        {/* RUC */}
         <div className="space-y-1.5">
-          <Label>RUC / Documento</Label>
-          <Input {...register('taxId')} placeholder="20100070970" />
+          <Label htmlFor="sup-taxid">RUC / Documento</Label>
+          <Input
+            id="sup-taxid"
+            {...register('taxId')}
+            onChange={digitsOnly('taxId', 11)}
+            placeholder="20100070970"
+            autoComplete="off"
+            maxLength={11}
+          />
           <p className="text-[11px] text-muted-foreground">
-            Opcional. Debe ser único si se provee.
+            Opcional · RUC = 11 dígitos numéricos · Debe ser único
           </p>
           {errors.taxId && (
             <p className="text-xs text-destructive">{errors.taxId.message}</p>
           )}
         </div>
 
+        {/* Persona de contacto */}
         <div className="space-y-1.5">
-          <Label>Persona de contacto</Label>
-          <Input {...register('contactName')} placeholder="Juan Pérez" />
+          <Label htmlFor="sup-contact">Persona de contacto</Label>
+          <Input
+            id="sup-contact"
+            {...register('contactName')}
+            onChange={toUpper('contactName')}
+            placeholder="JUAN PÉREZ"
+            autoComplete="off"
+          />
+          <p className="text-[11px] text-muted-foreground">Opcional</p>
+          {errors.contactName && (
+            <p className="text-xs text-destructive">{errors.contactName.message}</p>
+          )}
         </div>
 
+        {/* Teléfono */}
         <div className="space-y-1.5">
-          <Label>Teléfono</Label>
-          <Input {...register('phone')} placeholder="+51 987 654 321" />
+          <Label htmlFor="sup-phone">Teléfono</Label>
+          <Input
+            id="sup-phone"
+            {...register('phone')}
+            onChange={phoneFilter}
+            placeholder="987654321"
+            autoComplete="off"
+          />
+          <p className="text-[11px] text-muted-foreground">
+            Opcional · Celular (9 dígitos) o número con código de país (+51...)
+          </p>
+          {errors.phone && (
+            <p className="text-xs text-destructive">{errors.phone.message}</p>
+          )}
         </div>
 
+        {/* Email */}
         <div className="space-y-1.5">
-          <Label>Email</Label>
-          <Input {...register('email')} type="email" placeholder="ventas@proveedor.com" />
+          <Label htmlFor="sup-email">Email</Label>
+          <Input
+            id="sup-email"
+            {...register('email')}
+            type="email"
+            placeholder="ventas@proveedor.com"
+            autoComplete="off"
+          />
+          <p className="text-[11px] text-muted-foreground">Opcional</p>
           {errors.email && (
             <p className="text-xs text-destructive">{errors.email.message}</p>
           )}
         </div>
 
+        {/* Dirección */}
         <div className="space-y-1.5 md:col-span-2">
-          <Label>Dirección</Label>
-          <Input {...register('address')} placeholder="Av. Industrial 123, Lima" />
+          <Label htmlFor="sup-address">Dirección</Label>
+          <Input
+            id="sup-address"
+            {...register('address')}
+            onChange={toUpper('address')}
+            placeholder="AV. INDUSTRIAL 123, LIMA"
+            autoComplete="off"
+          />
+          <p className="text-[11px] text-muted-foreground">
+            Opcional · Dirección fiscal o comercial
+          </p>
+          {errors.address && (
+            <p className="text-xs text-destructive">{errors.address.message}</p>
+          )}
         </div>
 
+        {/* Notas */}
         <div className="space-y-1.5 md:col-span-2">
-          <Label>Notas</Label>
-          <Input
+          <Label htmlFor="sup-notes">Notas</Label>
+          <Textarea
+            id="sup-notes"
             {...register('notes')}
-            placeholder="Términos de pago, condiciones especiales, etc."
+            placeholder="Términos de pago, condiciones especiales, tiempo de entrega..."
+            rows={2}
+            className="resize-none"
           />
+          <div className="flex justify-between">
+            <p className="text-[11px] text-muted-foreground">Opcional</p>
+            <p className="text-[11px] text-muted-foreground tabular-nums">
+              {notes.length}/500
+            </p>
+          </div>
+          {errors.notes && (
+            <p className="text-xs text-destructive">{errors.notes.message}</p>
+          )}
         </div>
       </div>
 
-      <Button type="submit" className="w-full" disabled={isPending}>
+      <Button
+        type="submit"
+        className="w-full"
+        disabled={isPending || (isSubmitted && !isValid)}
+      >
         {isPending ? 'Guardando...' : isEdit ? 'Guardar cambios' : 'Crear proveedor'}
       </Button>
     </form>
@@ -136,6 +273,78 @@ export default function ProveedoresPage() {
   const updateMutation = useUpdateSupplier();
   const deleteMutation = useDeleteSupplier();
   const confirm = useConfirm();
+
+  const handleCreate = (dto: FormData, setError: UseFormSetError<FormData>) => {
+    createMutation.mutate(
+      {
+        name: dto.name.trim(),
+        taxId: dto.taxId?.trim() || undefined,
+        contactName: dto.contactName?.trim() || undefined,
+        phone: dto.phone?.trim() || undefined,
+        email: dto.email?.trim() || undefined,
+        address: dto.address?.trim() || undefined,
+        notes: dto.notes?.trim() || undefined,
+      },
+      {
+        onSuccess: (created) => {
+          toast.success(`Proveedor "${created.name}" creado`, {
+            description: `Código: ${created.code}`,
+            duration: 6000,
+          });
+          setIsCreating(false);
+        },
+        onError: (e: any) => {
+          const code = e.response?.data?.error?.code as string | undefined;
+          const message = e.response?.data?.error?.message as string | undefined;
+          if (code === 'TAX_ID_ALREADY_REGISTERED' || code === 'SUPPLIER_TAX_ID_EXISTS') {
+            setError('taxId', { message: 'Este RUC ya está registrado' });
+          } else if (
+            code === 'SUPPLIER_ALREADY_EXISTS' ||
+            code === 'NAME_ALREADY_TAKEN'
+          ) {
+            setError('name', { message: 'Ya existe un proveedor con ese nombre' });
+          } else {
+            toast.error(message ?? 'Error al crear proveedor');
+          }
+        },
+      },
+    );
+  };
+
+  const handleUpdate = (dto: FormData, setError: UseFormSetError<FormData>) => {
+    if (!editTarget) return;
+    updateMutation.mutate(
+      {
+        id: editTarget.id,
+        dto: {
+          name: dto.name.trim(),
+          taxId: dto.taxId?.trim() || undefined,
+          contactName: dto.contactName?.trim() || undefined,
+          phone: dto.phone?.trim() || undefined,
+          email: dto.email?.trim() || undefined,
+          address: dto.address?.trim() || undefined,
+          notes: dto.notes?.trim() || undefined,
+        },
+      },
+      {
+        onSuccess: (updated: Supplier) => {
+          toast.success(`Proveedor "${updated.name}" actualizado`);
+          setEditTarget(null);
+        },
+        onError: (e: any) => {
+          const code = e.response?.data?.error?.code as string | undefined;
+          const message = e.response?.data?.error?.message as string | undefined;
+          if (code === 'TAX_ID_ALREADY_REGISTERED' || code === 'SUPPLIER_TAX_ID_EXISTS') {
+            setError('taxId', {
+              message: 'Este RUC ya está registrado en otro proveedor',
+            });
+          } else {
+            toast.error(message ?? 'Error al actualizar proveedor');
+          }
+        },
+      },
+    );
+  };
 
   const columns: ColumnDef<Supplier>[] = [
     rowNumberColumn<Supplier>({ page, pageSize }),
@@ -271,31 +480,17 @@ export default function ProveedoresPage() {
         onPageChange={setPage}
       />
 
-      <Dialog open={isCreating} onOpenChange={setIsCreating}>
+      {/* Modal crear */}
+      <Dialog open={isCreating} onOpenChange={(v) => !v && setIsCreating(false)}>
         <DialogContent className="max-w-2xl">
           <DialogHeader>
             <DialogTitle>Nuevo proveedor</DialogTitle>
           </DialogHeader>
-          <SupplierForm
-            onSubmit={(dto) =>
-              createMutation.mutate(
-                {
-                  name: dto.name,
-                  taxId: dto.taxId || undefined,
-                  contactName: dto.contactName || undefined,
-                  phone: dto.phone || undefined,
-                  email: dto.email || undefined,
-                  address: dto.address || undefined,
-                  notes: dto.notes || undefined,
-                },
-                { onSuccess: () => setIsCreating(false) },
-              )
-            }
-            isPending={createMutation.isPending}
-          />
+          <SupplierForm onSubmit={handleCreate} isPending={createMutation.isPending} />
         </DialogContent>
       </Dialog>
 
+      {/* Modal editar */}
       <Dialog open={!!editTarget} onOpenChange={(v) => !v && setEditTarget(null)}>
         <DialogContent className="max-w-2xl">
           <DialogHeader>
@@ -313,23 +508,7 @@ export default function ProveedoresPage() {
                 address: editTarget.address ?? '',
                 notes: editTarget.notes ?? '',
               }}
-              onSubmit={(dto) =>
-                updateMutation.mutate(
-                  {
-                    id: editTarget.id,
-                    dto: {
-                      name: dto.name,
-                      taxId: dto.taxId || undefined,
-                      contactName: dto.contactName || undefined,
-                      phone: dto.phone || undefined,
-                      email: dto.email || undefined,
-                      address: dto.address || undefined,
-                      notes: dto.notes || undefined,
-                    },
-                  },
-                  { onSuccess: () => setEditTarget(null) },
-                )
-              }
+              onSubmit={handleUpdate}
               isPending={updateMutation.isPending}
             />
           )}
