@@ -32,28 +32,26 @@ const schema = z.object({
   name: z.string().min(2, 'Mínimo 2 caracteres').max(200, 'Máximo 200 caracteres'),
   taxId: z
     .string()
-    .max(20, 'Máximo 20 caracteres')
-    .refine((v) => !v || /^\d{11}$/.test(v), {
-      message: 'El RUC debe tener exactamente 11 dígitos',
-    })
-    .optional()
-    .or(z.literal('')),
+    .min(1, 'El RUC es requerido')
+    .regex(/^\d{11}$/, 'El RUC debe tener exactamente 11 dígitos numéricos'),
   contactName: z.string().max(100, 'Máximo 100 caracteres').optional().or(z.literal('')),
   phone: z
     .string()
+    .min(1, 'El teléfono es requerido')
     .max(15, 'Máximo 15 caracteres')
-    .refine((v) => !v || /^[+\d\s\-()]{7,15}$/.test(v), {
+    .refine((v) => /^[+\d\s\-()]{7,15}$/.test(v), {
       message: 'Formato inválido (ej: 987654321 o +51987654321)',
-    })
-    .optional()
-    .or(z.literal('')),
+    }),
   email: z
     .string()
     .email('Email inválido (ej: ventas@proveedor.com)')
     .max(120)
     .optional()
     .or(z.literal('')),
-  address: z.string().max(300, 'Máximo 300 caracteres').optional().or(z.literal('')),
+  address: z
+    .string()
+    .min(1, 'La dirección es requerida')
+    .max(300, 'Máximo 300 caracteres'),
   notes: z.string().max(500, 'Máximo 500 caracteres').optional().or(z.literal('')),
 });
 
@@ -137,7 +135,9 @@ function SupplierForm({
 
         {/* RUC */}
         <div className="space-y-1.5">
-          <Label htmlFor="sup-taxid">RUC / Documento</Label>
+          <Label htmlFor="sup-taxid">
+            RUC <span className="text-destructive">*</span>
+          </Label>
           <Input
             id="sup-taxid"
             {...register('taxId')}
@@ -147,7 +147,7 @@ function SupplierForm({
             maxLength={11}
           />
           <p className="text-[11px] text-muted-foreground">
-            Opcional · RUC = 11 dígitos numéricos · Debe ser único
+            11 dígitos numéricos · Debe ser único
           </p>
           {errors.taxId && (
             <p className="text-xs text-destructive">{errors.taxId.message}</p>
@@ -172,7 +172,9 @@ function SupplierForm({
 
         {/* Teléfono */}
         <div className="space-y-1.5">
-          <Label htmlFor="sup-phone">Teléfono</Label>
+          <Label htmlFor="sup-phone">
+            Teléfono <span className="text-destructive">*</span>
+          </Label>
           <Input
             id="sup-phone"
             {...register('phone')}
@@ -181,7 +183,7 @@ function SupplierForm({
             autoComplete="off"
           />
           <p className="text-[11px] text-muted-foreground">
-            Opcional · Celular (9 dígitos) o número con código de país (+51...)
+            Celular (9 dígitos) o número con código de país (+51...)
           </p>
           {errors.phone && (
             <p className="text-xs text-destructive">{errors.phone.message}</p>
@@ -206,7 +208,9 @@ function SupplierForm({
 
         {/* Dirección */}
         <div className="space-y-1.5 md:col-span-2">
-          <Label htmlFor="sup-address">Dirección</Label>
+          <Label htmlFor="sup-address">
+            Dirección <span className="text-destructive">*</span>
+          </Label>
           <Input
             id="sup-address"
             {...register('address')}
@@ -215,7 +219,7 @@ function SupplierForm({
             autoComplete="off"
           />
           <p className="text-[11px] text-muted-foreground">
-            Opcional · Dirección fiscal o comercial
+            Dirección fiscal o comercial
           </p>
           {errors.address && (
             <p className="text-xs text-destructive">{errors.address.message}</p>
