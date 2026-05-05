@@ -1,7 +1,7 @@
 'use client';
 
 import { zodResolver } from '@hookform/resolvers/zod';
-import { AlertCircle, ArrowRight, Building, Minus, Plus, Star } from 'lucide-react';
+import { AlertCircle, ArrowRight, Minus, Plus, Star } from 'lucide-react';
 import { useEffect, useMemo, useState } from 'react';
 import { useFieldArray, useForm } from 'react-hook-form';
 import { z } from 'zod';
@@ -15,8 +15,8 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog';
-import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { Textarea } from '@/components/ui/textarea';
 import { SearchCombobox } from '@/components/ui/search-combobox';
 import {
   Select,
@@ -61,24 +61,18 @@ export function NewTransferDialog({ open, onClose }: Props) {
 
   const mutation = useCreateTransfer();
 
-  const {
-    register,
-    handleSubmit,
-    setValue,
-    watch,
-    control,
-    reset,
-    setError,
-    clearErrors,
-    formState: { errors },
-  } = useForm<FormData>({
-    resolver: zodResolver(schema),
-    defaultValues: {
-      toWarehouseId: '',
-      notes: '',
-      items: [{ itemId: '', requestedQty: 0 }],
-    },
-  });
+  const { register, handleSubmit, setValue, watch, control, reset, setError, formState } =
+    useForm<FormData>({
+      resolver: zodResolver(schema),
+      mode: 'onBlur',
+      defaultValues: {
+        toWarehouseId: '',
+        notes: '',
+        items: [{ itemId: '', requestedQty: 0 }],
+      },
+    });
+
+  const { errors, isSubmitted, isValid } = formState;
 
   const { fields, append, remove } = useFieldArray({ control, name: 'items' });
 
@@ -206,33 +200,26 @@ export function NewTransferDialog({ open, onClose }: Props) {
             ) : (
               <Select
                 value={watchedToWarehouseId}
-                onValueChange={(v) => {
-                  setValue('toWarehouseId', v, { shouldValidate: true });
-                  clearErrors('toWarehouseId');
-                }}
+                onValueChange={(v) =>
+                  setValue('toWarehouseId', v, { shouldValidate: isSubmitted })
+                }
               >
                 <SelectTrigger>
-                  <SelectValue placeholder="Seleccionar obra destino..." />
+                  <SelectValue placeholder="Seleccionar almacén de obra..." />
                 </SelectTrigger>
                 <SelectContent>
                   {obraWarehouses.map((w) => (
                     <SelectItem key={w.id} value={w.id}>
-                      <span className="inline-flex items-center gap-2">
-                        <Building className="h-3.5 w-3.5 text-muted-foreground" />
-                        <span>
-                          [{w.code}] {w.name}
-                        </span>
-                        {w.obra?.name && (
-                          <span className="text-[11px] text-muted-foreground">
-                            · {w.obra.name}
-                          </span>
-                        )}
-                      </span>
+                      [{w.code}] {w.name}
+                      {w.obra?.name ? ` · ${w.obra.name}` : ''}
                     </SelectItem>
                   ))}
                 </SelectContent>
               </Select>
             )}
+            <p className="text-[11px] text-muted-foreground">
+              Almacén de obra que recibirá el stock transferido
+            </p>
             {errors.toWarehouseId && (
               <p className="text-xs text-destructive">{errors.toWarehouseId.message}</p>
             )}
@@ -261,6 +248,7 @@ export function NewTransferDialog({ open, onClose }: Props) {
                   errors={errors}
                   register={register}
                   stockMap={stockMap}
+                  isSubmitted={isSubmitted}
                   onRemove={() => fields.length > 1 && remove(index)}
                   canRemove={fields.length > 1}
                 />
@@ -281,7 +269,20 @@ export function NewTransferDialog({ open, onClose }: Props) {
           {/* Notas */}
           <div className="space-y-1.5">
             <Label>Observaciones</Label>
-            <Input {...register('notes')} placeholder="Opcional" />
+            <Textarea
+              {...register('notes')}
+              onChange={(e) =>
+                setValue('notes', e.target.value.toUpperCase(), {
+                  shouldValidate: isSubmitted,
+                })
+              }
+              placeholder="OPCIONAL · URGENCIA, INSTRUCCIONES DE ENTREGA, REFERENCIAS..."
+              rows={2}
+              className="text-sm uppercase placeholder:normal-case placeholder:opacity-60"
+            />
+            <p className="text-[11px] text-muted-foreground">
+              Opcional · instrucciones para el residente al recibir
+            </p>
           </div>
 
           {/* Footer */}
@@ -292,7 +293,10 @@ export function NewTransferDialog({ open, onClose }: Props) {
             <Button
               type="submit"
               disabled={
-                mutation.isPending || !fromWarehouseId || obraWarehouses.length === 0
+                mutation.isPending ||
+                !fromWarehouseId ||
+                obraWarehouses.length === 0 ||
+                (isSubmitted && !isValid)
               }
               className="gap-2"
             >
@@ -315,6 +319,7 @@ function ItemRow({
   errors,
   register,
   stockMap,
+  isSubmitted,
   onRemove,
   canRemove,
 }: {
@@ -324,6 +329,7 @@ function ItemRow({
   errors: any;
   register: any;
   stockMap: Map<string, number>;
+  isSubmitted: boolean;
   onRemove: () => void;
   canRemove: boolean;
 }) {
@@ -354,7 +360,7 @@ function ItemRow({
           <SearchCombobox<Item>
             value={itemId}
             onChange={(id) => {
-              setValue(`items.${index}.itemId`, id, { shouldValidate: true });
+              setValue(`items.${index}.itemId`, id, { shouldValidate: isSubmitted });
             }}
             items={allItems}
             selectedItem={selectedItem}
@@ -379,13 +385,13 @@ function ItemRow({
           )}
         </div>
         <div className="w-32 shrink-0">
-          <Input
+          <input
             type="number"
             step="0.001"
             min="0.001"
             placeholder="Cantidad"
             {...register(`items.${index}.requestedQty`)}
-            className={overflow ? 'border-destructive' : ''}
+            className={`flex h-9 w-full rounded-md border bg-transparent px-3 py-1 text-sm shadow-sm transition-colors placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50 ${overflow ? 'border-destructive' : 'border-input'}`}
           />
           {itemError?.requestedQty && (
             <p className="text-xs text-destructive mt-0.5">
