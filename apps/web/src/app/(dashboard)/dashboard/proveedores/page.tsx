@@ -38,10 +38,7 @@ const schema = z.object({
   phone: z
     .string()
     .min(1, 'El teléfono es requerido')
-    .max(15, 'Máximo 15 caracteres')
-    .refine((v) => /^[+\d\s\-()]{7,15}$/.test(v), {
-      message: 'Formato inválido (ej: 987654321 o +51987654321)',
-    }),
+    .regex(/^9\d{8}$/, 'Celular peruano: 9 dígitos, empieza con 9 (ej: 987654321)'),
   email: z
     .string()
     .email('Email inválido (ej: ventas@proveedor.com)')
@@ -101,11 +98,6 @@ function SupplierForm({
       const val = e.target.value.replace(/\D/g, '').slice(0, maxLen);
       setValue(field, val, { shouldValidate: isSubmitted });
     };
-
-  const phoneFilter = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const val = e.target.value.replace(/[^\d+\s\-()]/g, '').slice(0, 15);
-    setValue('phone', val, { shouldValidate: isSubmitted });
-  };
 
   return (
     <form
@@ -178,12 +170,13 @@ function SupplierForm({
           <Input
             id="sup-phone"
             {...register('phone')}
-            onChange={phoneFilter}
+            onChange={digitsOnly('phone', 9)}
             placeholder="987654321"
             autoComplete="off"
+            maxLength={9}
           />
           <p className="text-[11px] text-muted-foreground">
-            Celular (9 dígitos) o número con código de país (+51...)
+            Celular peruano · 9 dígitos · empieza con 9
           </p>
           {errors.phone && (
             <p className="text-xs text-destructive">{errors.phone.message}</p>
