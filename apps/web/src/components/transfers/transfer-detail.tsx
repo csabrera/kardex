@@ -26,8 +26,11 @@ export function TransferDetail({ transfer: t, onClose }: Props) {
   const [showReject, setShowReject] = useState(false);
   const [overrideReason, setOverrideReason] = useState('');
   const [overrideError, setOverrideError] = useState<string | null>(null);
-  const [receivedQtys, setReceivedQtys] = useState<Record<string, number>>(() =>
-    Object.fromEntries(t.items.map((i) => [i.id, Number(i.sentQty ?? i.requestedQty)])),
+  const [isSubmitted, setIsSubmitted] = useState(false);
+  const [receivedQtys, setReceivedQtys] = useState<Record<string, string>>(() =>
+    Object.fromEntries(
+      t.items.map((i) => [i.id, String(Number(i.sentQty ?? i.requestedQty))]),
+    ),
   );
 
   const user = useAuthStore((s) => s.user);
@@ -35,6 +38,29 @@ export function TransferDetail({ transfer: t, onClose }: Props) {
 
   const receive = useReceiveTransfer();
   const reject = useRejectTransfer();
+
+  const getSentQty = (itemId: string) =>
+    Number(
+      t.items.find((i) => i.id === itemId)?.sentQty ??
+        t.items.find((i) => i.id === itemId)?.requestedQty ??
+        0,
+    );
+
+  const getLineError = (itemId: string): string | null => {
+    const qty = Number(receivedQtys[itemId]);
+    const sentQty = getSentQty(itemId);
+    if (isNaN(qty) || qty <= 0) return 'La cantidad debe ser mayor a 0';
+    if (qty > sentQty) return `No puede superar lo enviado (${sentQty})`;
+    return null;
+  };
+
+  const isLineDiscrepancy = (itemId: string) => {
+    const qty = Number(receivedQtys[itemId]);
+    return !isNaN(qty) && Math.abs(getSentQty(itemId) - qty) > 0.0001;
+  };
+
+  const hasDiscrepancy = t.items.some((i) => isLineDiscrepancy(i.id));
+  const hasLineErrors = t.items.some((i) => getLineError(i.id) !== null);
 
   const validateOverride = () => {
     if (!needsOverride) return true;
@@ -48,13 +74,15 @@ export function TransferDetail({ transfer: t, onClose }: Props) {
   };
 
   const handleReceive = () => {
+    setIsSubmitted(true);
+    if (hasLineErrors) return;
     if (!validateOverride()) return;
     receive.mutate(
       {
         id: t.id,
         items: t.items.map((i) => ({
           transferItemId: i.id,
-          receivedQty: receivedQtys[i.id] ?? 0,
+          receivedQty: Number(receivedQtys[i.id] ?? 0),
         })),
         overrideReason: needsOverride ? overrideReason.trim() : undefined,
       },
@@ -151,56 +179,92 @@ export function TransferDetail({ transfer: t, onClose }: Props) {
                 )}
                 {t.status === 'EN_TRANSITO' && (
                   <th className="px-3 py-2 text-center text-muted-foreground font-medium">
-                    Cant. a recibir
+                    Recibido <span className="text-destructive">*</span>
                   </th>
                 )}
               </tr>
             </thead>
             <tbody>
-              {t.items.map((item) => (
-                <tr key={item.id} className="border-t">
-                  <td className="px-3 py-2">
-                    <span className="font-mono text-xs text-muted-foreground mr-1">
-                      {item.item.code}
-                    </span>
-                    {item.item.name}
-                  </td>
-                  <td className="px-3 py-2 text-right tabular-nums">
-                    {Number(item.sentQty ?? item.requestedQty).toLocaleString('es-PE', {
-                      maximumFractionDigits: 3,
-                    })}{' '}
-                    {item.item.unit.abbreviation}
-                  </td>
-                  {t.status === 'RECIBIDA' && (
-                    <td className="px-3 py-2 text-right tabular-nums font-medium">
-                      {item.receivedQty != null
-                        ? `${Number(item.receivedQty).toLocaleString('es-PE', { maximumFractionDigits: 3 })} ${item.item.unit.abbreviation}`
-                        : '—'}
-                    </td>
-                  )}
-                  {t.status === 'EN_TRANSITO' && (
+              {t.items.map((item) => {
+                const discrepancy = isLineDiscrepancy(item.id);
+                const lineError = isSubmitted ? getLineError(item.id) : null;
+                return (
+                  <tr key={item.id} className="border-t">
                     <td className="px-3 py-2">
-                      <Input
-                        type="number"
-                        step="0.001"
-                        min="0"
-                        className="h-7 text-sm text-right w-28 ml-auto"
-                        value={receivedQtys[item.id] ?? 0}
-                        onChange={(e) =>
-                          setReceivedQtys((p) => ({
-                            ...p,
-                            [item.id]: parseFloat(e.target.value) || 0,
-                          }))
-                        }
-                      />
+                      <div className="flex items-center gap-2">
+                        <div>
+                          <span className="font-mono text-xs text-muted-foreground mr-1">
+                            {item.item.code}
+                          </span>
+                          {item.item.name}
+                        </div>
+                        {t.status === 'EN_TRANSITO' && !lineError && (
+                          <span
+                            className={`text-[11px] font-semibold px-1.5 py-0.5 rounded-full shrink-0 ${discrepancy ? 'text-amber-700 bg-amber-100 dark:bg-amber-900/40 dark:text-amber-300' : 'text-green-700 bg-green-100 dark:bg-green-900/40 dark:text-green-300'}`}
+                          >
+                            {discrepancy ? '⚠ Disc.' : '✓'}
+                          </span>
+                        )}
+                      </div>
                     </td>
-                  )}
-                </tr>
-              ))}
+                    <td className="px-3 py-2 text-right tabular-nums">
+                      {Number(item.sentQty ?? item.requestedQty).toLocaleString('es-PE', {
+                        maximumFractionDigits: 3,
+                      })}{' '}
+                      {item.item.unit.abbreviation}
+                    </td>
+                    {t.status === 'RECIBIDA' && (
+                      <td className="px-3 py-2 text-right tabular-nums font-medium">
+                        {item.receivedQty != null
+                          ? `${Number(item.receivedQty).toLocaleString('es-PE', { maximumFractionDigits: 3 })} ${item.item.unit.abbreviation}`
+                          : '—'}
+                      </td>
+                    )}
+                    {t.status === 'EN_TRANSITO' && (
+                      <td className="px-3 py-2">
+                        <div className="space-y-1">
+                          <Input
+                            type="number"
+                            step="0.001"
+                            min="0.001"
+                            max={getSentQty(item.id)}
+                            className={`h-7 text-sm text-right w-28 ml-auto ${lineError ? 'border-destructive' : discrepancy ? 'border-amber-400' : ''}`}
+                            value={receivedQtys[item.id] ?? ''}
+                            onChange={(e) =>
+                              setReceivedQtys((p) => ({
+                                ...p,
+                                [item.id]: e.target.value,
+                              }))
+                            }
+                          />
+                          {lineError && (
+                            <p className="text-[11px] text-destructive text-right">
+                              {lineError}
+                            </p>
+                          )}
+                        </div>
+                      </td>
+                    )}
+                  </tr>
+                );
+              })}
             </tbody>
           </table>
         </div>
       </div>
+
+      {/* Banner discrepancia (solo cuando EN_TRANSITO y hay diferencias) */}
+      {t.status === 'EN_TRANSITO' && hasDiscrepancy && !hasLineErrors && (
+        <div className="rounded-md border border-amber-300 bg-amber-50 dark:bg-amber-950/30 p-3 text-xs">
+          <p className="font-medium text-amber-900 dark:text-amber-200 flex items-center gap-1.5">
+            ⚠ Hay diferencias entre lo enviado y lo recibido
+          </p>
+          <p className="text-amber-800 dark:text-amber-200/80 mt-1">
+            Se notificará al administrador automáticamente. Añade una nota con el motivo
+            si es posible.
+          </p>
+        </div>
+      )}
 
       {t.notes && (
         <div>
@@ -238,10 +302,13 @@ export function TransferDetail({ transfer: t, onClose }: Props) {
             <Textarea
               id="transferOverrideReason"
               value={overrideReason}
-              onChange={(e) => setOverrideReason(e.target.value)}
-              placeholder="Ej: Residente ausente — recepción urgente para inicio de obra"
+              onChange={(e) => {
+                setOverrideReason(e.target.value.toUpperCase());
+                setOverrideError(null);
+              }}
+              placeholder="EJ: RESIDENTE AUSENTE — RECEPCIÓN URGENTE PARA INICIO DE OBRA"
               rows={2}
-              className="text-sm"
+              className="text-sm resize-none"
             />
             {overrideError && <p className="text-xs text-destructive">{overrideError}</p>}
           </div>
@@ -254,7 +321,7 @@ export function TransferDetail({ transfer: t, onClose }: Props) {
           <Button
             size="sm"
             onClick={handleReceive}
-            disabled={receive.isPending}
+            disabled={receive.isPending || (isSubmitted && hasLineErrors)}
             className="gap-1.5"
           >
             <CheckCircle2 className="h-3.5 w-3.5" /> Confirmar recepción
