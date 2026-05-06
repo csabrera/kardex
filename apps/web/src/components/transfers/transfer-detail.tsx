@@ -2,6 +2,7 @@
 
 import { AlertCircle, ArrowRight, CheckCircle2, XCircle } from 'lucide-react';
 import { useState } from 'react';
+import { toast } from 'sonner';
 
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -77,6 +78,7 @@ export function TransferDetail({ transfer: t, onClose }: Props) {
     setIsSubmitted(true);
     if (hasLineErrors) return;
     if (!validateOverride()) return;
+    const withDiscrepancy = hasDiscrepancy;
     receive.mutate(
       {
         id: t.id,
@@ -86,7 +88,18 @@ export function TransferDetail({ transfer: t, onClose }: Props) {
         })),
         overrideReason: needsOverride ? overrideReason.trim() : undefined,
       },
-      { onSuccess: onClose },
+      {
+        onSuccess: () => {
+          if (withDiscrepancy) {
+            toast.warning(
+              'Recepción confirmada con diferencias · administrador notificado',
+            );
+          } else {
+            toast.success('Recepción confirmada · stock actualizado');
+          }
+          onClose();
+        },
+      },
     );
   };
 

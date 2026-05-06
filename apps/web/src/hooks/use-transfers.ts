@@ -133,7 +133,6 @@ export function useReceiveTransfer() {
         .then((r) => r.data.data),
     onSuccess: () => {
       invalidateTransfers(qc);
-      toast.success('Recepción confirmada · stock destino actualizado');
     },
     onError: (e: any) =>
       toast.error(e.response?.data?.error?.message ?? 'Error al confirmar recepción'),
