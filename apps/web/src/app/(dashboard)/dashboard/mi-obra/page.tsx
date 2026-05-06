@@ -16,7 +16,6 @@ import {
   Plus,
   Search,
   Shield,
-  SlidersHorizontal,
   Trash2,
   TrendingDown,
   Warehouse,
@@ -66,6 +65,24 @@ import type { StockEntry } from '@/hooks/use-stock';
 type TabId = 'almacen' | 'prestamos' | 'epp' | 'estaciones' | 'movimientos' | 'alertas';
 
 const ALL = 'ALL';
+
+const ITEM_TYPE_CONFIG = {
+  CONSUMO: {
+    label: 'Material',
+    icon: Package,
+    cls: 'text-orange-700 bg-orange-50 border-orange-200 dark:bg-orange-950/40 dark:text-orange-300 dark:border-orange-800',
+  },
+  PRESTAMO: {
+    label: 'Herramienta',
+    icon: Wrench,
+    cls: 'text-blue-700 bg-blue-50 border-blue-200 dark:bg-blue-950/40 dark:text-blue-300 dark:border-blue-800',
+  },
+  ASIGNACION: {
+    label: 'EPP',
+    icon: Shield,
+    cls: 'text-green-700 bg-green-50 border-green-200 dark:bg-green-950/40 dark:text-green-300 dark:border-green-800',
+  },
+} as const;
 
 export default function MiObraPage() {
   const user = useAuthStore((s) => s.user);
@@ -239,17 +256,6 @@ export default function MiObraPage() {
     warehouseName: string;
   } | null>(null);
 
-  // Para items PRESTAMO usamos availableQty (descuenta los actualmente prestados)
-  // así el residente no intenta sacar stock que no está en estante. Para otros
-  // tipos availableQty == quantity.
-  const openAdjustForEntry = (s: StockEntry) => {
-    setAdjustTarget({
-      item: s.item as unknown as Item,
-      availableQty: Number(s.availableQty ?? s.quantity),
-      warehouseId: s.warehouseId,
-      warehouseName: s.warehouse.name,
-    });
-  };
   const openOutgoingForEntry = (s: StockEntry) => {
     setOutgoingTarget({
       item: s.item as unknown as Item,
@@ -696,135 +702,130 @@ export default function MiObraPage() {
                   />
                 </div>
               ) : isAllMode ? (
-                <table className="w-full text-sm">
-                  <thead className="bg-muted/40 text-xs uppercase tracking-wider text-muted-foreground">
-                    <tr>
-                      <th className="text-left px-4 py-3 font-medium">Código</th>
-                      <th className="text-left px-4 py-3 font-medium">Ítem</th>
-                      <th className="text-left px-4 py-3 font-medium">Tipo</th>
-                      <th className="text-left px-4 py-3 font-medium">En almacenes</th>
-                      <th
-                        className="text-right px-4 py-3 font-medium"
-                        title="Disponible / Total. Para préstamos: disponible = total − en préstamo activo."
-                      >
-                        Disp. / Total
-                      </th>
-                      <th className="text-right px-4 py-3 font-medium">Prestados</th>
-                      <th className="text-left px-4 py-3 font-medium">Estado</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {(filteredStock as AggregatedStockRow[]).map((r) => {
-                      const min = Number(r.item.minStock);
-                      const isLoan = r.item.type === 'PRESTAMO';
-                      const available = r.availableQty;
-                      const out = available === 0 && min > 0;
-                      const low = !out && min > 0 && available < min;
-                      return (
-                        <tr key={r.itemId} className="border-t hover:bg-muted/20">
-                          <td className="px-4 py-3 font-mono text-xs">{r.item.code}</td>
-                          <td className="px-4 py-3 font-medium">
-                            {r.item.name}
-                            {isLoan && r.damagedReturnedQty > 0 && (
+                <>
+                  <p className="px-4 py-2 text-xs text-muted-foreground border-b bg-muted/20">
+                    Vista consolidada · selecciona un almacén específico para registrar
+                    movimientos
+                  </p>
+                  <table className="w-full text-sm">
+                    <thead className="bg-muted/40 text-xs uppercase tracking-wider text-muted-foreground">
+                      <tr>
+                        <th className="text-left px-4 py-3 font-medium">Ítem</th>
+                        <th className="text-left px-4 py-3 font-medium">Tipo</th>
+                        <th className="text-left px-4 py-3 font-medium hidden md:table-cell">
+                          Por almacén
+                        </th>
+                        <th className="text-right px-4 py-3 font-medium">Disponible</th>
+                        <th className="text-left px-4 py-3 font-medium">Estado</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {(filteredStock as AggregatedStockRow[]).map((r) => {
+                        const min = Number(r.item.minStock);
+                        const isLoan = r.item.type === 'PRESTAMO';
+                        const available = r.availableQty;
+                        const out = available === 0 && min > 0;
+                        const low = !out && min > 0 && available < min;
+                        const typeConf =
+                          ITEM_TYPE_CONFIG[
+                            r.item.type as keyof typeof ITEM_TYPE_CONFIG
+                          ] ?? ITEM_TYPE_CONFIG.CONSUMO;
+                        const TypeIcon = typeConf.icon;
+                        return (
+                          <tr key={r.itemId} className="border-t hover:bg-muted/20">
+                            <td className="px-4 py-3">
+                              <p className="font-medium">{r.item.name}</p>
+                              <p className="text-[11px] font-mono text-muted-foreground">
+                                {r.item.code}
+                              </p>
+                              {isLoan && r.damagedReturnedQty > 0 && (
+                                <p className="text-[10px] text-destructive mt-0.5">
+                                  ⚠ {r.damagedReturnedQty} no utilizables
+                                </p>
+                              )}
+                            </td>
+                            <td className="px-4 py-3">
                               <span
-                                className="ml-2 text-[10px] text-destructive"
-                                title="Devueltos en condición DAMAGED — no utilizables"
+                                className={`inline-flex items-center gap-1 text-[11px] font-medium px-2 py-0.5 rounded-full border ${typeConf.cls}`}
                               >
-                                ⚠ {r.damagedReturnedQty} no utilizables
+                                <TypeIcon className="h-3 w-3" />
+                                {typeConf.label}
                               </span>
-                            )}
-                          </td>
-                          <td className="px-4 py-3">
-                            <Badge variant="outline" className="text-[10px]">
-                              {r.item.type}
-                            </Badge>
-                          </td>
-                          <td className="px-4 py-3 text-xs">
-                            <div className="space-y-0.5">
-                              {r.breakdown.map((b) => (
-                                <div
-                                  key={b.warehouseId}
-                                  className="flex items-center justify-between gap-3 max-w-[280px]"
-                                >
-                                  <span className="uppercase font-medium text-muted-foreground truncate">
-                                    {b.warehouseName}
-                                  </span>
-                                  <span className="font-mono tabular-nums">
-                                    {b.qty.toLocaleString('es-PE', {
+                            </td>
+                            <td className="px-4 py-3 text-xs hidden md:table-cell">
+                              <div className="space-y-0.5">
+                                {r.breakdown.map((b) => (
+                                  <div
+                                    key={b.warehouseId}
+                                    className="flex items-center justify-between gap-3 max-w-[220px]"
+                                  >
+                                    <span className="text-muted-foreground truncate">
+                                      {b.warehouseName}
+                                    </span>
+                                    <span className="font-mono tabular-nums font-medium">
+                                      {b.qty.toLocaleString('es-PE', {
+                                        maximumFractionDigits: 3,
+                                      })}
+                                    </span>
+                                  </div>
+                                ))}
+                              </div>
+                            </td>
+                            <td
+                              className={cn(
+                                'px-4 py-3 text-right font-semibold tabular-nums',
+                                out && 'text-destructive',
+                                low && 'text-amber-600 dark:text-amber-400',
+                              )}
+                            >
+                              {isLoan ? (
+                                <>
+                                  {available.toLocaleString('es-PE', {
+                                    maximumFractionDigits: 3,
+                                  })}
+                                  <span className="text-muted-foreground font-normal">
+                                    {' / '}
+                                    {r.totalQty.toLocaleString('es-PE', {
                                       maximumFractionDigits: 3,
                                     })}
                                   </span>
-                                </div>
-                              ))}
-                            </div>
-                          </td>
-                          <td
-                            className={cn(
-                              'px-4 py-3 text-right font-bold tabular-nums',
-                              out && 'text-destructive',
-                              low && 'text-amber-600 dark:text-amber-400',
-                            )}
-                          >
-                            {isLoan ? (
-                              <>
-                                {available.toLocaleString('es-PE', {
+                                </>
+                              ) : (
+                                r.totalQty.toLocaleString('es-PE', {
                                   maximumFractionDigits: 3,
-                                })}
-                                <span className="text-muted-foreground font-normal">
-                                  {' / '}
-                                  {r.totalQty.toLocaleString('es-PE', {
-                                    maximumFractionDigits: 3,
-                                  })}
-                                </span>
-                              </>
-                            ) : (
-                              r.totalQty.toLocaleString('es-PE', {
-                                maximumFractionDigits: 3,
-                              })
-                            )}{' '}
-                            <span className="text-xs text-muted-foreground font-normal">
-                              {r.item.unit.abbreviation}
-                            </span>
-                          </td>
-                          <td className="px-4 py-3 text-right tabular-nums text-xs">
-                            {isLoan && r.loanedQty > 0 ? (
-                              <span className="text-blue-600 dark:text-blue-400 font-medium">
-                                {r.loanedQty}
+                                })
+                              )}{' '}
+                              <span className="text-xs text-muted-foreground font-normal">
+                                {r.item.unit.abbreviation}
                               </span>
-                            ) : (
-                              <span className="text-muted-foreground">—</span>
-                            )}
-                          </td>
-                          <td className="px-4 py-3">
-                            {out ? (
-                              <Badge variant="destructive">Sin disponible</Badge>
-                            ) : low ? (
-                              <Badge variant="warning">Bajo mínimo</Badge>
-                            ) : (
-                              <Badge variant="success">Óptimo</Badge>
-                            )}
-                          </td>
-                        </tr>
-                      );
-                    })}
-                  </tbody>
-                </table>
+                              {isLoan && r.loanedQty > 0 && (
+                                <p className="text-[11px] text-blue-600 dark:text-blue-400 font-normal">
+                                  {r.loanedQty} en préstamo
+                                </p>
+                              )}
+                            </td>
+                            <td className="px-4 py-3">
+                              {out ? (
+                                <Badge variant="destructive">Sin stock</Badge>
+                              ) : low ? (
+                                <Badge variant="warning">Bajo mínimo</Badge>
+                              ) : null}
+                            </td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </>
               ) : (
                 <table className="w-full text-sm">
                   <thead className="bg-muted/40 text-xs uppercase tracking-wider text-muted-foreground">
                     <tr>
-                      <th className="text-left px-4 py-3 font-medium">Código</th>
                       <th className="text-left px-4 py-3 font-medium">Ítem</th>
                       <th className="text-left px-4 py-3 font-medium">Tipo</th>
-                      <th
-                        className="text-right px-4 py-3 font-medium"
-                        title="Disponible / Total. Para préstamos: disponible = total − en préstamo activo."
-                      >
-                        Disp. / Total
-                      </th>
-                      <th className="text-right px-4 py-3 font-medium">Prestados</th>
+                      <th className="text-right px-4 py-3 font-medium">Disponible</th>
                       <th className="text-left px-4 py-3 font-medium">Estado</th>
-                      <th className="text-right px-4 py-3 font-medium">Acciones</th>
+                      <th className="text-right px-4 py-3 font-medium">Acción</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -840,24 +841,31 @@ export default function MiObraPage() {
                         const damaged = Number(s.damagedReturnedQty ?? 0);
                         const out = available === 0 && min > 0;
                         const low = !out && min > 0 && available < min;
+                        const typeConf =
+                          ITEM_TYPE_CONFIG[
+                            s.item.type as keyof typeof ITEM_TYPE_CONFIG
+                          ] ?? ITEM_TYPE_CONFIG.CONSUMO;
+                        const TypeIcon = typeConf.icon;
                         return (
                           <tr key={s.id} className="border-t hover:bg-muted/20">
-                            <td className="px-4 py-3 font-mono text-xs">{s.item.code}</td>
-                            <td className="px-4 py-3 font-medium">
-                              {s.item.name}
+                            <td className="px-4 py-3">
+                              <p className="font-medium">{s.item.name}</p>
+                              <p className="text-[11px] font-mono text-muted-foreground">
+                                {s.item.code}
+                              </p>
                               {isLoan && damaged > 0 && (
-                                <span
-                                  className="ml-2 text-[10px] text-destructive"
-                                  title="Devueltos en condición DAMAGED — no utilizables"
-                                >
+                                <p className="text-[10px] text-destructive mt-0.5">
                                   ⚠ {damaged} no utilizables
-                                </span>
+                                </p>
                               )}
                             </td>
                             <td className="px-4 py-3">
-                              <Badge variant="outline" className="text-[10px]">
-                                {s.item.type}
-                              </Badge>
+                              <span
+                                className={`inline-flex items-center gap-1 text-[11px] font-medium px-2 py-0.5 rounded-full border ${typeConf.cls}`}
+                              >
+                                <TypeIcon className="h-3 w-3" />
+                                {typeConf.label}
+                              </span>
                             </td>
                             <td
                               className={cn(
@@ -884,77 +892,59 @@ export default function MiObraPage() {
                               <span className="text-xs text-muted-foreground font-normal">
                                 {s.item.unit.abbreviation}
                               </span>
-                            </td>
-                            <td className="px-4 py-3 text-right tabular-nums text-xs">
-                              {isLoan && loaned > 0 ? (
-                                <span className="text-blue-600 dark:text-blue-400 font-medium">
-                                  {loaned}
-                                </span>
-                              ) : (
-                                <span className="text-muted-foreground">—</span>
+                              {isLoan && loaned > 0 && (
+                                <p className="text-[11px] text-blue-600 dark:text-blue-400 font-normal">
+                                  {loaned} en préstamo
+                                </p>
                               )}
                             </td>
                             <td className="px-4 py-3">
                               {out ? (
-                                <Badge variant="destructive">Sin disponible</Badge>
+                                <Badge variant="destructive">Sin stock</Badge>
                               ) : low ? (
                                 <Badge variant="warning">Bajo mínimo</Badge>
-                              ) : (
-                                <Badge variant="success">Óptimo</Badge>
-                              )}
+                              ) : null}
                             </td>
                             <td className="px-4 py-3 text-right">
-                              <div className="flex items-center justify-end gap-1.5">
+                              {s.item.type === 'CONSUMO' && (
                                 <Button
                                   size="sm"
                                   variant="outline"
-                                  onClick={() => openAdjustForEntry(s)}
-                                  className="gap-1 h-8 px-2.5"
-                                  title="Ajustar cantidad tras conteo físico"
+                                  onClick={() => openOutgoingForEntry(s)}
+                                  disabled={available === 0}
+                                  className="gap-1.5 h-8 px-3"
+                                  title="Registrar consumo de material"
                                 >
-                                  <SlidersHorizontal className="h-3.5 w-3.5 text-amber-600" />
-                                  <span className="hidden lg:inline">Ajustar</span>
+                                  <ArrowUpCircle className="h-3.5 w-3.5 text-orange-600" />
+                                  <span className="hidden lg:inline">Consumir</span>
                                 </Button>
-                                {s.item.type === 'CONSUMO' && (
-                                  <Button
-                                    size="sm"
-                                    variant="outline"
-                                    onClick={() => openOutgoingForEntry(s)}
-                                    disabled={available === 0}
-                                    className="gap-1 h-8 px-2.5"
-                                    title="Registrar consumo de material"
-                                  >
-                                    <ArrowUpCircle className="h-3.5 w-3.5 text-red-600" />
-                                    <span className="hidden lg:inline">Consumir</span>
-                                  </Button>
-                                )}
-                                {s.item.type === 'PRESTAMO' && (
-                                  <Button
-                                    size="sm"
-                                    variant="outline"
-                                    onClick={() => openLoanForEntry(s)}
-                                    disabled={available === 0}
-                                    className="gap-1 h-8 px-2.5"
-                                    title="Registrar préstamo de herramienta"
-                                  >
-                                    <Wrench className="h-3.5 w-3.5 text-blue-600" />
-                                    <span className="hidden lg:inline">Prestar</span>
-                                  </Button>
-                                )}
-                                {s.item.type === 'ASIGNACION' && (
-                                  <Button
-                                    size="sm"
-                                    variant="outline"
-                                    onClick={() => openEppForEntry(s)}
-                                    disabled={available === 0}
-                                    className="gap-1 h-8 px-2.5"
-                                    title="Asignar EPP a empleado"
-                                  >
-                                    <Shield className="h-3.5 w-3.5 text-blue-600" />
-                                    <span className="hidden lg:inline">Asignar</span>
-                                  </Button>
-                                )}
-                              </div>
+                              )}
+                              {s.item.type === 'PRESTAMO' && (
+                                <Button
+                                  size="sm"
+                                  variant="outline"
+                                  onClick={() => openLoanForEntry(s)}
+                                  disabled={available === 0}
+                                  className="gap-1.5 h-8 px-3"
+                                  title="Registrar préstamo de herramienta"
+                                >
+                                  <Wrench className="h-3.5 w-3.5 text-blue-600" />
+                                  <span className="hidden lg:inline">Prestar</span>
+                                </Button>
+                              )}
+                              {s.item.type === 'ASIGNACION' && (
+                                <Button
+                                  size="sm"
+                                  variant="outline"
+                                  onClick={() => openEppForEntry(s)}
+                                  disabled={available === 0}
+                                  className="gap-1.5 h-8 px-3"
+                                  title="Asignar EPP a empleado"
+                                >
+                                  <Shield className="h-3.5 w-3.5 text-green-600" />
+                                  <span className="hidden lg:inline">Asignar</span>
+                                </Button>
+                              )}
                             </td>
                           </tr>
                         );
