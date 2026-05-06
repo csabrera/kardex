@@ -52,6 +52,13 @@ interface Props {
   lockedObraId?: string;
   /** Pre-selecciona el almacén (editable si hay varios) */
   defaultWarehouseId?: string;
+  /** Si viene, fija el EPP (no se muestra combobox) */
+  defaultItem?: {
+    id: string;
+    name: string;
+    code: string;
+    unit?: { abbreviation: string };
+  };
 }
 
 export function NewEPPAssignmentDialog({
@@ -59,6 +66,7 @@ export function NewEPPAssignmentDialog({
   onClose,
   lockedObraId,
   defaultWarehouseId,
+  defaultItem,
 }: Props) {
   const user = useAuthStore((s) => s.user);
   const isResidente = user?.role?.name === 'RESIDENTE';
@@ -101,7 +109,8 @@ export function NewEPPAssignmentDialog({
     if (!open) return;
     if (lockedObraId) setValue('obraId', lockedObraId);
     if (defaultWarehouseId) setValue('warehouseId', defaultWarehouseId);
-  }, [open, lockedObraId, defaultWarehouseId, setValue]);
+    if (defaultItem) setValue('itemId', defaultItem.id);
+  }, [open, lockedObraId, defaultWarehouseId, defaultItem, setValue]);
 
   const { data: warehousesData } = useWarehouses({
     pageSize: 50,
@@ -183,12 +192,12 @@ export function NewEPPAssignmentDialog({
       obraId: lockedObraId ?? '',
       warehouseId: defaultWarehouseId ?? '',
       workerId: '',
-      itemId: '',
+      itemId: defaultItem?.id ?? '',
       quantity: 1,
       notes: '',
       overrideReason: '',
     });
-    setItemSearch('');
+    if (!defaultItem) setItemSearch('');
   };
 
   const handleClose = () => {
@@ -366,36 +375,53 @@ export function NewEPPAssignmentDialog({
                 <Label>
                   EPP a entregar <span className="text-destructive">*</span>
                 </Label>
-                <SearchCombobox<Item>
-                  value={itemId}
-                  onChange={(id) =>
-                    setValue('itemId', id, { shouldValidate: isSubmitted })
-                  }
-                  items={eppItems}
-                  selectedItem={selectedItem ?? null}
-                  isLoading={itemsLoading}
-                  onSearchChange={setItemSearch}
-                  getId={(i) => i.id}
-                  getLabel={(i) => `[${i.code}] ${i.name}`}
-                  renderItem={(i) => (
-                    <>
-                      <span className="font-mono text-xs text-muted-foreground mr-2">
-                        {i.code}
-                      </span>
-                      {i.name}
-                      <span className="ml-1 text-[10px] text-muted-foreground">
-                        ({i.unit.abbreviation})
-                      </span>
-                    </>
-                  )}
-                  placeholder="Buscar EPP por código o nombre..."
-                  emptyMessage="No se encontraron EPP que coincidan."
-                  error={!!errors.itemId}
-                />
+                {defaultItem ? (
+                  <div className="flex items-center gap-3 rounded-md border bg-muted/30 p-2.5">
+                    <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-md bg-accent/10 text-accent ring-1 ring-accent/20">
+                      <Shield className="h-4 w-4" />
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm font-medium truncate">{defaultItem.name}</p>
+                      <p className="text-[11px] font-mono text-muted-foreground">
+                        {defaultItem.code}
+                      </p>
+                    </div>
+                    <Badge variant="outline" className="text-[10px]">
+                      Fijado
+                    </Badge>
+                  </div>
+                ) : (
+                  <SearchCombobox<Item>
+                    value={itemId}
+                    onChange={(id) =>
+                      setValue('itemId', id, { shouldValidate: isSubmitted })
+                    }
+                    items={eppItems}
+                    selectedItem={selectedItem ?? null}
+                    isLoading={itemsLoading}
+                    onSearchChange={setItemSearch}
+                    getId={(i) => i.id}
+                    getLabel={(i) => `[${i.code}] ${i.name}`}
+                    renderItem={(i) => (
+                      <>
+                        <span className="font-mono text-xs text-muted-foreground mr-2">
+                          {i.code}
+                        </span>
+                        {i.name}
+                        <span className="ml-1 text-[10px] text-muted-foreground">
+                          ({i.unit.abbreviation})
+                        </span>
+                      </>
+                    )}
+                    placeholder="Buscar EPP por código o nombre..."
+                    emptyMessage="No se encontraron EPP que coincidan."
+                    error={!!errors.itemId}
+                  />
+                )}
                 <p className="text-[11px] text-muted-foreground">
                   Solo ítems de tipo Asignación (casco, arnés, guantes, lentes, etc.)
                 </p>
-                {errors.itemId && (
+                {!defaultItem && errors.itemId && (
                   <p className="text-xs text-destructive">{errors.itemId.message}</p>
                 )}
                 {itemId && warehouseId && availableQty !== null && (
@@ -408,9 +434,9 @@ export function NewEPPAssignmentDialog({
                     <span className="font-semibold">
                       {availableQty.toLocaleString('es-PE', { maximumFractionDigits: 3 })}
                     </span>
-                    {selectedItem && (
-                      <span className="ml-1">{selectedItem.unit.abbreviation}</span>
-                    )}
+                    <span className="ml-1">
+                      {selectedItem?.unit.abbreviation ?? defaultItem?.unit?.abbreviation}
+                    </span>
                     {availableQty === 0 && (
                       <span className="ml-2">— Sin stock en este almacén</span>
                     )}

@@ -228,6 +228,16 @@ export default function MiObraPage() {
     warehouseId: string;
     warehouseName: string;
   } | null>(null);
+  const [loanTarget, setLoanTarget] = useState<{
+    item: Item;
+    warehouseId: string;
+    warehouseName: string;
+  } | null>(null);
+  const [eppTarget, setEppTarget] = useState<{
+    item: Item;
+    warehouseId: string;
+    warehouseName: string;
+  } | null>(null);
 
   // Para items PRESTAMO usamos availableQty (descuenta los actualmente prestados)
   // así el residente no intenta sacar stock que no está en estante. Para otros
@@ -244,6 +254,20 @@ export default function MiObraPage() {
     setOutgoingTarget({
       item: s.item as unknown as Item,
       availableQty: Number(s.availableQty ?? s.quantity),
+      warehouseId: s.warehouseId,
+      warehouseName: s.warehouse.name,
+    });
+  };
+  const openLoanForEntry = (s: StockEntry) => {
+    setLoanTarget({
+      item: s.item as unknown as Item,
+      warehouseId: s.warehouseId,
+      warehouseName: s.warehouse.name,
+    });
+  };
+  const openEppForEntry = (s: StockEntry) => {
+    setEppTarget({
+      item: s.item as unknown as Item,
       warehouseId: s.warehouseId,
       warehouseName: s.warehouse.name,
     });
@@ -891,17 +915,45 @@ export default function MiObraPage() {
                                   <SlidersHorizontal className="h-3.5 w-3.5 text-amber-600" />
                                   <span className="hidden lg:inline">Ajustar</span>
                                 </Button>
-                                <Button
-                                  size="sm"
-                                  variant="outline"
-                                  onClick={() => openOutgoingForEntry(s)}
-                                  disabled={available === 0}
-                                  className="gap-1 h-8 px-2.5"
-                                  title="Registrar salida (consumo / baja)"
-                                >
-                                  <ArrowUpCircle className="h-3.5 w-3.5 text-red-600" />
-                                  <span className="hidden lg:inline">Salida</span>
-                                </Button>
+                                {s.item.type === 'CONSUMO' && (
+                                  <Button
+                                    size="sm"
+                                    variant="outline"
+                                    onClick={() => openOutgoingForEntry(s)}
+                                    disabled={available === 0}
+                                    className="gap-1 h-8 px-2.5"
+                                    title="Registrar consumo de material"
+                                  >
+                                    <ArrowUpCircle className="h-3.5 w-3.5 text-red-600" />
+                                    <span className="hidden lg:inline">Consumir</span>
+                                  </Button>
+                                )}
+                                {s.item.type === 'PRESTAMO' && (
+                                  <Button
+                                    size="sm"
+                                    variant="outline"
+                                    onClick={() => openLoanForEntry(s)}
+                                    disabled={available === 0}
+                                    className="gap-1 h-8 px-2.5"
+                                    title="Registrar préstamo de herramienta"
+                                  >
+                                    <Wrench className="h-3.5 w-3.5 text-blue-600" />
+                                    <span className="hidden lg:inline">Prestar</span>
+                                  </Button>
+                                )}
+                                {s.item.type === 'ASIGNACION' && (
+                                  <Button
+                                    size="sm"
+                                    variant="outline"
+                                    onClick={() => openEppForEntry(s)}
+                                    disabled={available === 0}
+                                    className="gap-1 h-8 px-2.5"
+                                    title="Asignar EPP a empleado"
+                                  >
+                                    <Shield className="h-3.5 w-3.5 text-blue-600" />
+                                    <span className="hidden lg:inline">Asignar</span>
+                                  </Button>
+                                )}
                               </div>
                             </td>
                           </tr>
@@ -1315,19 +1367,57 @@ export default function MiObraPage() {
       />
 
       <NewLoanDialog
-        open={newLoanOpen}
-        onClose={() => setNewLoanOpen(false)}
+        open={newLoanOpen || loanTarget !== null}
+        onClose={() => {
+          setNewLoanOpen(false);
+          setLoanTarget(null);
+        }}
         lockedObraId={obraId || undefined}
-        defaultWarehouseId={isAllMode ? undefined : effectiveWarehouseId || undefined}
+        defaultWarehouseId={
+          loanTarget
+            ? loanTarget.warehouseId
+            : isAllMode
+              ? undefined
+              : effectiveWarehouseId || undefined
+        }
+        defaultItem={
+          loanTarget
+            ? {
+                id: loanTarget.item.id,
+                name: loanTarget.item.name,
+                code: loanTarget.item.code,
+                unit: loanTarget.item.unit,
+              }
+            : undefined
+        }
       />
 
       <ReturnLoanDialog loan={returnLoan} onClose={() => setReturnLoan(null)} />
 
       <NewEPPAssignmentDialog
-        open={newEppOpen}
-        onClose={() => setNewEppOpen(false)}
+        open={newEppOpen || eppTarget !== null}
+        onClose={() => {
+          setNewEppOpen(false);
+          setEppTarget(null);
+        }}
         lockedObraId={obraId || undefined}
-        defaultWarehouseId={isAllMode ? undefined : effectiveWarehouseId || undefined}
+        defaultWarehouseId={
+          eppTarget
+            ? eppTarget.warehouseId
+            : isAllMode
+              ? undefined
+              : effectiveWarehouseId || undefined
+        }
+        defaultItem={
+          eppTarget
+            ? {
+                id: eppTarget.item.id,
+                name: eppTarget.item.name,
+                code: eppTarget.item.code,
+                unit: eppTarget.item.unit,
+              }
+            : undefined
+        }
       />
 
       <QuickAdjustDialog
