@@ -327,21 +327,29 @@ export class TransfersService {
           `Recepción de transferencia ${t.code} desde ${t.fromWarehouse.name}`,
         );
 
-        // Crear alerta de discrepancia si aplica
+        // Crear alerta de discrepancia si aplica (guard contra duplicados)
         if (discrepancias.length > 0) {
-          await tx.alert.create({
-            data: {
+          const existing = await tx.alert.findFirst({
+            where: {
               type: AlertType.TRANSFER_DISCREPANCIA,
               warehouseId: t.toWarehouseId,
-              // Usamos el primer item como referencia; el mensaje resume todo
-              itemId: discrepancias[0]!.itemId,
-              quantity: discrepancias[0]!.received,
-              threshold: discrepancias[0]!.sent,
-              message: `Discrepancia en transferencia ${t.code}: ${discrepancias
-                .map((d) => `${d.itemName} enviado=${d.sent}, recibido=${d.received}`)
-                .join(' · ')}`,
+              message: { contains: t.code },
             },
           });
+          if (!existing) {
+            await tx.alert.create({
+              data: {
+                type: AlertType.TRANSFER_DISCREPANCIA,
+                warehouseId: t.toWarehouseId,
+                itemId: discrepancias[0]!.itemId,
+                quantity: discrepancias[0]!.received,
+                threshold: discrepancias[0]!.sent,
+                message: `Discrepancia en transferencia ${t.code}: ${discrepancias
+                  .map((d) => `${d.itemName} enviado=${d.sent}, recibido=${d.received}`)
+                  .join(' · ')}`,
+              },
+            });
+          }
         }
 
         const updated = await tx.transfer.update({
@@ -363,9 +371,13 @@ export class TransfersService {
         if (discrepancias.length > 0) {
           this.realtime.emitToRole('ADMIN', WS_EVENTS.ALERT_CREATED, {
             type: AlertType.TRANSFER_DISCREPANCIA,
-            transferCode: t.code,
-            warehouseId: t.toWarehouseId,
-            discrepancias,
+            message: `Discrepancia en transferencia ${t.code}: ${discrepancias
+              .map((d) => `${d.itemName} enviado=${d.sent}, recibido=${d.received}`)
+              .join(' · ')}`,
+            warehouse: { id: t.toWarehouseId, name: updated.toWarehouse.name },
+            item: { id: discrepancias[0]!.itemId, name: discrepancias[0]!.itemName },
+            quantity: discrepancias[0]!.received,
+            threshold: discrepancias[0]!.sent,
           });
         }
         return updated;
