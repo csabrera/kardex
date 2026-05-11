@@ -4,7 +4,6 @@ import {
   AlertTriangle,
   Box,
   ClipboardCheck,
-  FileText,
   Package,
   Shield,
   Star,
@@ -18,7 +17,6 @@ import { useCallback } from 'react';
 import { EppPanel } from '@/components/epp/epp-panel';
 import { InventoryCountsPanel } from '@/components/inventory/inventory-counts-panel';
 import { ItemsPanel } from '@/components/items/items-panel';
-import { MovementsPanel } from '@/components/movements/movements-panel';
 import { ToolLoansPanel } from '@/components/tool-loans/tool-loans-panel';
 import { TransferenciasPanel } from '@/components/transfers/transferencias-panel';
 import {
@@ -34,17 +32,10 @@ import { useStock } from '@/hooks/use-stock';
 import { useMainWarehouse } from '@/hooks/use-warehouses';
 import { cn } from '@/lib/cn';
 
-type TabId =
-  | 'inventario'
-  | 'movimientos'
-  | 'transferencias'
-  | 'prestamos'
-  | 'epp'
-  | 'inventarios';
+type TabId = 'inventario' | 'transferencias' | 'prestamos' | 'epp' | 'inventarios';
 
 const TABS: { id: TabId; label: string; icon: React.ElementType }[] = [
   { id: 'inventario', label: 'Inventario', icon: Box },
-  { id: 'movimientos', label: 'Movimientos', icon: FileText },
   { id: 'transferencias', label: 'Transferencias', icon: WarehouseIcon },
   { id: 'prestamos', label: 'Préstamos', icon: Wrench },
   { id: 'epp', label: 'Asignación (EPP)', icon: Shield },
@@ -172,10 +163,6 @@ export default function AlmacenPrincipalPage() {
         {/* === INVENTARIO (default) === */}
         <TabsContent value="inventario" className="mt-5">
           <ItemsPanel />
-        </TabsContent>
-
-        <TabsContent value="movimientos" className="mt-5">
-          <MovementsPanel warehouseId={mainId} />
         </TabsContent>
 
         <TabsContent value="transferencias" className="mt-5">

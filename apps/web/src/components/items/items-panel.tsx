@@ -11,6 +11,7 @@ import {
   Edit2,
   ExternalLink,
   FileUp,
+  History,
   Plus,
   Shield,
   SlidersHorizontal,
@@ -35,6 +36,7 @@ import {
 import { QuickEntryDialog } from '@/components/items/quick-entry-dialog';
 import { QuickOutgoingDialog } from '@/components/items/quick-outgoing-dialog';
 import { QuickTransferDialog } from '@/components/items/quick-transfer-dialog';
+import { ItemMovementsDialog } from '@/components/movements/item-movements-dialog';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Checkbox } from '@/components/ui/checkbox';
@@ -704,6 +706,7 @@ export function ItemsPanel({
   const [quickOutgoingItem, setQuickOutgoingItem] = useState<Item | null>(null);
   const [quickTransferItem, setQuickTransferItem] = useState<Item | null>(null);
   const [quickAdjustItem, setQuickAdjustItem] = useState<Item | null>(null);
+  const [movementsItem, setMovementsItem] = useState<Item | null>(null);
 
   const columns: ColumnDef<Item>[] = [
     rowNumberColumn<Item>({ page, pageSize }),
@@ -846,6 +849,10 @@ export function ItemsPanel({
                   <ExternalLink />
                   Ver ficha y kardex
                 </Link>
+              </DropdownMenuItem>
+              <DropdownMenuItem onSelect={() => setMovementsItem(item)}>
+                <History className="text-muted-foreground" />
+                Ver movimientos
               </DropdownMenuItem>
               <DropdownMenuItem onSelect={() => setEditTarget(item)}>
                 <Edit2 />
@@ -1042,6 +1049,7 @@ export function ItemsPanel({
         item={quickAdjustItem}
         onClose={() => setQuickAdjustItem(null)}
       />
+      <ItemMovementsDialog item={movementsItem} onClose={() => setMovementsItem(null)} />
     </div>
   );
 }
