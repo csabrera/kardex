@@ -58,6 +58,8 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { Textarea } from '@/components/ui/textarea';
+import { toast } from 'sonner';
+
 import { type Category, useCategories } from '@/hooks/use-categories';
 import { useDebounce } from '@/hooks/use-debounce';
 import {
@@ -161,9 +163,10 @@ function ItemForm({
     handleSubmit,
     setValue,
     watch,
-    formState: { errors },
+    formState: { errors, isSubmitted, isValid },
   } = useForm<FormData>({
     resolver: zodResolver(schema),
+    mode: 'onBlur',
     defaultValues: {
       type: 'CONSUMO',
       initialSource: 'COMPRA',
@@ -221,6 +224,14 @@ function ItemForm({
   const [unitDialogOpen, setUnitDialogOpen] = useState(false);
   const [supplierDialogOpen, setSupplierDialogOpen] = useState(false);
 
+  const toUpperOnChange =
+    (field: 'name' | 'description' | 'initialNotes') =>
+    (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
+      setValue(field, e.target.value.toUpperCase() as any, {
+        shouldValidate: isSubmitted,
+      });
+    };
+
   // ── Carga inicial (Wave 2) ─────────────────────────────────
   const loadInitialStock = watch('loadInitialStock') ?? false;
   const initialSource = watch('initialSource');
@@ -251,12 +262,16 @@ function ItemForm({
             </Label>
             <Input
               {...register('name')}
+              onChange={toUpperOnChange('name')}
               placeholder="Cemento Portland Tipo I — bolsa 42.5 kg"
               autoFocus
             />
             {errors.name && (
               <p className="text-xs text-destructive">{errors.name.message}</p>
             )}
+            <p className="text-[11px] text-muted-foreground">
+              Nombre completo incluyendo marca, modelo y especificaciones
+            </p>
           </div>
 
           {/* Tipo como grid visual */}
@@ -272,7 +287,7 @@ function ItemForm({
                   <button
                     key={t}
                     type="button"
-                    onClick={() => setValue('type', t, { shouldValidate: true })}
+                    onClick={() => setValue('type', t, { shouldValidate: isSubmitted })}
                     className={cn(
                       'flex items-start gap-2 rounded-md border p-3 text-left transition-all',
                       selected
@@ -306,7 +321,9 @@ function ItemForm({
               </Label>
               <SearchCombobox<Category>
                 value={watch('categoryId') ?? ''}
-                onChange={(id) => setValue('categoryId', id, { shouldValidate: true })}
+                onChange={(id) =>
+                  setValue('categoryId', id, { shouldValidate: isSubmitted })
+                }
                 items={categoriesData?.items ?? []}
                 selectedItem={selectedCategory}
                 isLoading={catLoading}
@@ -336,7 +353,7 @@ function ItemForm({
               </Label>
               <SearchCombobox<Unit>
                 value={watch('unitId') ?? ''}
-                onChange={(id) => setValue('unitId', id, { shouldValidate: true })}
+                onChange={(id) => setValue('unitId', id, { shouldValidate: isSubmitted })}
                 items={unitsData?.items ?? []}
                 selectedItem={selectedUnit}
                 isLoading={unitLoading}
@@ -399,6 +416,7 @@ function ItemForm({
           <Label>Descripción</Label>
           <Textarea
             {...register('description')}
+            onChange={toUpperOnChange('description')}
             rows={3}
             placeholder="Especificaciones técnicas, marca, características..."
           />
@@ -441,6 +459,9 @@ function ItemForm({
                         {errors.initialStock.message}
                       </p>
                     )}
+                    <p className="text-[11px] text-muted-foreground">
+                      Unidades a registrar como ENTRADA al Almacén Principal
+                    </p>
                   </div>
                   <div className="space-y-1.5">
                     <Label>Costo unitario</Label>
@@ -449,8 +470,11 @@ function ItemForm({
                       step="0.01"
                       min="0"
                       {...register('initialUnitCost')}
-                      placeholder="—"
+                      placeholder="0.00"
                     />
+                    <p className="text-[11px] text-muted-foreground">
+                      Opcional · S/. por unidad para valorizar el inventario
+                    </p>
                   </div>
                 </div>
 
@@ -462,7 +486,7 @@ function ItemForm({
                     value={initialSource ?? 'COMPRA'}
                     onValueChange={(v) =>
                       setValue('initialSource', v as 'COMPRA' | 'DEVOLUCION', {
-                        shouldValidate: true,
+                        shouldValidate: isSubmitted,
                       })
                     }
                   >
@@ -477,6 +501,11 @@ function ItemForm({
                       ))}
                     </SelectContent>
                   </Select>
+                  <p className="text-[11px] text-muted-foreground">
+                    {initialSource === 'COMPRA'
+                      ? 'Compra a proveedor · requiere seleccionar proveedor abajo'
+                      : 'Material devuelto desde obra al Almacén Principal'}
+                  </p>
                 </div>
 
                 {/* Proveedor — solo si motivo = COMPRA */}
@@ -488,7 +517,7 @@ function ItemForm({
                     <SearchCombobox<Supplier>
                       value={watch('initialSupplierId') ?? ''}
                       onChange={(id) =>
-                        setValue('initialSupplierId', id, { shouldValidate: true })
+                        setValue('initialSupplierId', id, { shouldValidate: isSubmitted })
                       }
                       items={suppliersData?.items ?? []}
                       selectedItem={selectedSupplier}
@@ -517,10 +546,15 @@ function ItemForm({
 
                 <div className="space-y-1.5">
                   <Label>Notas</Label>
-                  <Input
+                  <Textarea
                     {...register('initialNotes')}
-                    placeholder="Nº factura, guía, observaciones..."
+                    onChange={toUpperOnChange('initialNotes')}
+                    rows={2}
+                    placeholder="Nº FACTURA, GUÍA, OBSERVACIONES..."
                   />
+                  <p className="text-[11px] text-muted-foreground">
+                    Opcional · referencia de factura, guía de remisión u observaciones
+                  </p>
                 </div>
               </div>
             )}
@@ -539,7 +573,11 @@ function ItemForm({
             </kbd>{' '}
             para guardar
           </p>
-          <Button type="submit" disabled={isPending} className="gap-2">
+          <Button
+            type="submit"
+            disabled={isPending || (isSubmitted && !isValid)}
+            className="gap-2"
+          >
             {submitLabel}
           </Button>
         </div>
@@ -549,17 +587,19 @@ function ItemForm({
       <QuickCreateCategoryDialog
         open={catDialogOpen}
         onClose={() => setCatDialogOpen(false)}
-        onCreated={(id) => setValue('categoryId', id, { shouldValidate: true })}
+        onCreated={(id) => setValue('categoryId', id, { shouldValidate: isSubmitted })}
       />
       <QuickCreateUnitDialog
         open={unitDialogOpen}
         onClose={() => setUnitDialogOpen(false)}
-        onCreated={(id) => setValue('unitId', id, { shouldValidate: true })}
+        onCreated={(id) => setValue('unitId', id, { shouldValidate: isSubmitted })}
       />
       <QuickCreateSupplierDialog
         open={supplierDialogOpen}
         onClose={() => setSupplierDialogOpen(false)}
-        onCreated={(id) => setValue('initialSupplierId', id, { shouldValidate: true })}
+        onCreated={(id) =>
+          setValue('initialSupplierId', id, { shouldValidate: isSubmitted })
+        }
       />
     </>
   );
@@ -872,8 +912,8 @@ export function ItemsPanel({
               // Mapea al DTO del backend. Los campos de carga inicial solo se
               // envían si `loadInitialStock` está activo.
               const payload: CreateItemDto & Record<string, any> = {
-                name: dto.name,
-                description: dto.description,
+                name: dto.name.trim(),
+                description: dto.description?.trim(),
                 type: dto.type,
                 categoryId: dto.categoryId,
                 unitId: dto.unitId,
@@ -884,13 +924,25 @@ export function ItemsPanel({
                 payload.initialStock = dto.initialStock;
                 payload.initialUnitCost = dto.initialUnitCost;
                 payload.initialSource = dto.initialSource;
-                payload.initialNotes = dto.initialNotes;
+                payload.initialNotes = dto.initialNotes?.trim();
                 if (dto.initialSource === 'COMPRA') {
                   payload.initialSupplierId = dto.initialSupplierId;
                 }
               }
               createMutation.mutate(payload as CreateItemDto, {
-                onSuccess: () => setIsCreating(false),
+                onSuccess: () => {
+                  const hasStock = dto.loadInitialStock && (dto.initialStock ?? 0) > 0;
+                  toast.success(
+                    hasStock
+                      ? `Ítem "${dto.name.trim()}" creado con stock inicial`
+                      : `Ítem "${dto.name.trim()}" creado`,
+                  );
+                  setIsCreating(false);
+                },
+                onError: (e: any) =>
+                  toast.error(
+                    e.response?.data?.error?.message ?? 'Error al crear el ítem',
+                  ),
               });
             }}
             isPending={createMutation.isPending}
@@ -920,15 +972,24 @@ export function ItemsPanel({
                 updateMutation.mutate(
                   {
                     id: editTarget.id,
-                    name: dto.name,
-                    description: dto.description,
+                    name: dto.name.trim(),
+                    description: dto.description?.trim(),
                     type: dto.type,
                     categoryId: dto.categoryId,
                     unitId: dto.unitId,
                     minStock: dto.minStock,
                     maxStock: dto.maxStock,
                   } as Parameters<typeof updateMutation.mutate>[0],
-                  { onSuccess: () => setEditTarget(null) },
+                  {
+                    onSuccess: () => {
+                      toast.success(`Ítem "${dto.name.trim()}" actualizado`);
+                      setEditTarget(null);
+                    },
+                    onError: (e: any) =>
+                      toast.error(
+                        e.response?.data?.error?.message ?? 'Error al actualizar',
+                      ),
+                  },
                 )
               }
               isPending={updateMutation.isPending}

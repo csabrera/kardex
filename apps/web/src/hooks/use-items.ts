@@ -103,18 +103,12 @@ export function useCreateItem() {
     onSuccess: (_data, dto) => {
       qc.invalidateQueries({ queryKey: ['items'] });
       qc.invalidateQueries({ queryKey: ['dashboard-stats'] });
-      // Si hubo stock inicial también refrescamos stock/movements/alerts
       if ((dto.initialStock ?? 0) > 0) {
         qc.invalidateQueries({ queryKey: ['stock'] });
         qc.invalidateQueries({ queryKey: ['movements'] });
         qc.invalidateQueries({ queryKey: ['alerts'] });
-        toast.success('Ítem creado con stock inicial');
-      } else {
-        toast.success('Ítem creado');
       }
     },
-    onError: (e: any) =>
-      toast.error(e.response?.data?.error?.message ?? 'Error al crear'),
   });
 }
 
@@ -128,10 +122,7 @@ export function useUpdateItem() {
       apiClient.patch(`${BASE}/${id}`, dto).then((r) => r.data.data),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['items'] });
-      toast.success('Ítem actualizado');
     },
-    onError: (e: any) =>
-      toast.error(e.response?.data?.error?.message ?? 'Error al actualizar'),
   });
 }
 
