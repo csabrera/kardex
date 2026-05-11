@@ -37,6 +37,7 @@ import { QuickOutgoingDialog } from '@/components/items/quick-outgoing-dialog';
 import { QuickTransferDialog } from '@/components/items/quick-transfer-dialog';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
+import { Checkbox } from '@/components/ui/checkbox';
 import { useConfirm } from '@/components/ui/confirm-provider';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import {
@@ -112,7 +113,7 @@ const INITIAL_SOURCES = [
 
 const schema = z
   .object({
-    name: z.string().min(1, 'Requerido').max(200),
+    name: z.string().min(3, 'Mínimo 3 caracteres').max(200),
     description: z.string().max(1000).optional(),
     type: z.enum(['CONSUMO', 'PRESTAMO', 'ASIGNACION']),
     categoryId: z.string().min(1, 'Requerido'),
@@ -235,6 +236,7 @@ function ItemForm({
   // ── Carga inicial (Wave 2) ─────────────────────────────────
   const loadInitialStock = watch('loadInitialStock') ?? false;
   const initialSource = watch('initialSource');
+  const watchedDescription = watch('description') ?? '';
 
   // ── Submit button label dinámico ───────────────────────────
   const submitLabel = (() => {
@@ -287,6 +289,7 @@ function ItemForm({
                   <button
                     key={t}
                     type="button"
+                    aria-pressed={selected}
                     onClick={() => setValue('type', t, { shouldValidate: isSubmitted })}
                     className={cn(
                       'flex items-start gap-2 rounded-md border p-3 text-left transition-all',
@@ -402,46 +405,75 @@ function ItemForm({
               {...register('maxStock')}
               placeholder="—"
             />
-            <p className="text-[11px] text-muted-foreground">
-              Opcional. Referencia para evitar compras excesivas.
-            </p>
             {errors.maxStock && (
               <p className="text-xs text-destructive">{errors.maxStock.message}</p>
             )}
+            <p className="text-[11px] text-muted-foreground">
+              Opcional. Referencia para evitar compras excesivas.
+            </p>
           </div>
         </div>
 
-        {/* Sección 3 — Descripción */}
-        <div className="space-y-1.5">
-          <Label>Descripción</Label>
-          <Textarea
-            {...register('description')}
-            onChange={toUpperOnChange('description')}
-            rows={3}
-            placeholder="Especificaciones técnicas, marca, características..."
-          />
-        </div>
-
-        {/* Sección 4 — Carga inicial colapsable */}
+        {/* Sección 3 — Carga inicial colapsable */}
         {!isEdit && (
           <div className="rounded-lg border bg-muted/20">
-            <label className="flex items-start gap-3 p-4 cursor-pointer select-none">
-              <input
-                type="checkbox"
-                {...register('loadInitialStock')}
-                className="h-4 w-4 mt-0.5 accent-accent"
+            <div className="flex items-start gap-3 p-4">
+              <Checkbox
+                id="loadInitialStock"
+                checked={loadInitialStock}
+                onCheckedChange={(checked) =>
+                  setValue('loadInitialStock', Boolean(checked), { shouldDirty: true })
+                }
+                className="mt-0.5"
               />
-              <div className="flex-1">
+              <label
+                htmlFor="loadInitialStock"
+                className="flex-1 cursor-pointer select-none"
+              >
                 <p className="text-sm font-medium">Cargar stock al crear</p>
                 <p className="text-xs text-muted-foreground mt-0.5">
                   Se registrará un movimiento ENTRADA al Almacén Principal en la misma
                   transacción.
                 </p>
-              </div>
-            </label>
+              </label>
+            </div>
 
             {loadInitialStock && (
               <div className="border-t bg-background p-4 space-y-4">
+                {/* Motivo primero — determina si el proveedor es requerido */}
+                <div className="space-y-1.5">
+                  <Label>
+                    Motivo <span className="text-destructive">*</span>
+                  </Label>
+                  <Select
+                    value={initialSource ?? 'COMPRA'}
+                    onValueChange={(v) => {
+                      setValue('initialSource', v as 'COMPRA' | 'DEVOLUCION', {
+                        shouldValidate: isSubmitted,
+                      });
+                      if (v === 'DEVOLUCION') {
+                        setValue('initialSupplierId', undefined);
+                      }
+                    }}
+                  >
+                    <SelectTrigger>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {INITIAL_SOURCES.map((s) => (
+                        <SelectItem key={s.value} value={s.value}>
+                          {s.label}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  <p className="text-[11px] text-muted-foreground">
+                    {initialSource === 'COMPRA'
+                      ? 'Compra a proveedor · requiere seleccionar proveedor abajo'
+                      : 'Material devuelto desde obra al Almacén Principal'}
+                  </p>
+                </div>
+
                 <div className="grid grid-cols-2 gap-4">
                   <div className="space-y-1.5">
                     <Label>
@@ -476,36 +508,6 @@ function ItemForm({
                       Opcional · S/. por unidad para valorizar el inventario
                     </p>
                   </div>
-                </div>
-
-                <div className="space-y-1.5">
-                  <Label>
-                    Motivo <span className="text-destructive">*</span>
-                  </Label>
-                  <Select
-                    value={initialSource ?? 'COMPRA'}
-                    onValueChange={(v) =>
-                      setValue('initialSource', v as 'COMPRA' | 'DEVOLUCION', {
-                        shouldValidate: isSubmitted,
-                      })
-                    }
-                  >
-                    <SelectTrigger>
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {INITIAL_SOURCES.map((s) => (
-                        <SelectItem key={s.value} value={s.value}>
-                          {s.label}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                  <p className="text-[11px] text-muted-foreground">
-                    {initialSource === 'COMPRA'
-                      ? 'Compra a proveedor · requiere seleccionar proveedor abajo'
-                      : 'Material devuelto desde obra al Almacén Principal'}
-                  </p>
                 </div>
 
                 {/* Proveedor — solo si motivo = COMPRA */}
@@ -560,6 +562,22 @@ function ItemForm({
             )}
           </div>
         )}
+
+        {/* Sección 4 — Descripción (al final — campo menos urgente) */}
+        <div className="space-y-1.5">
+          <div className="flex items-center justify-between">
+            <Label>Descripción</Label>
+            <span className="text-[11px] text-muted-foreground tabular-nums">
+              {watchedDescription.length}/1000
+            </span>
+          </div>
+          <Textarea
+            {...register('description')}
+            onChange={toUpperOnChange('description')}
+            rows={3}
+            placeholder="Especificaciones técnicas, marca, características..."
+          />
+        </div>
 
         {/* Footer */}
         <div className="flex items-center justify-between pt-3 border-t">
@@ -908,6 +926,7 @@ export function ItemsPanel({
             <DialogTitle>Nuevo ítem</DialogTitle>
           </DialogHeader>
           <ItemForm
+            key={String(isCreating)}
             onSubmit={(dto) => {
               // Mapea al DTO del backend. Los campos de carga inicial solo se
               // envían si `loadInitialStock` está activo.
