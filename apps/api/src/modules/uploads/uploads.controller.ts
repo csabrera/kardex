@@ -17,11 +17,29 @@ import { tmpdir } from 'os';
 import { extname, join } from 'path';
 import { diskStorage } from 'multer';
 
-// Use UPLOADS_DIR env var → Railway Volume path (/data/uploads)
-// Fall back to OS temp dir which is always writable in any container
-function getUploadsDir(): string {
-  return process.env.UPLOADS_DIR ?? join(tmpdir(), 'kardex-uploads');
-}
+// Resolve upload directory once at startup.
+// 1st choice: UPLOADS_DIR env var (Railway Volume mount path, e.g. /data/uploads)
+// 2nd choice: OS temp dir — always writable in any container
+const RESOLVED_DIR = (() => {
+  const candidates = [process.env.UPLOADS_DIR, join(tmpdir(), 'kardex-uploads')].filter(
+    Boolean,
+  ) as string[];
+
+  for (const dir of candidates) {
+    try {
+      if (!existsSync(dir)) mkdirSync(dir, { recursive: true });
+      return dir;
+    } catch {
+      // try next candidate
+    }
+  }
+
+  // Last resort — OS temp root (always exists)
+  return tmpdir();
+})();
+
+const logger = new Logger('UploadsController');
+logger.log(`Upload directory: ${RESOLVED_DIR}`);
 
 @Controller('uploads')
 export class UploadsController {
@@ -31,15 +49,7 @@ export class UploadsController {
   @UseInterceptors(
     FileInterceptor('file', {
       storage: diskStorage({
-        destination: (_req, _file, cb) => {
-          const dir = getUploadsDir();
-          try {
-            if (!existsSync(dir)) mkdirSync(dir, { recursive: true });
-            cb(null, dir);
-          } catch (err) {
-            cb(err as Error, '');
-          }
-        },
+        destination: (_req, _file, cb) => cb(null, RESOLVED_DIR),
         filename: (_req, file, cb) => {
           const unique = randomBytes(12).toString('hex');
           cb(null, `${unique}${extname(file.originalname)}`);
@@ -47,7 +57,7 @@ export class UploadsController {
       }),
       limits: { fileSize: 10 * 1024 * 1024 },
       fileFilter: (_req, file, cb) => {
-        // Accept by MIME type OR by extension (browsers may send application/octet-stream)
+        // Accept by MIME type OR by extension (some browsers send application/octet-stream)
         const allowedMimes = /^(image\/.+|application\/pdf|application\/octet-stream)$/;
         const allowedExts = ['.jpg', '.jpeg', '.png', '.gif', '.webp', '.pdf'];
         const ext = extname(file.originalname).toLowerCase();
@@ -72,11 +82,10 @@ export class UploadsController {
 
   @Get(':filename')
   serve(@Param('filename') filename: string, @Res() res: Response) {
-    // Prevent path traversal
     if (filename.includes('..') || filename.includes('/') || filename.includes('\\')) {
       throw new BadRequestException('Nombre de archivo inválido');
     }
-    const filePath = join(getUploadsDir(), filename);
+    const filePath = join(RESOLVED_DIR, filename);
     if (!existsSync(filePath)) {
       res.status(404).json({ message: 'Archivo no encontrado' });
       return;
