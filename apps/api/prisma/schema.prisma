@@ -426,6 +426,12 @@ model Transfer {
   rejectOverrideReason  String?
   cancelOverrideReason  String?
 
+  // Guía de remisión adjunta (solo para COMPRA).
+  // requiresRecipientDocument=true → el residente debe subir el doc antes de confirmar.
+  requiresRecipientDocument Boolean @default(false)
+  documentUrl               String?
+  documentName              String?
+
   items           TransferItem[]
   createdAt       DateTime       @default(now())
   approvedAt      DateTime?

@@ -8,6 +8,7 @@ import { z } from 'zod';
 
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
+import { Checkbox } from '@/components/ui/checkbox';
 import {
   Dialog,
   DialogContent,
@@ -15,6 +16,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog';
+import { FileUpload } from '@/components/ui/file-upload';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { SearchCombobox } from '@/components/ui/search-combobox';
@@ -61,6 +63,13 @@ export function NewTransferDialog({ open, onClose }: Props) {
 
   const mutation = useCreateTransfer();
 
+  // Estado para guía de remisión
+  const [adminHasGuide, setAdminHasGuide] = useState(false);
+  const [uploadedDoc, setUploadedDoc] = useState<{
+    filename: string;
+    originalName: string;
+  } | null>(null);
+
   const { register, handleSubmit, setValue, watch, control, reset, setError, formState } =
     useForm<FormData>({
       resolver: zodResolver(schema),
@@ -87,13 +96,17 @@ export function NewTransferDialog({ open, onClose }: Props) {
       notes: '',
       items: [{ itemId: '', requestedQty: 0 }],
     });
+    setAdminHasGuide(false);
+    setUploadedDoc(null);
   }, [open, reset]);
 
   const onSubmit = (data: FormData) => {
     if (!fromWarehouseId) return;
 
+    // Si admin marcó que tiene la guía pero no subió nada, bloquear.
+    if (adminHasGuide && !uploadedDoc) return;
+
     // Validación cruzada cantidad vs stock disponible (cliente).
-    // El backend igual lo valida, pero damos feedback temprano.
     let hasOverflow = false;
     data.items.forEach((it, idx) => {
       const stock = stockMap.get(it.itemId);
@@ -107,7 +120,13 @@ export function NewTransferDialog({ open, onClose }: Props) {
     if (hasOverflow) return;
 
     mutation.mutate(
-      { ...data, fromWarehouseId },
+      {
+        ...data,
+        fromWarehouseId,
+        requiresRecipientDocument: !adminHasGuide,
+        documentUrl: uploadedDoc?.filename ?? undefined,
+        documentName: uploadedDoc?.originalName ?? undefined,
+      },
       {
         onSuccess: () => {
           onClose();
@@ -285,6 +304,45 @@ export function NewTransferDialog({ open, onClose }: Props) {
             </p>
           </div>
 
+          {/* Guía de remisión */}
+          <div className="space-y-3 rounded-md border bg-muted/20 p-3">
+            <div className="flex items-start gap-2.5">
+              <Checkbox
+                id="adminHasGuide"
+                checked={adminHasGuide}
+                onCheckedChange={(v) => {
+                  setAdminHasGuide(!!v);
+                  if (!v) setUploadedDoc(null);
+                }}
+              />
+              <div className="space-y-0.5">
+                <Label
+                  htmlFor="adminHasGuide"
+                  className="text-sm font-medium cursor-pointer"
+                >
+                  Tengo la guía de remisión
+                </Label>
+                <p className="text-[11px] text-muted-foreground">
+                  Si no la tienes ahora, el residente deberá subirla al recibir el pedido.
+                </p>
+              </div>
+            </div>
+            {adminHasGuide && (
+              <div className="pl-6">
+                <FileUpload
+                  value={uploadedDoc}
+                  onChange={setUploadedDoc}
+                  disabled={mutation.isPending}
+                />
+                {isSubmitted && adminHasGuide && !uploadedDoc && (
+                  <p className="text-xs text-destructive mt-1">
+                    Debes adjuntar la guía antes de continuar
+                  </p>
+                )}
+              </div>
+            )}
+          </div>
+
           {/* Footer */}
           <div className="flex justify-end gap-2 pt-2 border-t">
             <Button type="button" variant="outline" onClick={onClose}>
@@ -296,7 +354,8 @@ export function NewTransferDialog({ open, onClose }: Props) {
                 mutation.isPending ||
                 !fromWarehouseId ||
                 obraWarehouses.length === 0 ||
-                (isSubmitted && !isValid)
+                (isSubmitted && !isValid) ||
+                (adminHasGuide && !uploadedDoc)
               }
               className="gap-2"
             >

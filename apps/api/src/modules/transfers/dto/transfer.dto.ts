@@ -3,6 +3,7 @@ import { Type } from 'class-transformer';
 import {
   ArrayMinSize,
   IsArray,
+  IsBoolean,
   IsNumber,
   IsOptional,
   IsString,
@@ -43,6 +44,24 @@ export class CreateTransferDto {
   @ValidateNested({ each: true })
   @Type(() => TransferItemDto)
   items: TransferItemDto[];
+
+  /** true → residente debe subir la guía antes de confirmar recepción */
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsBoolean()
+  requiresRecipientDocument?: boolean;
+
+  /** URL del archivo ya subido por el admin (si tiene la guía al crear) */
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  documentUrl?: string;
+
+  /** Nombre original del archivo */
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  documentName?: string;
 }
 
 export class SendTransferDto {
@@ -90,6 +109,17 @@ export class ReceiveTransferDto {
   @IsString()
   @MaxLength(500)
   overrideReason?: string;
+
+  /** URL del documento subido por el residente (si requiresRecipientDocument=true) */
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  documentUrl?: string;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  documentName?: string;
 }
 
 class ReceivedItemDto {

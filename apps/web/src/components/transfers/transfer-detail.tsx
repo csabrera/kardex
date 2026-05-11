@@ -5,6 +5,7 @@ import { useState } from 'react';
 import { toast } from 'sonner';
 
 import { Button } from '@/components/ui/button';
+import { DocumentViewButton, FileUpload } from '@/components/ui/file-upload';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
@@ -33,6 +34,10 @@ export function TransferDetail({ transfer: t, onClose }: Props) {
       t.items.map((i) => [i.id, String(Number(i.sentQty ?? i.requestedQty))]),
     ),
   );
+  const [recipientDoc, setRecipientDoc] = useState<{
+    filename: string;
+    originalName: string;
+  } | null>(null);
 
   const user = useAuthStore((s) => s.user);
   const needsOverride = user?.role?.name === 'ADMIN';
@@ -74,9 +79,13 @@ export function TransferDetail({ transfer: t, onClose }: Props) {
     return true;
   };
 
+  const needsDocument =
+    t.status === 'EN_TRANSITO' && t.requiresRecipientDocument && !t.documentUrl;
+
   const handleReceive = () => {
     setIsSubmitted(true);
     if (hasLineErrors) return;
+    if (needsDocument && !recipientDoc) return;
     if (!validateOverride()) return;
     const withDiscrepancy = hasDiscrepancy;
     receive.mutate(
@@ -87,6 +96,8 @@ export function TransferDetail({ transfer: t, onClose }: Props) {
           receivedQty: Number(receivedQtys[i.id] ?? 0),
         })),
         overrideReason: needsOverride ? overrideReason.trim() : undefined,
+        documentUrl: recipientDoc?.filename ?? undefined,
+        documentName: recipientDoc?.originalName ?? undefined,
       },
       {
         onSuccess: () => {
@@ -285,6 +296,35 @@ export function TransferDetail({ transfer: t, onClose }: Props) {
           <p className="text-sm mt-0.5">{t.notes}</p>
         </div>
       )}
+
+      {/* Guía de remisión */}
+      {t.documentUrl && t.documentName && (
+        <div className="space-y-1.5">
+          <Label className="text-xs text-muted-foreground">Guía de remisión</Label>
+          <DocumentViewButton filename={t.documentUrl} originalName={t.documentName} />
+        </div>
+      )}
+
+      {/* Gate: el residente debe subir la guía antes de confirmar */}
+      {needsDocument && (
+        <div className="rounded-md border border-amber-300 bg-amber-50 dark:bg-amber-950/30 p-3 space-y-2">
+          <p className="text-xs font-medium text-amber-900 dark:text-amber-200 flex items-center gap-1.5">
+            <AlertCircle className="h-3.5 w-3.5 shrink-0" />
+            Se requiere adjuntar la guía de remisión para confirmar la recepción
+          </p>
+          <FileUpload
+            value={recipientDoc}
+            onChange={setRecipientDoc}
+            disabled={receive.isPending}
+          />
+          {isSubmitted && !recipientDoc && (
+            <p className="text-xs text-destructive">
+              Debes adjuntar la guía antes de continuar
+            </p>
+          )}
+        </div>
+      )}
+
       {t.rejectionReason && (
         <div className="rounded-md bg-destructive/10 border border-destructive/20 px-3 py-2">
           <p className="text-xs text-destructive font-medium">
@@ -334,7 +374,11 @@ export function TransferDetail({ transfer: t, onClose }: Props) {
           <Button
             size="sm"
             onClick={handleReceive}
-            disabled={receive.isPending || (isSubmitted && hasLineErrors)}
+            disabled={
+              receive.isPending ||
+              (isSubmitted && hasLineErrors) ||
+              (isSubmitted && needsDocument && !recipientDoc)
+            }
             className="gap-1.5"
           >
             <CheckCircle2 className="h-3.5 w-3.5" /> Confirmar recepción

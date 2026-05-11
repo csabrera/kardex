@@ -31,6 +31,9 @@ export interface Transfer {
   receiveOverrideReason?: string | null;
   rejectOverrideReason?: string | null;
   cancelOverrideReason?: string | null;
+  requiresRecipientDocument: boolean;
+  documentUrl?: string | null;
+  documentName?: string | null;
   items: TransferItemData[];
   createdAt: string;
   approvedAt?: string | null;
@@ -54,6 +57,9 @@ export interface CreateTransferDto {
   toWarehouseId: string;
   notes?: string;
   items: { itemId: string; requestedQty: number }[];
+  requiresRecipientDocument?: boolean;
+  documentUrl?: string;
+  documentName?: string;
 }
 
 const BASE = '/transfers';
@@ -122,14 +128,24 @@ export function useReceiveTransfer() {
       items,
       notes,
       overrideReason,
+      documentUrl,
+      documentName,
     }: {
       id: string;
       items: { transferItemId: string; receivedQty: number }[];
       notes?: string;
       overrideReason?: string;
+      documentUrl?: string;
+      documentName?: string;
     }) =>
       apiClient
-        .patch(`${BASE}/${id}/receive`, { items, notes, overrideReason })
+        .patch(`${BASE}/${id}/receive`, {
+          items,
+          notes,
+          overrideReason,
+          documentUrl,
+          documentName,
+        })
         .then((r) => r.data.data),
     onSuccess: () => {
       invalidateTransfers(qc);

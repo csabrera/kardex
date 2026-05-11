@@ -173,6 +173,9 @@ export class TransfersService {
           sentAt: new Date(),
           status: TransferStatus.EN_TRANSITO,
           notes: dto.notes,
+          requiresRecipientDocument: dto.requiresRecipientDocument ?? false,
+          documentUrl: dto.documentUrl ?? null,
+          documentName: dto.documentName ?? null,
           items: {
             create: dto.items.map((i) => ({
               itemId: i.itemId,
@@ -280,6 +283,16 @@ export class TransfersService {
       dto.overrideReason,
     );
 
+    // Validar guía de remisión: si la transferencia la requiere y no existe aún,
+    // el receptor debe haberla subido en este mismo request.
+    if (t.requiresRecipientDocument && !t.documentUrl && !dto.documentUrl) {
+      throw new BusinessException(
+        BusinessErrorCode.INVALID_INPUT,
+        'DOCUMENT_REQUIRED',
+        HttpStatus.BAD_REQUEST,
+      );
+    }
+
     // Detectar discrepancia (cantidad recibida ≠ enviada en alguna línea)
     const discrepancias: {
       itemId: string;
@@ -360,6 +373,12 @@ export class TransfersService {
             receivedAt: new Date(),
             ...(dto.notes && { notes: dto.notes }),
             receiveOverrideReason: dto.overrideReason?.trim() || null,
+            // Guardar documento subido por el receptor si aplica
+            ...(dto.documentUrl && {
+              documentUrl: dto.documentUrl,
+              documentName: dto.documentName ?? null,
+              requiresRecipientDocument: false,
+            }),
           },
           include: TRANSFER_INCLUDE,
         });
