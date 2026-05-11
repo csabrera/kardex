@@ -2,6 +2,7 @@ import {
   BadRequestException,
   Controller,
   Get,
+  Logger,
   Param,
   Post,
   Res,
@@ -12,23 +13,32 @@ import { FileInterceptor } from '@nestjs/platform-express';
 import { Response } from 'express';
 import { randomBytes } from 'crypto';
 import { createReadStream, existsSync, mkdirSync } from 'fs';
+import { tmpdir } from 'os';
 import { extname, join } from 'path';
 import { diskStorage } from 'multer';
 
-function getUploadsDir() {
-  return process.env.UPLOADS_DIR ?? join(process.cwd(), 'uploads');
+// Use UPLOADS_DIR env var → Railway Volume path (/data/uploads)
+// Fall back to OS temp dir which is always writable in any container
+function getUploadsDir(): string {
+  return process.env.UPLOADS_DIR ?? join(tmpdir(), 'kardex-uploads');
 }
 
 @Controller('uploads')
 export class UploadsController {
+  private readonly logger = new Logger(UploadsController.name);
+
   @Post()
   @UseInterceptors(
     FileInterceptor('file', {
       storage: diskStorage({
         destination: (_req, _file, cb) => {
           const dir = getUploadsDir();
-          if (!existsSync(dir)) mkdirSync(dir, { recursive: true });
-          cb(null, dir);
+          try {
+            if (!existsSync(dir)) mkdirSync(dir, { recursive: true });
+            cb(null, dir);
+          } catch (err) {
+            cb(err as Error, '');
+          }
         },
         filename: (_req, file, cb) => {
           const unique = randomBytes(12).toString('hex');
@@ -51,6 +61,7 @@ export class UploadsController {
   )
   upload(@UploadedFile() file: Express.Multer.File) {
     if (!file) throw new BadRequestException('No se recibió ningún archivo');
+    this.logger.log(`Saved: ${file.path} (${file.size} bytes)`);
     return {
       filename: file.filename,
       originalName: file.originalname,
