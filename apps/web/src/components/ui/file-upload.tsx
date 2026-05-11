@@ -4,8 +4,8 @@ import { FileText, Loader2, Paperclip, X } from 'lucide-react';
 import { useRef, useState } from 'react';
 import { toast } from 'sonner';
 
-import { apiClient } from '@/lib/api-client';
 import { cn } from '@/lib/cn';
+import { useAuthStore } from '@/stores/use-auth-store';
 
 interface UploadResult {
   filename: string;
@@ -21,31 +21,49 @@ interface FileUploadProps {
   className?: string;
 }
 
+/**
+ * Uploads a file using the native fetch API.
+ * Axios cannot be used for FormData because its Content-Type default
+ * (`application/json`) either serializes FormData to JSON or — when overridden to
+ * `multipart/form-data` — omits the boundary, causing busboy to reject the request.
+ * fetch() automatically sets the correct `multipart/form-data; boundary=…` header.
+ */
+async function uploadFile(file: File, token: string | null): Promise<UploadResult> {
+  const form = new FormData();
+  form.append('file', file);
+
+  const res = await fetch('/api/uploads', {
+    method: 'POST',
+    body: form,
+    credentials: 'include',
+    headers: token ? { Authorization: `Bearer ${token}` } : {},
+  });
+
+  if (!res.ok) {
+    const body = await res.json().catch(() => ({}));
+    throw new Error(body?.error?.message ?? `Error ${res.status}`);
+  }
+
+  const json = await res.json();
+  return json.data as UploadResult;
+}
+
 export function FileUpload({ value, onChange, disabled, className }: FileUploadProps) {
   const [uploading, setUploading] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
+  const token = useAuthStore((s) => s.accessToken);
 
   const handleFile = async (file: File) => {
     if (file.size > 10 * 1024 * 1024) {
       toast.error('El archivo supera el límite de 10 MB');
       return;
     }
-    const allowed = /^(image\/.+|application\/pdf)$/;
-    if (!allowed.test(file.type)) {
-      toast.error('Solo se permiten imágenes (JPG, PNG, etc.) y PDF');
-      return;
-    }
     setUploading(true);
     try {
-      const form = new FormData();
-      form.append('file', file);
-      const res = await apiClient.post<{ data: UploadResult }>('/uploads', form, {
-        headers: { 'Content-Type': 'multipart/form-data' },
-      });
-      const { filename, originalName } = res.data.data;
-      onChange({ filename, originalName });
-    } catch {
-      toast.error('Error al subir el archivo');
+      const result = await uploadFile(file, token);
+      onChange({ filename: result.filename, originalName: result.originalName });
+    } catch (e: unknown) {
+      toast.error(e instanceof Error ? e.message : 'Error al subir el archivo');
     } finally {
       setUploading(false);
     }

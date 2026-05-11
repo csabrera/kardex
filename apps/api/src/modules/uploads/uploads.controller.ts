@@ -10,15 +10,45 @@ import {
 } from '@nestjs/common';
 import { FileInterceptor } from '@nestjs/platform-express';
 import { Response } from 'express';
-import { createReadStream, existsSync } from 'fs';
-import { join } from 'path';
+import { randomBytes } from 'crypto';
+import { createReadStream, existsSync, mkdirSync } from 'fs';
+import { extname, join } from 'path';
+import { diskStorage } from 'multer';
 
-const UPLOADS_DIR = process.env.UPLOADS_DIR ?? join(process.cwd(), 'uploads');
+function getUploadsDir() {
+  return process.env.UPLOADS_DIR ?? join(process.cwd(), 'uploads');
+}
 
 @Controller('uploads')
 export class UploadsController {
   @Post()
-  @UseInterceptors(FileInterceptor('file'))
+  @UseInterceptors(
+    FileInterceptor('file', {
+      storage: diskStorage({
+        destination: (_req, _file, cb) => {
+          const dir = getUploadsDir();
+          if (!existsSync(dir)) mkdirSync(dir, { recursive: true });
+          cb(null, dir);
+        },
+        filename: (_req, file, cb) => {
+          const unique = randomBytes(12).toString('hex');
+          cb(null, `${unique}${extname(file.originalname)}`);
+        },
+      }),
+      limits: { fileSize: 10 * 1024 * 1024 },
+      fileFilter: (_req, file, cb) => {
+        // Accept by MIME type OR by extension (browsers may send application/octet-stream)
+        const allowedMimes = /^(image\/.+|application\/pdf|application\/octet-stream)$/;
+        const allowedExts = ['.jpg', '.jpeg', '.png', '.gif', '.webp', '.pdf'];
+        const ext = extname(file.originalname).toLowerCase();
+        if (allowedMimes.test(file.mimetype) || allowedExts.includes(ext)) {
+          cb(null, true);
+        } else {
+          cb(new Error('Solo se permiten imágenes (JPG, PNG, GIF, WEBP) y PDF'), false);
+        }
+      },
+    }),
+  )
   upload(@UploadedFile() file: Express.Multer.File) {
     if (!file) throw new BadRequestException('No se recibió ningún archivo');
     return {
@@ -35,7 +65,7 @@ export class UploadsController {
     if (filename.includes('..') || filename.includes('/') || filename.includes('\\')) {
       throw new BadRequestException('Nombre de archivo inválido');
     }
-    const filePath = join(UPLOADS_DIR, filename);
+    const filePath = join(getUploadsDir(), filename);
     if (!existsSync(filePath)) {
       res.status(404).json({ message: 'Archivo no encontrado' });
       return;
