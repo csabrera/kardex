@@ -118,11 +118,11 @@ const schema = z
     type: z.enum(['CONSUMO', 'PRESTAMO', 'ASIGNACION']),
     categoryId: z.string().min(1, 'Requerido'),
     unitId: z.string().min(1, 'Requerido'),
-    minStock: z.coerce.number().min(0).optional(),
-    maxStock: z.coerce.number().min(0).optional(),
+    minStock: z.coerce.number().int('Debe ser un número entero').min(0).optional(),
+    maxStock: z.coerce.number().int('Debe ser un número entero').min(0).optional(),
     // Carga inicial
     loadInitialStock: z.boolean().optional(),
-    initialStock: z.coerce.number().min(0).optional(),
+    initialStock: z.coerce.number().int('Debe ser un número entero').min(0).optional(),
     initialUnitCost: z.coerce.number().min(0).optional(),
     initialSource: z.enum(['COMPRA', 'DEVOLUCION']).optional(),
     initialSupplierId: z.string().optional(),
@@ -387,7 +387,7 @@ function ItemForm({
             <Label>Stock mínimo</Label>
             <Input
               type="number"
-              step="0.001"
+              step="1"
               min="0"
               {...register('minStock')}
               placeholder="0"
@@ -400,7 +400,7 @@ function ItemForm({
             <Label>Stock máximo</Label>
             <Input
               type="number"
-              step="0.001"
+              step="1"
               min="0"
               {...register('maxStock')}
               placeholder="—"
@@ -481,8 +481,8 @@ function ItemForm({
                     </Label>
                     <Input
                       type="number"
-                      step="0.001"
-                      min="0.001"
+                      step="1"
+                      min="1"
                       {...register('initialStock')}
                       placeholder="0"
                     />
