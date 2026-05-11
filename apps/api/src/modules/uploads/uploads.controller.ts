@@ -12,7 +12,15 @@ import {
 import { FileInterceptor } from '@nestjs/platform-express';
 import { Response } from 'express';
 import { randomBytes } from 'crypto';
-import { createReadStream, existsSync, mkdirSync } from 'fs';
+import {
+  accessSync,
+  constants,
+  createReadStream,
+  existsSync,
+  mkdirSync,
+  unlinkSync,
+  writeFileSync,
+} from 'fs';
 import { tmpdir } from 'os';
 import { extname, join } from 'path';
 import { diskStorage } from 'multer';
@@ -20,22 +28,36 @@ import { diskStorage } from 'multer';
 // Resolve upload directory once at startup.
 // 1st choice: UPLOADS_DIR env var (Railway Volume mount path, e.g. /data/uploads)
 // 2nd choice: OS temp dir — always writable in any container
+//
+// NOTE: existsSync is not enough — Railway mounts volumes as root:root (755).
+// We test actual write access so we can fall back before multer hits EACCES.
+function isWritable(dir: string): boolean {
+  try {
+    // Ensure directory exists
+    if (!existsSync(dir)) mkdirSync(dir, { recursive: true });
+    // Verify write permission (accessSync throws if the process cannot write)
+    accessSync(dir, constants.W_OK);
+    // Double-check with an actual file write (some network filesystems lie)
+    const probe = join(dir, `.write_probe_${process.pid}`);
+    writeFileSync(probe, '');
+    unlinkSync(probe);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
 const RESOLVED_DIR = (() => {
-  const candidates = [process.env.UPLOADS_DIR, join(tmpdir(), 'kardex-uploads')].filter(
-    Boolean,
-  ) as string[];
+  const candidates = [
+    process.env.UPLOADS_DIR,
+    join(tmpdir(), 'kardex-uploads'),
+    tmpdir(),
+  ].filter(Boolean) as string[];
 
   for (const dir of candidates) {
-    try {
-      if (!existsSync(dir)) mkdirSync(dir, { recursive: true });
-      return dir;
-    } catch {
-      // try next candidate
-    }
+    if (isWritable(dir)) return dir;
   }
-
-  // Last resort — OS temp root (always exists)
-  return tmpdir();
+  return tmpdir(); // should never reach here
 })();
 
 const logger = new Logger('UploadsController');
