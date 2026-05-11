@@ -148,6 +148,18 @@ const schema = z
   );
 type FormData = z.infer<typeof schema>;
 
+const filterToDigits = (e: React.FormEvent<HTMLInputElement>) => {
+  const el = e.currentTarget;
+  const v = el.value.replace(/\D/g, '');
+  if (el.value !== v) el.value = v;
+};
+
+const filterToDecimal = (e: React.FormEvent<HTMLInputElement>) => {
+  const el = e.currentTarget;
+  const v = el.value.replace(/[^\d.]/g, '').replace(/(\..*)\./g, '$1');
+  if (el.value !== v) el.value = v;
+};
+
 function ItemForm({
   defaultValues,
   onSubmit,
@@ -386,10 +398,10 @@ function ItemForm({
           <div className="space-y-1.5">
             <Label>Stock mínimo</Label>
             <Input
-              type="number"
-              step="1"
-              min="0"
+              type="text"
+              inputMode="numeric"
               {...register('minStock')}
+              onInput={filterToDigits}
               placeholder="0"
             />
             <p className="text-[11px] text-muted-foreground">
@@ -399,10 +411,10 @@ function ItemForm({
           <div className="space-y-1.5">
             <Label>Stock máximo</Label>
             <Input
-              type="number"
-              step="1"
-              min="0"
+              type="text"
+              inputMode="numeric"
               {...register('maxStock')}
+              onInput={filterToDigits}
               placeholder="—"
             />
             {errors.maxStock && (
@@ -480,10 +492,10 @@ function ItemForm({
                       Cantidad <span className="text-destructive">*</span>
                     </Label>
                     <Input
-                      type="number"
-                      step="1"
-                      min="1"
+                      type="text"
+                      inputMode="numeric"
                       {...register('initialStock')}
+                      onInput={filterToDigits}
                       placeholder="0"
                     />
                     {errors.initialStock && (
@@ -498,10 +510,10 @@ function ItemForm({
                   <div className="space-y-1.5">
                     <Label>Costo unitario</Label>
                     <Input
-                      type="number"
-                      step="0.01"
-                      min="0"
+                      type="text"
+                      inputMode="decimal"
                       {...register('initialUnitCost')}
+                      onInput={filterToDecimal}
                       placeholder="0.00"
                     />
                     <p className="text-[11px] text-muted-foreground">
