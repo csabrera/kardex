@@ -24,6 +24,7 @@ import {
 import { tmpdir } from 'os';
 import { extname, join } from 'path';
 import { diskStorage } from 'multer';
+import { Public } from '../auth/decorators/public.decorator';
 
 // Resolve upload directory once at startup.
 // 1st choice: UPLOADS_DIR env var (Railway Volume mount path, e.g. /data/uploads)
@@ -102,6 +103,7 @@ export class UploadsController {
     };
   }
 
+  @Public()
   @Get(':filename')
   serve(@Param('filename') filename: string, @Res() res: Response) {
     if (filename.includes('..') || filename.includes('/') || filename.includes('\\')) {
@@ -112,6 +114,18 @@ export class UploadsController {
       res.status(404).json({ message: 'Archivo no encontrado' });
       return;
     }
+    const ext = extname(filename).toLowerCase();
+    const mimeTypes: Record<string, string> = {
+      '.pdf': 'application/pdf',
+      '.jpg': 'image/jpeg',
+      '.jpeg': 'image/jpeg',
+      '.png': 'image/png',
+      '.gif': 'image/gif',
+      '.webp': 'image/webp',
+    };
+    const contentType = mimeTypes[ext] ?? 'application/octet-stream';
+    res.setHeader('Content-Type', contentType);
+    res.setHeader('Content-Disposition', 'inline');
     createReadStream(filePath).pipe(res);
   }
 }
