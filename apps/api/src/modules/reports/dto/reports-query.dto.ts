@@ -63,3 +63,15 @@ export class MovementsSummaryQueryDto extends RangeQueryDto {
   @IsEnum(['day', 'week', 'month'])
   groupBy?: 'day' | 'week' | 'month' = 'day';
 }
+
+export class InTransitQueryDto {
+  @ApiPropertyOptional({ description: 'Filtra por almacén origen o destino' })
+  @IsOptional()
+  @IsString()
+  warehouseId?: string;
+
+  @ApiPropertyOptional({ description: 'Filtra por ítem específico' })
+  @IsOptional()
+  @IsString()
+  itemId?: string;
+}

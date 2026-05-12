@@ -1,5 +1,5 @@
 import { Injectable } from '@nestjs/common';
-import { MovementType } from '@prisma/client';
+import { MovementType, TransferItemStatus, TransferStatus } from '@prisma/client';
 
 import { PrismaService } from '../../prisma/prisma.service';
 import type {
@@ -322,6 +322,120 @@ export class ReportsService {
       groupBy,
       totals,
       series,
+    };
+  }
+
+  /**
+   * Stock "en tránsito" — unidades que salieron del origen pero no han llegado
+   * al destino. Cubre transferencias EN_TRANSITO (recepción pendiente) y
+   * PARCIALMENTE_RECIBIDA (saldo pendiente de completar o cerrar).
+   *
+   * Resuelve el agujero visual del modelo: cuando un envío parcial deja stock
+   * en limbo (descontado del Principal pero no acreditado al destino), este
+   * reporte lo expone con item, cantidad pendiente, destino, TRF y antigüedad.
+   *
+   * Stock auditable: Σ stocks_almacenes + Σ pendientes_aquí = lo comprado.
+   */
+  async inTransit(query: { warehouseId?: string; itemId?: string } = {}) {
+    const transferItems = await this.prisma.transferItem.findMany({
+      where: {
+        // Línea aún esperando completar o sin recepción
+        status: {
+          in: [TransferItemStatus.PENDIENTE, TransferItemStatus.RECIBIDO_PARCIAL],
+        },
+        // Solo transferencias activas (no terminales)
+        transfer: {
+          status: {
+            in: [TransferStatus.EN_TRANSITO, TransferStatus.PARCIALMENTE_RECIBIDA],
+          },
+          ...(query.warehouseId && {
+            OR: [
+              { fromWarehouseId: query.warehouseId },
+              { toWarehouseId: query.warehouseId },
+            ],
+          }),
+        },
+        ...(query.itemId && { itemId: query.itemId }),
+      },
+      include: {
+        item: {
+          select: {
+            id: true,
+            code: true,
+            name: true,
+            type: true,
+            unit: { select: { abbreviation: true } },
+          },
+        },
+        transfer: {
+          select: {
+            id: true,
+            code: true,
+            status: true,
+            sentAt: true,
+            createdAt: true,
+            fromWarehouse: { select: { id: true, code: true, name: true } },
+            toWarehouse: { select: { id: true, code: true, name: true } },
+          },
+        },
+      },
+      orderBy: { transfer: { sentAt: 'asc' } },
+    });
+
+    const now = Date.now();
+    const rows = transferItems
+      .map((ti) => {
+        const sent = Number(ti.sentQty ?? ti.requestedQty);
+        const received = Number(ti.receivedQty ?? 0);
+        const pendingQty = sent - received;
+        if (pendingQty <= 0) return null;
+        const baseDate = ti.transfer.sentAt ?? ti.transfer.createdAt;
+        const daysSinceSent = Math.floor(
+          (now - new Date(baseDate).getTime()) / (1000 * 60 * 60 * 24),
+        );
+        return {
+          transferItemId: ti.id,
+          item: ti.item,
+          pendingQty,
+          sentQty: sent,
+          receivedQty: received,
+          lineStatus: ti.status,
+          transfer: {
+            id: ti.transfer.id,
+            code: ti.transfer.code,
+            status: ti.transfer.status,
+            sentAt: baseDate.toISOString(),
+            daysSinceSent,
+          },
+          fromWarehouse: ti.transfer.fromWarehouse,
+          toWarehouse: ti.transfer.toWarehouse,
+        };
+      })
+      .filter((r): r is NonNullable<typeof r> => r !== null);
+
+    // Totales por ítem (útil para KPIs)
+    const totalsByItem = new Map<
+      string,
+      { itemId: string; code: string; name: string; unit: string; totalPending: number }
+    >();
+    for (const r of rows) {
+      const entry = totalsByItem.get(r.item.id) ?? {
+        itemId: r.item.id,
+        code: r.item.code,
+        name: r.item.name,
+        unit: r.item.unit.abbreviation,
+        totalPending: 0,
+      };
+      entry.totalPending += r.pendingQty;
+      totalsByItem.set(r.item.id, entry);
+    }
+
+    return {
+      rows,
+      totalsByItem: Array.from(totalsByItem.values()).sort(
+        (a, b) => b.totalPending - a.totalPending,
+      ),
+      totalRows: rows.length,
     };
   }
 }

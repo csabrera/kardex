@@ -43,7 +43,6 @@ import {
 } from '@/components/ui/select';
 import { useItem } from '@/hooks/use-items';
 import { useKardex, type MovementType } from '@/hooks/use-movements';
-import { useTransfers } from '@/hooks/use-transfers';
 
 const TYPE_BADGE: Record<MovementType, { label: string; variant: string }> = {
   ENTRADA: { label: 'Entrada', variant: 'success' },
@@ -58,30 +57,10 @@ export default function ItemDetailPage() {
 
   const { data: item, isLoading } = useItem(id);
   const { data: kardex = [], isLoading: kardexLoading } = useKardex(id);
-  // Transferencias EN_TRANSITO de este ítem (esperando recepción del destino)
-  const { data: pendingTransfers } = useTransfers({
-    status: 'EN_TRANSITO',
-    itemId: id,
-    pageSize: 50,
-    enabled: !!id,
-  });
-  const pendingItemLines = useMemo(() => {
-    return (pendingTransfers?.items ?? []).flatMap((t) =>
-      t.items
-        .filter((ti) => ti.itemId === id)
-        .map((ti) => ({
-          transferId: t.id,
-          transferCode: t.code,
-          toWarehouseName: t.toWarehouse.name,
-          requestedQty: Number(ti.requestedQty),
-          createdAt: t.createdAt,
-        })),
-    );
-  }, [pendingTransfers, id]);
-  const totalInTransit = useMemo(
-    () => pendingItemLines.reduce((acc, l) => acc + l.requestedQty, 0),
-    [pendingItemLines],
-  );
+  // Líneas de transferencias en tránsito o parcialmente recibidas (saldos pendientes).
+  // El backend lo devuelve en item.inTransit ya filtrado a este ítem.
+  const inTransitLines = item?.inTransit ?? [];
+  const totalInTransit = item?.totalInTransit ?? 0;
 
   const [typeFilter, setTypeFilter] = useState<MovementType | '_all'>('_all');
   const [showEntry, setShowEntry] = useState(false);
@@ -270,8 +249,8 @@ export default function ItemDetailPage() {
           icon={Truck}
           tone={totalInTransit > 0 ? ('warning' as const) : 'default'}
           hint={
-            pendingItemLines.length > 0
-              ? `${pendingItemLines.length} transferencia${pendingItemLines.length === 1 ? '' : 's'} pendiente${pendingItemLines.length === 1 ? '' : 's'}`
+            inTransitLines.length > 0
+              ? `${inTransitLines.length} línea${inTransitLines.length === 1 ? '' : 's'} pendiente${inTransitLines.length === 1 ? '' : 's'}`
               : undefined
           }
         />
@@ -312,48 +291,67 @@ export default function ItemDetailPage() {
         )}
       </div>
 
-      {pendingItemLines.length > 0 && (
+      {inTransitLines.length > 0 && (
         <section className="rounded-xl border border-warning/40 bg-warning/5 p-5">
           <header className="flex items-center gap-2 mb-3">
             <Truck className="h-4 w-4 text-warning" />
-            <h2 className="text-sm font-semibold">
-              Transferencias pendientes de recepción
-            </h2>
+            <h2 className="text-sm font-semibold">Saldos pendientes en tránsito</h2>
             <span className="text-[11px] text-muted-foreground">
-              ({pendingItemLines.length}{' '}
-              {pendingItemLines.length === 1 ? 'pendiente' : 'pendientes'})
+              ({inTransitLines.length} {inTransitLines.length === 1 ? 'línea' : 'líneas'})
             </span>
           </header>
           <p className="text-xs text-muted-foreground mb-3">
-            Estas cantidades ya salieron del Almacén Principal pero aún no han sido
-            confirmadas por el residente del almacén destino. Se sumarán al stock de obra
-            cuando se reciba la transferencia.
+            Unidades que salieron del origen pero aún no llegaron al destino. Incluye
+            transferencias en tránsito y parcialmente recibidas (saldo pendiente de
+            completar o cerrar como faltante).
           </p>
           <div className="space-y-1.5">
-            {pendingItemLines.map((l) => (
-              <Link
-                key={l.transferId}
-                href={`/dashboard/almacen-principal?tab=transferencias`}
-                className="flex items-center justify-between gap-3 rounded-md border bg-card px-3 py-2 text-sm hover:border-warning/60 transition-colors"
-              >
-                <div className="flex items-center gap-3 min-w-0">
-                  <span className="font-mono text-xs font-semibold">
-                    {l.transferCode}
-                  </span>
-                  <ArrowRight className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
-                  <span className="truncate">{l.toWarehouseName}</span>
-                </div>
-                <div className="flex items-center gap-3 shrink-0">
-                  <span className="font-semibold tabular-nums">
-                    {l.requestedQty.toLocaleString('es-PE', { maximumFractionDigits: 3 })}{' '}
-                    {item.unit.abbreviation}
-                  </span>
-                  <Badge variant="warning" className="text-[10px]">
-                    En tránsito
-                  </Badge>
-                </div>
-              </Link>
-            ))}
+            {inTransitLines.map((l) => {
+              const stale = l.transfer.daysSinceSent >= 7;
+              return (
+                <Link
+                  key={l.transferItemId}
+                  href={`/dashboard/almacen-principal?tab=transferencias`}
+                  className="flex items-center justify-between gap-3 rounded-md border bg-card px-3 py-2 text-sm hover:border-warning/60 transition-colors"
+                >
+                  <div className="flex items-center gap-3 min-w-0">
+                    <span className="font-mono text-xs font-semibold">
+                      {l.transfer.code}
+                    </span>
+                    <ArrowRight className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
+                    <span className="truncate">{l.toWarehouse.name}</span>
+                    <span
+                      className={`text-[10px] tabular-nums ${stale ? 'text-destructive font-semibold' : 'text-muted-foreground'}`}
+                    >
+                      ·{' '}
+                      {l.transfer.daysSinceSent === 0
+                        ? 'hoy'
+                        : l.transfer.daysSinceSent === 1
+                          ? 'hace 1 día'
+                          : `hace ${l.transfer.daysSinceSent} días`}
+                    </span>
+                  </div>
+                  <div className="flex items-center gap-3 shrink-0">
+                    <span className="font-semibold tabular-nums">
+                      {l.pendingQty.toLocaleString('es-PE', {
+                        maximumFractionDigits: 3,
+                      })}{' '}
+                      {item.unit.abbreviation}
+                    </span>
+                    <Badge
+                      variant={
+                        l.transfer.status === 'PARCIALMENTE_RECIBIDA' ? 'info' : 'warning'
+                      }
+                      className="text-[10px]"
+                    >
+                      {l.transfer.status === 'PARCIALMENTE_RECIBIDA'
+                        ? 'Parcial'
+                        : 'En tránsito'}
+                    </Badge>
+                  </div>
+                </Link>
+              );
+            })}
           </div>
         </section>
       )}

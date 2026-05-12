@@ -101,3 +101,49 @@ export function useMovementsSummary(
       apiClient.get(`${BASE}/movements-summary`, { params }).then((r) => r.data.data),
   });
 }
+
+export interface InTransitRow {
+  transferItemId: string;
+  item: {
+    id: string;
+    code: string;
+    name: string;
+    type: string;
+    unit: { abbreviation: string };
+  };
+  pendingQty: number;
+  sentQty: number;
+  receivedQty: number;
+  lineStatus: 'PENDIENTE' | 'RECIBIDO_PARCIAL';
+  transfer: {
+    id: string;
+    code: string;
+    status: 'EN_TRANSITO' | 'PARCIALMENTE_RECIBIDA';
+    sentAt: string;
+    daysSinceSent: number;
+  };
+  fromWarehouse: { id: string; code: string; name: string };
+  toWarehouse: { id: string; code: string; name: string };
+}
+
+export interface InTransitTotal {
+  itemId: string;
+  code: string;
+  name: string;
+  unit: string;
+  totalPending: number;
+}
+
+export function useInTransitReport(
+  params: { warehouseId?: string; itemId?: string } = {},
+) {
+  return useQuery<{
+    rows: InTransitRow[];
+    totalsByItem: InTransitTotal[];
+    totalRows: number;
+  }>({
+    queryKey: ['reports', 'in-transit', params],
+    queryFn: () =>
+      apiClient.get(`${BASE}/in-transit`, { params }).then((r) => r.data.data),
+  });
+}
