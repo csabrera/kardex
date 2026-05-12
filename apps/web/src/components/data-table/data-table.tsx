@@ -57,6 +57,12 @@ interface DataTableProps<TData> {
    */
   columnVisibility?: Record<string, boolean>;
   onColumnVisibilityChange?: (visibility: Record<string, boolean>) => void;
+  /**
+   * Si se provee, la fila completa se vuelve clickeable. El botón de la
+   * columna `actions` debe llamar `e.stopPropagation()` para que su click
+   * no dispare también el de la fila.
+   */
+  onRowClick?: (row: TData) => void;
 }
 
 export function DataTable<TData>({
@@ -72,6 +78,7 @@ export function DataTable<TData>({
   toolbar,
   columnVisibility,
   onColumnVisibilityChange,
+  onRowClick,
 }: DataTableProps<TData>) {
   const table = useReactTable({
     data,
@@ -128,7 +135,11 @@ export function DataTable<TData>({
               <TableEmpty colSpan={columns.length} />
             ) : (
               rows.map((row) => (
-                <TableRow key={row.id}>
+                <TableRow
+                  key={row.id}
+                  onClick={onRowClick ? () => onRowClick(row.original) : undefined}
+                  className={onRowClick ? 'cursor-pointer hover:bg-muted/30' : undefined}
+                >
                   {row.getVisibleCells().map((cell) => (
                     <TableCell key={cell.id}>
                       {flexRender(cell.column.columnDef.cell, cell.getContext())}
@@ -150,7 +161,13 @@ export function DataTable<TData>({
             Sin resultados
           </div>
         ) : (
-          rows.map((row) => <MobileCard key={row.id} row={row} />)
+          rows.map((row) => (
+            <MobileCard
+              key={row.id}
+              row={row}
+              onRowClick={onRowClick ? () => onRowClick(row.original) : undefined}
+            />
+          ))
         )}
       </div>
 
@@ -249,8 +266,10 @@ export function DataTable<TData>({
 
 function MobileCard<TData>({
   row,
+  onRowClick,
 }: {
   row: { id: string; getVisibleCells: () => Cell<TData, unknown>[] };
+  onRowClick?: () => void;
 }) {
   const cells = row.getVisibleCells();
   const rowNumberCell = cells.find((c) => c.column.id === '__rowNumber__');
@@ -262,7 +281,10 @@ function MobileCard<TData>({
   const secondaryCells = restCells.slice(1);
 
   return (
-    <div className="rounded-xl border bg-card p-4 shadow-sm">
+    <div
+      onClick={onRowClick}
+      className={`rounded-xl border bg-card p-4 shadow-sm${onRowClick ? ' cursor-pointer active:bg-muted/40 transition-colors' : ''}`}
+    >
       <div className="flex items-start justify-between gap-3">
         <div className="flex items-start gap-2 min-w-0 flex-1">
           {rowNumberCell && (

@@ -1,7 +1,7 @@
 'use client';
 
 import { type ColumnDef } from '@tanstack/react-table';
-import { ArrowRight, Eye, Plus } from 'lucide-react';
+import { ArrowRight, Eye, Paperclip, Plus } from 'lucide-react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { useEffect, useState } from 'react';
 
@@ -21,6 +21,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
+import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
 import { useDebounce } from '@/hooks/use-debounce';
 import { useTransfers, type Transfer, type TransferStatus } from '@/hooks/use-transfers';
 
@@ -31,6 +32,25 @@ const STATUS_OPTIONS: { value: TransferStatus | '_all'; label: string }[] = [
   { value: 'RECHAZADA', label: 'Rechazadas' },
   { value: 'CANCELADA', label: 'Canceladas' },
 ];
+
+const STALE_AFTER_DAYS = 7;
+
+/**
+ * Tiempo relativo en español para transferencias EN_TRANSITO.
+ * `stale=true` si superó {@link STALE_AFTER_DAYS} días → la fila merece atención.
+ */
+function getTransitTime(date: string): { label: string; stale: boolean } {
+  const diffMs = Date.now() - new Date(date).getTime();
+  const minutes = Math.floor(diffMs / 60_000);
+  if (minutes < 60) return { label: `Hace ${Math.max(minutes, 1)} min`, stale: false };
+  const hours = Math.floor(minutes / 60);
+  if (hours < 24) return { label: `Hace ${hours} h`, stale: false };
+  const days = Math.floor(hours / 24);
+  return {
+    label: days === 1 ? 'Hace 1 día' : `Hace ${days} días`,
+    stale: days >= STALE_AFTER_DAYS,
+  };
+}
 
 interface Props {
   /** Slot para acción primaria (ej. "Nueva transferencia"). */
@@ -96,8 +116,40 @@ export function TransferenciasPanel({ headerAction }: Props) {
     {
       accessorKey: 'status',
       header: 'Estado',
-      size: 120,
-      cell: ({ row }) => <TransferStatusBadge status={row.original.status} />,
+      size: 160,
+      cell: ({ row }) => {
+        const t = row.original;
+        const inTransit = t.status === 'EN_TRANSITO';
+        const guideMissing = inTransit && t.requiresRecipientDocument && !t.documentUrl;
+        const transit = inTransit ? getTransitTime(t.sentAt ?? t.createdAt) : null;
+        return (
+          <div className="flex flex-col items-start gap-1">
+            <div className="flex items-center gap-1.5">
+              <TransferStatusBadge status={t.status} />
+              {guideMissing && (
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <span
+                      className="inline-flex h-5 w-5 items-center justify-center rounded-md bg-amber-100 dark:bg-amber-900/40 text-amber-700 dark:text-amber-300 ring-1 ring-amber-500/30"
+                      aria-label="Guía de remisión pendiente"
+                    >
+                      <Paperclip className="h-3 w-3" />
+                    </span>
+                  </TooltipTrigger>
+                  <TooltipContent>Guía de remisión pendiente</TooltipContent>
+                </Tooltip>
+              )}
+            </div>
+            {transit && (
+              <span
+                className={`text-[10px] tabular-nums ${transit.stale ? 'text-destructive font-semibold' : 'text-muted-foreground'}`}
+              >
+                {transit.label}
+              </span>
+            )}
+          </div>
+        );
+      },
     },
     {
       id: 'items',
@@ -131,7 +183,10 @@ export function TransferenciasPanel({ headerAction }: Props) {
           icon={Eye}
           label="Ver detalle"
           tone="info"
-          onClick={() => setDetail(row.original)}
+          onClick={(e) => {
+            e.stopPropagation();
+            setDetail(row.original);
+          }}
         />
       ),
     },
@@ -179,6 +234,7 @@ export function TransferenciasPanel({ headerAction }: Props) {
         onPageSizeChange={setPageSize}
         total={data?.total ?? 0}
         onPageChange={setPage}
+        onRowClick={(t) => setDetail(t)}
       />
 
       <Dialog open={!!detail} onOpenChange={(v) => !v && setDetail(null)}>
