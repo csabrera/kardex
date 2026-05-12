@@ -12,6 +12,7 @@ import { Textarea } from '@/components/ui/textarea';
 import {
   useReceiveTransfer,
   useRejectTransfer,
+  useTransfer,
   type Transfer,
 } from '@/hooks/use-transfers';
 import { useAuthStore } from '@/stores/use-auth-store';
@@ -23,7 +24,14 @@ interface Props {
   onClose: () => void;
 }
 
-export function TransferDetail({ transfer: t, onClose }: Props) {
+export function TransferDetail({ transfer: snapshot, onClose }: Props) {
+  // Refetch al abrir + reacción automática a invalidaciones por WebSocket
+  // (TRANSFER_RECEIVED/REJECTED/CANCELLED en socket-provider invalidan ['transfers']
+  // por prefijo, lo que matchea ['transfers', id] y dispara este refetch).
+  // Usamos el snapshot de la fila como fallback inmediato para evitar flash de loading.
+  const { data: fresh } = useTransfer(snapshot.id);
+  const t = fresh ?? snapshot;
+
   const [rejectionReason, setRejectionReason] = useState('');
   const [showReject, setShowReject] = useState(false);
   const [overrideReason, setOverrideReason] = useState('');
@@ -31,7 +39,7 @@ export function TransferDetail({ transfer: t, onClose }: Props) {
   const [isSubmitted, setIsSubmitted] = useState(false);
   const [receivedQtys, setReceivedQtys] = useState<Record<string, string>>(() =>
     Object.fromEntries(
-      t.items.map((i) => [i.id, String(Number(i.sentQty ?? i.requestedQty))]),
+      snapshot.items.map((i) => [i.id, String(Number(i.sentQty ?? i.requestedQty))]),
     ),
   );
   const [recipientDoc, setRecipientDoc] = useState<{

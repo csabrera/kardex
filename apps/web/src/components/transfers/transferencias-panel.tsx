@@ -29,6 +29,7 @@ const STATUS_OPTIONS: { value: TransferStatus | '_all'; label: string }[] = [
   { value: 'EN_TRANSITO', label: 'En tránsito' },
   { value: 'RECIBIDA', label: 'Recibidas' },
   { value: 'RECHAZADA', label: 'Rechazadas' },
+  { value: 'CANCELADA', label: 'Canceladas' },
 ];
 
 interface Props {
