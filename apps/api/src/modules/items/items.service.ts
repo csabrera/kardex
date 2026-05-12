@@ -63,11 +63,36 @@ export class ItemsService {
       this.prisma.item.count({ where }),
     ]);
 
-    // Aplanar: agregar `principalStock` a cada item
+    // Sumar pendingQty (sent - received) por itemId para los items de esta página.
+    // Cubre TRFs EN_TRANSITO + PARCIALMENTE_RECIBIDA con líneas pendientes. Una sola
+    // query, hecha en JS porque `pendingQty` es derivado (sent - received).
+    const itemIds = items.map((i) => i.id);
+    const inTransitMap = new Map<string, number>();
+    if (itemIds.length > 0) {
+      const transferItems = await this.prisma.transferItem.findMany({
+        where: {
+          itemId: { in: itemIds },
+          status: { in: ['PENDIENTE', 'RECIBIDO_PARCIAL'] },
+          transfer: { status: { in: ['EN_TRANSITO', 'PARCIALMENTE_RECIBIDA'] } },
+        },
+        select: { itemId: true, sentQty: true, receivedQty: true, requestedQty: true },
+      });
+      for (const ti of transferItems) {
+        const sent = Number(ti.sentQty ?? ti.requestedQty);
+        const recvd = Number(ti.receivedQty ?? 0);
+        const pending = sent - recvd;
+        if (pending > 0) {
+          inTransitMap.set(ti.itemId, (inTransitMap.get(ti.itemId) ?? 0) + pending);
+        }
+      }
+    }
+
+    // Aplanar: agregar `principalStock` e `inTransitQty` a cada item
     const itemsWithStock = items.map((item: any) => {
       const principalStock = mainWarehouse ? Number(item.stocks?.[0]?.quantity ?? 0) : 0;
+      const inTransitQty = inTransitMap.get(item.id) ?? 0;
       const { stocks, ...rest } = item;
-      return { ...rest, principalStock };
+      return { ...rest, principalStock, inTransitQty };
     });
 
     return {

@@ -21,6 +21,8 @@ export interface Item {
   createdAt: string;
   /** Stock actual en el Almacén Principal (inyectado por el backend en el listado) */
   principalStock?: number;
+  /** Unidades pendientes en TRFs activas (EN_TRANSITO + PARCIALMENTE_RECIBIDA). */
+  inTransitQty?: number;
 }
 
 export interface InTransitLine {

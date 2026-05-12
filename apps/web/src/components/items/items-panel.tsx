@@ -745,18 +745,27 @@ export function ItemsPanel({
     {
       id: 'principalStock',
       header: 'Stock Principal',
-      size: 130,
+      size: 150,
       cell: ({ row }) => {
         const qty = Number(row.original.principalStock ?? 0);
         const min = Number(row.original.minStock ?? 0);
+        const inTransit = Number(row.original.inTransitQty ?? 0);
         const low = min > 0 && qty < min;
         const out = qty === 0;
         return (
-          <span
-            className={`text-base font-semibold tabular-nums ${out ? 'text-destructive' : low ? 'text-amber-600 dark:text-amber-400' : ''}`}
-          >
-            {qty.toLocaleString('es-PE', { maximumFractionDigits: 3 })}
-          </span>
+          <div className="flex flex-col items-center gap-0.5">
+            <span
+              className={`text-base font-semibold tabular-nums ${out ? 'text-destructive' : low ? 'text-amber-600 dark:text-amber-400' : ''}`}
+            >
+              {qty.toLocaleString('es-PE', { maximumFractionDigits: 3 })}
+            </span>
+            {inTransit > 0 && (
+              <span className="text-[10px] tabular-nums text-amber-700 dark:text-amber-300 font-medium whitespace-nowrap">
+                + {inTransit.toLocaleString('es-PE', { maximumFractionDigits: 3 })} en
+                tránsito
+              </span>
+            )}
+          </div>
         );
       },
     },

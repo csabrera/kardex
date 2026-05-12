@@ -8,9 +8,11 @@ import {
   Shield,
   Star,
   TrendingDown,
+  Truck,
   Warehouse as WarehouseIcon,
   Wrench,
 } from 'lucide-react';
+import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { useCallback } from 'react';
 
@@ -28,6 +30,7 @@ import {
 } from '@/components/ui/select';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { useAlerts } from '@/hooks/use-alerts';
+import { useInTransitReport } from '@/hooks/use-reports';
 import { useStock } from '@/hooks/use-stock';
 import { useMainWarehouse } from '@/hooks/use-warehouses';
 import { cn } from '@/lib/cn';
@@ -71,6 +74,9 @@ export default function AlmacenPrincipalPage() {
 
   const stock = useStock({ warehouseId: mainId, enabled: !!mainId });
   const alerts = useAlerts({ warehouseId: mainId, read: false, enabled: !!mainId });
+  // Pendientes en tránsito de TODAS las TRFs activas (sin filtrar por almacén
+  // porque el indicador es global del sistema, no específico del Principal).
+  const inTransit = useInTransitReport();
 
   // KPIs
   const items = stock.data ?? [];
@@ -80,6 +86,11 @@ export default function AlmacenPrincipalPage() {
   ).length;
 
   const alertsCount = alerts.data?.length ?? 0;
+  const inTransitTotalQty = (inTransit.data?.totalsByItem ?? []).reduce(
+    (acc, t) => acc + t.totalPending,
+    0,
+  );
+  const inTransitLines = inTransit.data?.totalRows ?? 0;
 
   return (
     <div className="space-y-4">
@@ -102,7 +113,7 @@ export default function AlmacenPrincipalPage() {
         </div>
 
         {/* KPIs como "strip" horizontal compacto */}
-        <div className="grid grid-cols-2 md:grid-cols-4 lg:flex lg:items-center gap-3 lg:gap-6">
+        <div className="grid grid-cols-2 md:grid-cols-5 lg:flex lg:items-center gap-3 lg:gap-6">
           <KpiInline
             label="Ítems"
             value={items.length}
@@ -114,6 +125,23 @@ export default function AlmacenPrincipalPage() {
             value={totalQty.toLocaleString('es-PE', { maximumFractionDigits: 0 })}
             icon={Package}
             loading={stock.isLoading}
+          />
+          <KpiInline
+            label="En tránsito"
+            value={
+              inTransitLines > 0
+                ? `${inTransitTotalQty.toLocaleString('es-PE', { maximumFractionDigits: 0 })}`
+                : 0
+            }
+            sub={
+              inTransitLines > 0
+                ? `${inTransitLines} línea${inTransitLines === 1 ? '' : 's'}`
+                : undefined
+            }
+            icon={Truck}
+            tone={inTransitLines > 0 ? 'warning' : 'muted'}
+            href="/dashboard/reportes/en-transito"
+            loading={inTransit.isLoading}
           />
           <KpiInline
             label="Bajo mínimo"
@@ -211,15 +239,27 @@ function KpiInline({
   icon: Icon,
   tone = 'default',
   loading,
+  href,
+  sub,
 }: {
   label: string;
   value: string | number;
   icon: React.ElementType;
   tone?: KpiTone;
   loading?: boolean;
+  /** Si se provee, el KPI completo es un Link a esta ruta. */
+  href?: string;
+  /** Línea secundaria pequeña debajo del valor (ej. "3 líneas"). */
+  sub?: string;
 }) {
-  return (
-    <div className="flex items-center justify-center gap-2.5 min-w-0">
+  const body = (
+    <div
+      className={cn(
+        'flex items-center justify-center gap-2.5 min-w-0',
+        href &&
+          'cursor-pointer rounded-md px-1 -mx-1 hover:bg-muted/40 transition-colors',
+      )}
+    >
       <Icon className={cn('h-4 w-4 shrink-0', KPI_ICON_TONE[tone])} />
       <div className="min-w-0 leading-tight text-center">
         <p className="text-[10px] uppercase tracking-wider text-muted-foreground/80 font-medium">
@@ -234,7 +274,21 @@ function KpiInline({
             value
           )}
         </p>
+        {sub && (
+          <p className="text-[10px] text-muted-foreground tabular-nums leading-tight">
+            {sub}
+          </p>
+        )}
       </div>
     </div>
   );
+
+  if (href) {
+    return (
+      <Link href={href} aria-label={`Ver ${label}`}>
+        {body}
+      </Link>
+    );
+  }
+  return body;
 }
