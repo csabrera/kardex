@@ -1,5 +1,5 @@
 import { Test, TestingModule } from '@nestjs/testing';
-import { TransferStatus } from '@prisma/client';
+import { TransferItemStatus, TransferStatus } from '@prisma/client';
 
 import { PrismaService } from '../../prisma/prisma.service';
 import { RealtimeService } from '../realtime/realtime.service';
@@ -28,6 +28,7 @@ function buildTransfer(overrides: Partial<any> = {}) {
         requestedQty: 10,
         sentQty: 10,
         receivedQty: null,
+        status: TransferItemStatus.PENDIENTE,
         item: { id: 'item-1', name: 'Item Test' },
       },
     ],
@@ -78,6 +79,13 @@ describe('TransfersService', () => {
           if (item) Object.assign(item, data);
           return Promise.resolve(item);
         }),
+        findMany: jest.fn().mockImplementation(() =>
+          Promise.resolve(
+            state.transfer.items.map((i: any) => ({
+              status: i.status ?? TransferItemStatus.PENDIENTE,
+            })),
+          ),
+        ),
       },
       movementSequence: {
         upsert: jest.fn().mockResolvedValue({ lastValue: 1 }),
@@ -303,7 +311,7 @@ describe('TransfersService', () => {
       expect(state.stocks.find((s) => s.warehouseId === 'wh-to')?.quantity).toBe(10);
     });
 
-    it('handles partial reception (received < sent)', async () => {
+    it('handles partial reception (received < sent) → PARCIALMENTE_RECIBIDA', async () => {
       state.stocks.push({
         itemId: 'item-1',
         warehouseId: 'wh-to',
@@ -316,12 +324,23 @@ describe('TransfersService', () => {
         'user-1',
       );
       expect(state.stocks.find((s) => s.warehouseId === 'wh-to')?.quantity).toBe(7);
-      // Diferencia registrada en el item
       expect(state.transfer.items[0].receivedQty).toBe(7);
+      expect(state.transfer.items[0].status).toBe(TransferItemStatus.RECIBIDO_PARCIAL);
+      expect(state.transfer.status).toBe(TransferStatus.PARCIALMENTE_RECIBIDA);
+    });
+
+    it('rechaza receivedQty > sentQty', async () => {
+      await expect(
+        service.receive(
+          't-1',
+          { items: [{ transferItemId: 'ti-1', receivedQty: 99 }] },
+          'user-1',
+        ),
+      ).rejects.toMatchObject({ errorCode: 'INVALID_INPUT' });
     });
 
     it('rejects if not in EN_TRANSITO state', async () => {
-      state.transfer.status = TransferStatus.APROBADA;
+      state.transfer.status = TransferStatus.RECIBIDA;
       await expect(
         service.receive(
           't-1',
@@ -487,35 +506,169 @@ describe('TransfersService', () => {
       expect(state.transfer.status).toBe(TransferStatus.RECIBIDA);
     });
 
-    it('genera alerta TRANSFER_DISCREPANCIA cuando receivedQty ≠ sentQty', async () => {
+    it('recepción parcial → TRF en PARCIALMENTE_RECIBIDA, línea en RECIBIDO_PARCIAL', async () => {
       await service.receive(
         't-1',
         { items: [{ transferItemId: 'ti-1', receivedQty: 8 }] }, // se enviaron 10, recibieron 8
         'resident-1',
       );
-      // verificamos que se llamó alert.create dentro del tx (vía el mock del txMock)
-      // no podemos acceder directo al mock del tx, pero confirmamos el estado final:
-      expect(state.transfer.status).toBe(TransferStatus.RECIBIDA);
+      expect(state.transfer.status).toBe(TransferStatus.PARCIALMENTE_RECIBIDA);
+      expect(state.transfer.items[0].status).toBe(TransferItemStatus.RECIBIDO_PARCIAL);
       expect(state.stocks[0].quantity).toBe(8);
-      // Y el WS event de ADMIN debe haberse emitido con ALERT_CREATED
-      expect(realtimeMock.emitToRole).toHaveBeenCalledWith(
-        'ADMIN',
-        'alert.created',
-        expect.objectContaining({ transferCode: 'TRF-00001' }),
+      // NO se emite alerta (la alerta TRANSFER_DISCREPANCIA fue eliminada — el estado es la señal)
+      const alertCalls = realtimeMock.emitToRole.mock.calls.filter(
+        (c) => c[1] === 'alert.created',
       );
+      expect(alertCalls).toHaveLength(0);
     });
 
-    it('NO emite alerta si receivedQty == sentQty', async () => {
+    it('recepción completa → TRF a RECIBIDA, línea RECIBIDO_COMPLETO', async () => {
       await service.receive(
         't-1',
         { items: [{ transferItemId: 'ti-1', receivedQty: 10 }] },
         'resident-1',
       );
-      // Buscar llamadas a emitToRole con ALERT_CREATED
-      const alertCalls = realtimeMock.emitToRole.mock.calls.filter(
-        (c) => c[1] === 'alert.created',
+      expect(state.transfer.status).toBe(TransferStatus.RECIBIDA);
+      expect(state.transfer.items[0].status).toBe(TransferItemStatus.RECIBIDO_COMPLETO);
+    });
+  });
+
+  describe('receiveAdditional (PARCIALMENTE_RECIBIDA → completar)', () => {
+    beforeEach(() => {
+      // Partimos de TRF parcial: enviaron 10, recibieron 6, faltan 4
+      state.transfer.status = TransferStatus.PARCIALMENTE_RECIBIDA;
+      state.transfer.items[0].sentQty = 10;
+      state.transfer.items[0].receivedQty = 6;
+      state.transfer.items[0].status = TransferItemStatus.RECIBIDO_PARCIAL;
+      state.stocks.push({
+        itemId: 'item-1',
+        warehouseId: 'wh-to',
+        quantity: 6,
+        version: 0,
+      });
+    });
+
+    it('completa la línea y cierra la TRF a RECIBIDA', async () => {
+      await service.receiveAdditional(
+        't-1',
+        { items: [{ transferItemId: 'ti-1', additionalQty: 4 }] },
+        'resident-1',
       );
-      expect(alertCalls).toHaveLength(0);
+      expect(state.transfer.items[0].receivedQty).toBe(10);
+      expect(state.transfer.items[0].status).toBe(TransferItemStatus.RECIBIDO_COMPLETO);
+      expect(state.transfer.status).toBe(TransferStatus.RECIBIDA);
+      expect(state.stocks[0].quantity).toBe(10);
+    });
+
+    it('recepción adicional parcial mantiene PARCIALMENTE_RECIBIDA', async () => {
+      await service.receiveAdditional(
+        't-1',
+        { items: [{ transferItemId: 'ti-1', additionalQty: 2 }] },
+        'resident-1',
+      );
+      expect(state.transfer.items[0].receivedQty).toBe(8);
+      expect(state.transfer.items[0].status).toBe(TransferItemStatus.RECIBIDO_PARCIAL);
+      expect(state.transfer.status).toBe(TransferStatus.PARCIALMENTE_RECIBIDA);
+    });
+
+    it('rechaza additionalQty que excede lo pendiente', async () => {
+      await expect(
+        service.receiveAdditional(
+          't-1',
+          { items: [{ transferItemId: 'ti-1', additionalQty: 10 }] }, // solo faltan 4
+          'resident-1',
+        ),
+      ).rejects.toMatchObject({ errorCode: 'INVALID_INPUT' });
+    });
+
+    it('rechaza si TRF no está en PARCIALMENTE_RECIBIDA', async () => {
+      state.transfer.status = TransferStatus.EN_TRANSITO;
+      await expect(
+        service.receiveAdditional(
+          't-1',
+          { items: [{ transferItemId: 'ti-1', additionalQty: 4 }] },
+          'resident-1',
+        ),
+      ).rejects.toMatchObject({ errorCode: 'TRANSFER_INVALID_STATE' });
+    });
+  });
+
+  describe('closeAsShortage (admin cierra como faltante definitivo)', () => {
+    beforeEach(() => {
+      state.transfer.status = TransferStatus.PARCIALMENTE_RECIBIDA;
+      state.transfer.items[0].sentQty = 10;
+      state.transfer.items[0].receivedQty = 6;
+      state.transfer.items[0].status = TransferItemStatus.RECIBIDO_PARCIAL;
+      // El origen tenía 90 después de enviar 10
+      state.stocks.push({
+        itemId: 'item-1',
+        warehouseId: 'wh-from',
+        quantity: 90,
+        version: 0,
+      });
+    });
+
+    it('cierra línea, crea par ENTRADA+SALIDA en el origen, TRF queda RECIBIDA', async () => {
+      prismaMock.user.findUnique.mockResolvedValueOnce({
+        id: 'admin-1',
+        role: { name: 'ADMIN' },
+      });
+      await service.closeAsShortage(
+        't-1',
+        {
+          transferItemIds: ['ti-1'],
+          reason: 'INCUMPLIMIENTO_PROVEEDOR',
+          notes: 'Proveedor PRV-CEMENTOS-LIMA dio de baja el pedido',
+        },
+        'admin-1',
+      );
+      expect(state.transfer.items[0].status).toBe(TransferItemStatus.FALTANTE_DEFINITIVO);
+      expect(state.transfer.items[0].shortageReason).toBe('INCUMPLIMIENTO_PROVEEDOR');
+      // El origen: +4 (devolución) -4 (baja) = neto 0 → sigue en 90
+      expect(state.stocks[0].quantity).toBe(90);
+      // TRF cierra como RECIBIDA (toda línea pendiente queda terminal)
+      expect(state.transfer.status).toBe(TransferStatus.RECIBIDA);
+    });
+
+    it('rechaza si el usuario no es ADMIN', async () => {
+      // resident-1 ya está en el mock por default
+      await expect(
+        service.closeAsShortage(
+          't-1',
+          { transferItemIds: ['ti-1'], reason: 'INCUMPLIMIENTO_PROVEEDOR' },
+          'resident-1',
+        ),
+      ).rejects.toMatchObject({ errorCode: 'PERMISSION_DENIED' });
+    });
+
+    it('rechaza si TRF no está en PARCIALMENTE_RECIBIDA', async () => {
+      state.transfer.status = TransferStatus.RECIBIDA;
+      prismaMock.user.findUnique.mockResolvedValueOnce({
+        id: 'admin-1',
+        role: { name: 'ADMIN' },
+      });
+      await expect(
+        service.closeAsShortage(
+          't-1',
+          { transferItemIds: ['ti-1'], reason: 'INCUMPLIMIENTO_PROVEEDOR' },
+          'admin-1',
+        ),
+      ).rejects.toMatchObject({ errorCode: 'TRANSFER_INVALID_STATE' });
+    });
+
+    it('rechaza si la línea no está en RECIBIDO_PARCIAL', async () => {
+      state.transfer.items[0].status = TransferItemStatus.RECIBIDO_COMPLETO;
+      prismaMock.user.findUnique.mockResolvedValueOnce({
+        id: 'admin-1',
+        role: { name: 'ADMIN' },
+      });
+      await expect(
+        service.closeAsShortage(
+          't-1',
+          { transferItemIds: ['ti-1'], reason: 'INCUMPLIMIENTO_PROVEEDOR' },
+          'admin-1',
+        ),
+      ).rejects.toMatchObject({ errorCode: 'INVALID_INPUT' });
     });
   });
 

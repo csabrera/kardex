@@ -1,22 +1,33 @@
 'use client';
 
-import { AlertCircle, ArrowRight, CheckCircle2, XCircle } from 'lucide-react';
+import {
+  AlertCircle,
+  ArrowRight,
+  CheckCircle2,
+  PackagePlus,
+  XCircle,
+} from 'lucide-react';
 import { useState } from 'react';
 import { toast } from 'sonner';
 
+import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { DocumentViewButton, FileUpload } from '@/components/ui/file-upload';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import {
+  SHORTAGE_REASON_LABEL,
   useReceiveTransfer,
   useRejectTransfer,
   useTransfer,
   type Transfer,
+  type TransferItemStatus,
 } from '@/hooks/use-transfers';
 import { useAuthStore } from '@/stores/use-auth-store';
 
+import { CloseAsShortageDialog } from './close-as-shortage-dialog';
+import { ReceiveAdditionalDialog } from './receive-additional-dialog';
 import { TransferStatusBadge } from './transfer-status-badge';
 
 interface Props {
@@ -24,11 +35,19 @@ interface Props {
   onClose: () => void;
 }
 
+const ITEM_STATUS_META: Record<
+  TransferItemStatus,
+  { label: string; variant: 'success' | 'info' | 'warning' | 'destructive' | 'outline' }
+> = {
+  PENDIENTE: { label: 'Pendiente', variant: 'warning' },
+  RECIBIDO_COMPLETO: { label: 'Completo', variant: 'success' },
+  RECIBIDO_PARCIAL: { label: 'Parcial', variant: 'info' },
+  FALTANTE_DEFINITIVO: { label: 'Baja', variant: 'destructive' },
+};
+
 export function TransferDetail({ transfer: snapshot, onClose }: Props) {
-  // Refetch al abrir + reacción automática a invalidaciones por WebSocket
-  // (TRANSFER_RECEIVED/REJECTED/CANCELLED en socket-provider invalidan ['transfers']
-  // por prefijo, lo que matchea ['transfers', id] y dispara este refetch).
-  // Usamos el snapshot de la fila como fallback inmediato para evitar flash de loading.
+  // Refetch al abrir + reacción automática a invalidaciones por WebSocket.
+  // Snapshot como fallback para evitar flash de loading.
   const { data: fresh } = useTransfer(snapshot.id);
   const t = fresh ?? snapshot;
 
@@ -46,9 +65,12 @@ export function TransferDetail({ transfer: snapshot, onClose }: Props) {
     filename: string;
     originalName: string;
   } | null>(null);
+  const [showAdditional, setShowAdditional] = useState(false);
+  const [showCloseShortage, setShowCloseShortage] = useState(false);
 
   const user = useAuthStore((s) => s.user);
   const needsOverride = user?.role?.name === 'ADMIN';
+  const isAdmin = user?.role?.name === 'ADMIN';
 
   const receive = useReceiveTransfer();
   const reject = useRejectTransfer();
@@ -95,7 +117,6 @@ export function TransferDetail({ transfer: snapshot, onClose }: Props) {
     if (hasLineErrors) return;
     if (needsDocument && !recipientDoc) return;
     if (!validateOverride()) return;
-    const withDiscrepancy = hasDiscrepancy;
     receive.mutate(
       {
         id: t.id,
@@ -108,10 +129,10 @@ export function TransferDetail({ transfer: snapshot, onClose }: Props) {
         documentName: recipientDoc?.originalName ?? undefined,
       },
       {
-        onSuccess: () => {
-          if (withDiscrepancy) {
+        onSuccess: (updated: Transfer) => {
+          if (updated.status === 'PARCIALMENTE_RECIBIDA') {
             toast.warning(
-              'Recepción confirmada con diferencias · administrador notificado',
+              'Recepción parcial registrada · queda saldo pendiente de completar',
             );
           } else {
             toast.success('Recepción confirmada · stock actualizado');
@@ -135,16 +156,28 @@ export function TransferDetail({ transfer: snapshot, onClose }: Props) {
     );
   };
 
-  // Flujo de 2 pasos: Enviada (sale del origen) → Recibida (llega al destino)
+  // Timeline 2 pasos: Enviada → Recibida. Si parcial, segundo paso queda "en progreso".
   const timeline = [
     {
       label: 'Enviada',
       date: t.sentAt ?? t.createdAt,
-      user: t.sentBy ?? t.requestedBy,
       done: true,
     },
-    { label: 'Recibida', date: t.receivedAt, user: t.receivedBy, done: !!t.receivedAt },
+    {
+      label:
+        t.status === 'PARCIALMENTE_RECIBIDA'
+          ? 'En recepción'
+          : t.status === 'RECIBIDA'
+            ? 'Recibida'
+            : 'Recibida',
+      date: t.receivedAt,
+      done: t.status === 'RECIBIDA',
+      inProgress: t.status === 'PARCIALMENTE_RECIBIDA',
+    },
   ];
+
+  const showReceiveInputs = t.status === 'EN_TRANSITO';
+  const showLineStatus = t.status === 'PARCIALMENTE_RECIBIDA' || t.status === 'RECIBIDA';
 
   return (
     <div className="space-y-5">
@@ -168,10 +201,22 @@ export function TransferDetail({ transfer: snapshot, onClose }: Props) {
         {timeline.map((step, i) => (
           <div key={step.label} className="flex items-center gap-1 shrink-0">
             <div
-              className={`flex flex-col items-center text-xs ${step.done ? 'text-green-600' : 'text-muted-foreground'}`}
+              className={`flex flex-col items-center text-xs ${
+                step.done
+                  ? 'text-green-600'
+                  : step.inProgress
+                    ? 'text-blue-600'
+                    : 'text-muted-foreground'
+              }`}
             >
               <div
-                className={`h-6 w-6 rounded-full flex items-center justify-center text-[10px] font-bold border-2 ${step.done ? 'bg-green-100 border-green-500 text-green-700' : 'border-muted bg-muted/30'}`}
+                className={`h-6 w-6 rounded-full flex items-center justify-center text-[10px] font-bold border-2 ${
+                  step.done
+                    ? 'bg-green-100 border-green-500 text-green-700'
+                    : step.inProgress
+                      ? 'bg-blue-100 border-blue-500 text-blue-700'
+                      : 'border-muted bg-muted/30'
+                }`}
               >
                 {i + 1}
               </div>
@@ -184,7 +229,9 @@ export function TransferDetail({ transfer: snapshot, onClose }: Props) {
             </div>
             {i < timeline.length - 1 && (
               <div
-                className={`h-0.5 w-8 mt-[-14px] ${step.done ? 'bg-green-400' : 'bg-muted'}`}
+                className={`h-0.5 w-8 mt-[-14px] ${
+                  step.done ? 'bg-green-400' : 'bg-muted'
+                }`}
               />
             )}
           </div>
@@ -204,22 +251,35 @@ export function TransferDetail({ transfer: snapshot, onClose }: Props) {
                 <th className="px-3 py-2 text-right text-muted-foreground font-medium">
                   Enviado
                 </th>
-                {t.status === 'RECIBIDA' && (
-                  <th className="px-3 py-2 text-right text-muted-foreground font-medium">
-                    Recibido
-                  </th>
-                )}
-                {t.status === 'EN_TRANSITO' && (
+                {showReceiveInputs && (
                   <th className="px-3 py-2 text-center text-muted-foreground font-medium">
                     Recibido <span className="text-destructive">*</span>
                   </th>
+                )}
+                {showLineStatus && (
+                  <>
+                    <th className="px-3 py-2 text-right text-muted-foreground font-medium">
+                      Recibido
+                    </th>
+                    <th className="px-3 py-2 text-right text-muted-foreground font-medium">
+                      Pendiente
+                    </th>
+                    <th className="px-3 py-2 text-center text-muted-foreground font-medium">
+                      Estado
+                    </th>
+                  </>
                 )}
               </tr>
             </thead>
             <tbody>
               {t.items.map((item) => {
-                const discrepancy = isLineDiscrepancy(item.id);
-                const lineError = isSubmitted ? getLineError(item.id) : null;
+                const sentQty = Number(item.sentQty ?? item.requestedQty);
+                const recvdQty = Number(item.receivedQty ?? 0);
+                const pendingQty = Math.max(sentQty - recvdQty, 0);
+                const discrepancy = showReceiveInputs && isLineDiscrepancy(item.id);
+                const lineError =
+                  showReceiveInputs && isSubmitted ? getLineError(item.id) : null;
+                const meta = ITEM_STATUS_META[item.status];
                 return (
                   <tr key={item.id} className="border-t">
                     <td className="px-3 py-2">
@@ -230,37 +290,44 @@ export function TransferDetail({ transfer: snapshot, onClose }: Props) {
                           </span>
                           {item.item.name}
                         </div>
-                        {t.status === 'EN_TRANSITO' && !lineError && (
+                        {showReceiveInputs && !lineError && (
                           <span
-                            className={`text-[11px] font-semibold px-1.5 py-0.5 rounded-full shrink-0 ${discrepancy ? 'text-amber-700 bg-amber-100 dark:bg-amber-900/40 dark:text-amber-300' : 'text-green-700 bg-green-100 dark:bg-green-900/40 dark:text-green-300'}`}
+                            className={`text-[11px] font-semibold px-1.5 py-0.5 rounded-full shrink-0 ${
+                              discrepancy
+                                ? 'text-amber-700 bg-amber-100 dark:bg-amber-900/40 dark:text-amber-300'
+                                : 'text-green-700 bg-green-100 dark:bg-green-900/40 dark:text-green-300'
+                            }`}
                           >
                             {discrepancy ? '⚠ Disc.' : '✓'}
                           </span>
                         )}
                       </div>
+                      {item.shortageReason && (
+                        <div className="text-[10px] text-muted-foreground mt-0.5">
+                          Cerrado: {SHORTAGE_REASON_LABEL[item.shortageReason]}
+                          {item.shortageNotes ? ` · ${item.shortageNotes}` : ''}
+                        </div>
+                      )}
                     </td>
                     <td className="px-3 py-2 text-right tabular-nums">
-                      {Number(item.sentQty ?? item.requestedQty).toLocaleString('es-PE', {
-                        maximumFractionDigits: 3,
-                      })}{' '}
+                      {sentQty.toLocaleString('es-PE', { maximumFractionDigits: 3 })}{' '}
                       {item.item.unit.abbreviation}
                     </td>
-                    {t.status === 'RECIBIDA' && (
-                      <td className="px-3 py-2 text-right tabular-nums font-medium">
-                        {item.receivedQty != null
-                          ? `${Number(item.receivedQty).toLocaleString('es-PE', { maximumFractionDigits: 3 })} ${item.item.unit.abbreviation}`
-                          : '—'}
-                      </td>
-                    )}
-                    {t.status === 'EN_TRANSITO' && (
+                    {showReceiveInputs && (
                       <td className="px-3 py-2">
                         <div className="space-y-1">
                           <Input
                             type="number"
                             step="0.001"
                             min="0.001"
-                            max={getSentQty(item.id)}
-                            className={`h-7 text-sm text-right w-28 ml-auto ${lineError ? 'border-destructive' : discrepancy ? 'border-amber-400' : ''}`}
+                            max={sentQty}
+                            className={`h-7 text-sm text-right w-28 ml-auto ${
+                              lineError
+                                ? 'border-destructive'
+                                : discrepancy
+                                  ? 'border-amber-400'
+                                  : ''
+                            }`}
                             value={receivedQtys[item.id] ?? ''}
                             onChange={(e) =>
                               setReceivedQtys((p) => ({
@@ -277,6 +344,34 @@ export function TransferDetail({ transfer: snapshot, onClose }: Props) {
                         </div>
                       </td>
                     )}
+                    {showLineStatus && (
+                      <>
+                        <td className="px-3 py-2 text-right tabular-nums font-medium">
+                          {recvdQty.toLocaleString('es-PE', {
+                            maximumFractionDigits: 3,
+                          })}{' '}
+                          <span className="text-[11px] text-muted-foreground">
+                            {item.item.unit.abbreviation}
+                          </span>
+                        </td>
+                        <td className="px-3 py-2 text-right tabular-nums">
+                          {item.status === 'RECIBIDO_PARCIAL' ? (
+                            <span className="font-semibold text-amber-700 dark:text-amber-300">
+                              {pendingQty.toLocaleString('es-PE', {
+                                maximumFractionDigits: 3,
+                              })}
+                            </span>
+                          ) : (
+                            <span className="text-muted-foreground">—</span>
+                          )}
+                        </td>
+                        <td className="px-3 py-2 text-center">
+                          <Badge variant={meta.variant as any} className="text-[10px]">
+                            {meta.label}
+                          </Badge>
+                        </td>
+                      </>
+                    )}
                   </tr>
                 );
               })}
@@ -286,14 +381,15 @@ export function TransferDetail({ transfer: snapshot, onClose }: Props) {
       </div>
 
       {/* Banner discrepancia (solo cuando EN_TRANSITO y hay diferencias) */}
-      {t.status === 'EN_TRANSITO' && hasDiscrepancy && !hasLineErrors && (
+      {showReceiveInputs && hasDiscrepancy && !hasLineErrors && (
         <div className="rounded-md border border-amber-300 bg-amber-50 dark:bg-amber-950/30 p-3 text-xs">
           <p className="font-medium text-amber-900 dark:text-amber-200 flex items-center gap-1.5">
-            ⚠ Hay diferencias entre lo enviado y lo recibido
+            ⚠ Lo no recibido quedará como pendiente
           </p>
           <p className="text-amber-800 dark:text-amber-200/80 mt-1">
-            Se notificará al administrador automáticamente. Añade una nota con el motivo
-            si es posible.
+            La transferencia pasará a estado <strong>Parcialmente recibida</strong>.
+            Cuando llegue el resto podrás completarla, o un administrador puede cerrarla
+            como faltante definitivo.
           </p>
         </div>
       )}
@@ -376,8 +472,9 @@ export function TransferDetail({ transfer: snapshot, onClose }: Props) {
         </div>
       )}
 
-      {/* Acciones — flujo simplificado de 2 pasos */}
+      {/* Acciones */}
       <div className="flex flex-wrap gap-2 pt-2 border-t">
+        {/* Recibir / rechazar — primer paso */}
         {t.status === 'EN_TRANSITO' && (
           <Button
             size="sm"
@@ -425,7 +522,41 @@ export function TransferDetail({ transfer: snapshot, onClose }: Props) {
             </Button>
           </div>
         )}
+
+        {/* Parcial — recepción adicional + cerrar como faltante */}
+        {t.status === 'PARCIALMENTE_RECIBIDA' && (
+          <Button size="sm" onClick={() => setShowAdditional(true)} className="gap-1.5">
+            <PackagePlus className="h-3.5 w-3.5" /> Recibir lo faltante
+          </Button>
+        )}
+
+        {t.status === 'PARCIALMENTE_RECIBIDA' && isAdmin && (
+          <Button
+            size="sm"
+            variant="outline"
+            className="gap-1.5 text-destructive border-destructive/40"
+            onClick={() => setShowCloseShortage(true)}
+          >
+            <XCircle className="h-3.5 w-3.5" /> Cerrar líneas como faltante
+          </Button>
+        )}
       </div>
+
+      {/* Sub-modales */}
+      {t.status === 'PARCIALMENTE_RECIBIDA' && (
+        <>
+          <ReceiveAdditionalDialog
+            transfer={t}
+            open={showAdditional}
+            onClose={() => setShowAdditional(false)}
+          />
+          <CloseAsShortageDialog
+            transfer={t}
+            open={showCloseShortage}
+            onClose={() => setShowCloseShortage(false)}
+          />
+        </>
+      )}
     </div>
   );
 }

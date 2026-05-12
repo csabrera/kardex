@@ -8,7 +8,9 @@ import { PaginationQueryDto } from '../../common/dto/pagination.dto';
 import type { AuthenticatedRequest } from '../../common/types/authenticated-request';
 import {
   CancelTransferDto,
+  CloseShortageDto,
   CreateTransferDto,
+  ReceiveAdditionalTransferDto,
   ReceiveTransferDto,
   RejectTransferDto,
 } from './dto/transfer.dto';
@@ -67,6 +69,28 @@ export class TransfersController {
     @Req() req: AuthenticatedRequest,
   ) {
     return this.service.receive(id, dto, req.user.sub);
+  }
+
+  /** Suma cantidad adicional sobre una TRF PARCIALMENTE_RECIBIDA (caso A: el resto llegó después). */
+  @Patch(':id/receive-additional')
+  @RequirePermissions('transfers:receive')
+  receiveAdditional(
+    @Param('id') id: string,
+    @Body() dto: ReceiveAdditionalTransferDto,
+    @Req() req: AuthenticatedRequest,
+  ) {
+    return this.service.receiveAdditional(id, dto, req.user.sub);
+  }
+
+  /** Cierra líneas pendientes como faltante definitivo (caso B: el proveedor incumplió). Solo ADMIN. */
+  @Patch(':id/close-shortage')
+  @RequirePermissions('transfers:receive')
+  closeShortage(
+    @Param('id') id: string,
+    @Body() dto: CloseShortageDto,
+    @Req() req: AuthenticatedRequest,
+  ) {
+    return this.service.closeAsShortage(id, dto, req.user.sub);
   }
 
   @Patch(':id/reject')

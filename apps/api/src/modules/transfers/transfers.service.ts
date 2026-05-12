@@ -1,9 +1,10 @@
 import { Injectable, HttpStatus } from '@nestjs/common';
 import {
   TransferStatus,
+  TransferItemStatus,
+  TransferShortageReason,
   MovementType,
   MovementSource,
-  AlertType,
   Prisma,
 } from '@prisma/client';
 
@@ -14,10 +15,29 @@ import { RealtimeService } from '../realtime/realtime.service';
 import { assertOverrideReasonIfNeeded } from '../../common/utils/scope';
 import type {
   CancelTransferDto,
+  CloseShortageDto,
   CreateTransferDto,
+  ReceiveAdditionalTransferDto,
   ReceiveTransferDto,
   RejectTransferDto,
 } from './dto/transfer.dto';
+
+/** Determina el estado de una línea según cuánto se recibió contra lo enviado. */
+function computeLineStatus(receivedQty: number, sentQty: number): TransferItemStatus {
+  if (receivedQty <= 0.0001) return TransferItemStatus.PENDIENTE;
+  if (Math.abs(receivedQty - sentQty) < 0.0001)
+    return TransferItemStatus.RECIBIDO_COMPLETO;
+  return TransferItemStatus.RECIBIDO_PARCIAL;
+}
+
+/** Etiqueta legible para incluir en las notas del Movement de baja contable. */
+const SHORTAGE_REASON_LABELS: Record<TransferShortageReason, string> = {
+  INCUMPLIMIENTO_PROVEEDOR: 'Incumplimiento del proveedor',
+  DANIO_EN_TRANSPORTE: 'Daño en transporte',
+  ROBO_O_PERDIDA: 'Robo o pérdida',
+  ERROR_DE_CONTEO: 'Error de conteo',
+  OTRO: 'Otro',
+};
 
 const TRANSFER_INCLUDE = {
   fromWarehouse: { select: { id: true, code: true, name: true } },
@@ -234,6 +254,11 @@ export class TransfersService {
     return { items };
   }
 
+  /**
+   * Recepción inicial. Si todas las líneas reciben qty=sentQty → TRF a RECIBIDA.
+   * Si alguna línea recibe qty<sentQty → TRF a PARCIALMENTE_RECIBIDA (el resto
+   * llegará en otra remesa o se cerrará como faltante por el admin).
+   */
   async receive(id: string, dto: ReceiveTransferDto, userId: string) {
     const t = await this.findOne(id);
     if (t.status !== TransferStatus.EN_TRANSITO) {
@@ -244,8 +269,329 @@ export class TransfersService {
       );
     }
 
-    // Regla Fase 7A: si el usuario es RESIDENTE, debe ser el responsable de la obra destino.
-    // ADMIN y ALMACENERO pueden recibir por él (override).
+    // Validar scope (residente responsable o admin/almacenero) + override + guía
+    await this.validateRecipientScope(t, dto.overrideReason, userId);
+    if (t.requiresRecipientDocument && !t.documentUrl && !dto.documentUrl) {
+      throw new BusinessException(
+        BusinessErrorCode.INVALID_INPUT,
+        'DOCUMENT_REQUIRED',
+        HttpStatus.BAD_REQUEST,
+      );
+    }
+
+    // Validar que no se reciba más de lo enviado por línea
+    for (const rec of dto.items) {
+      const ti = t.items.find((i) => i.id === rec.transferItemId);
+      if (!ti) continue;
+      const sentQty = Number(ti.sentQty ?? ti.requestedQty);
+      if (Number(rec.receivedQty) > sentQty + 0.0001) {
+        throw new BusinessException(
+          BusinessErrorCode.INVALID_INPUT,
+          `Cantidad recibida de "${ti.item.name}" (${rec.receivedQty}) supera lo enviado (${sentQty})`,
+          HttpStatus.BAD_REQUEST,
+        );
+      }
+    }
+
+    return this.prisma
+      .$transaction(async (tx) => {
+        for (const rec of dto.items) {
+          const ti = t.items.find((i) => i.id === rec.transferItemId);
+          if (!ti) continue;
+
+          const sentQty = Number(ti.sentQty ?? ti.requestedQty);
+          const receivedQty = Number(rec.receivedQty);
+          const status = computeLineStatus(receivedQty, sentQty);
+
+          await tx.transferItem.update({
+            where: { id: rec.transferItemId },
+            data: { receivedQty, status },
+          });
+        }
+
+        // Sumar stock al almacén destino (solo qty > 0)
+        await this.createMovementForTransfer(
+          tx,
+          t.toWarehouseId,
+          MovementType.ENTRADA,
+          MovementSource.TRANSFERENCIA,
+          dto.items
+            .map((ri) => {
+              const ti = t.items.find((i) => i.id === ri.transferItemId)!;
+              return { itemId: ti.itemId, quantity: ri.receivedQty };
+            })
+            .filter((i) => i.quantity > 0),
+          userId,
+          `Recepción de transferencia ${t.code} desde ${t.fromWarehouse.name}`,
+        );
+
+        const newStatus = await this.computeTransferStatus(tx, id);
+
+        const updated = await tx.transfer.update({
+          where: { id },
+          data: {
+            status: newStatus,
+            ...(newStatus !== TransferStatus.EN_TRANSITO && {
+              receivedById: userId,
+              receivedAt: new Date(),
+            }),
+            ...(dto.notes && { notes: dto.notes }),
+            receiveOverrideReason: dto.overrideReason?.trim() || null,
+            ...(dto.documentUrl && {
+              documentUrl: dto.documentUrl,
+              documentName: dto.documentName ?? null,
+              requiresRecipientDocument: false,
+            }),
+          },
+          include: TRANSFER_INCLUDE,
+        });
+
+        return updated;
+      })
+      .then((updated) => {
+        this.notify(WS_EVENTS.TRANSFER_RECEIVED, updated);
+        return updated;
+      });
+  }
+
+  /**
+   * Recepción adicional sobre TRF PARCIALMENTE_RECIBIDA — el resto llegó después.
+   * Acumula `receivedQty` por línea, recalcula estado por línea y de la TRF.
+   * La guía adicional es OPCIONAL (la primera ya está vinculada).
+   */
+  async receiveAdditional(id: string, dto: ReceiveAdditionalTransferDto, userId: string) {
+    const t = await this.findOne(id);
+    if (t.status !== TransferStatus.PARCIALMENTE_RECIBIDA) {
+      throw new BusinessException(
+        BusinessErrorCode.TRANSFER_INVALID_STATE,
+        `Solo se puede recibir adicional sobre una transferencia PARCIALMENTE_RECIBIDA (actual: ${t.status})`,
+        HttpStatus.CONFLICT,
+      );
+    }
+
+    await this.validateRecipientScope(t, dto.overrideReason, userId);
+
+    // Validar que cada línea esté en RECIBIDO_PARCIAL y que additionalQty no exceda lo pendiente
+    for (const rec of dto.items) {
+      const ti = t.items.find((i) => i.id === rec.transferItemId);
+      if (!ti) {
+        throw new BusinessException(
+          BusinessErrorCode.INVALID_INPUT,
+          'Línea de transferencia no encontrada',
+          HttpStatus.BAD_REQUEST,
+        );
+      }
+      if (ti.status !== TransferItemStatus.RECIBIDO_PARCIAL) {
+        throw new BusinessException(
+          BusinessErrorCode.INVALID_INPUT,
+          `La línea "${ti.item.name}" no está pendiente de completar (estado ${ti.status})`,
+          HttpStatus.BAD_REQUEST,
+        );
+      }
+      const sentQty = Number(ti.sentQty ?? ti.requestedQty);
+      const alreadyReceived = Number(ti.receivedQty ?? 0);
+      const pending = sentQty - alreadyReceived;
+      if (Number(rec.additionalQty) > pending + 0.0001) {
+        throw new BusinessException(
+          BusinessErrorCode.INVALID_INPUT,
+          `Cantidad adicional de "${ti.item.name}" (${rec.additionalQty}) supera lo pendiente (${pending})`,
+          HttpStatus.BAD_REQUEST,
+        );
+      }
+    }
+
+    return this.prisma
+      .$transaction(async (tx) => {
+        for (const rec of dto.items) {
+          const ti = t.items.find((i) => i.id === rec.transferItemId)!;
+          const sentQty = Number(ti.sentQty ?? ti.requestedQty);
+          const newReceived = Number(ti.receivedQty ?? 0) + Number(rec.additionalQty);
+          const status = computeLineStatus(newReceived, sentQty);
+
+          await tx.transferItem.update({
+            where: { id: rec.transferItemId },
+            data: { receivedQty: newReceived, status },
+          });
+        }
+
+        // Sumar stock al destino con la qty adicional
+        await this.createMovementForTransfer(
+          tx,
+          t.toWarehouseId,
+          MovementType.ENTRADA,
+          MovementSource.TRANSFERENCIA,
+          dto.items.map((ri) => {
+            const ti = t.items.find((i) => i.id === ri.transferItemId)!;
+            return { itemId: ti.itemId, quantity: ri.additionalQty };
+          }),
+          userId,
+          `Recepción adicional de transferencia ${t.code}`,
+        );
+
+        const newStatus = await this.computeTransferStatus(tx, id);
+
+        const updated = await tx.transfer.update({
+          where: { id },
+          data: {
+            status: newStatus,
+            ...(dto.notes && { notes: dto.notes }),
+            // Si llegó nueva guía con esta remesa, la actualiza (la última gana —
+            // el caso típico es: primera guía sin documento, segunda con guía formal).
+            ...(dto.documentUrl && {
+              documentUrl: dto.documentUrl,
+              documentName: dto.documentName ?? null,
+              requiresRecipientDocument: false,
+            }),
+          },
+          include: TRANSFER_INCLUDE,
+        });
+        return updated;
+      })
+      .then((updated) => {
+        this.notify(WS_EVENTS.TRANSFER_RECEIVED, updated);
+        return updated;
+      });
+  }
+
+  /**
+   * Cierra una o varias líneas RECIBIDO_PARCIAL como FALTANTE_DEFINITIVO.
+   * Solo ADMIN. Por cada línea cerrada crea un par ENTRADA(DEVOLUCION) +
+   * SALIDA(COMPRA_INCUMPLIDA) en el almacén origen para reflejar la baja
+   * contable. Si quedan todas las líneas en estado terminal → TRF a RECIBIDA.
+   */
+  async closeAsShortage(id: string, dto: CloseShortageDto, userId: string) {
+    const t = await this.findOne(id);
+    if (t.status !== TransferStatus.PARCIALMENTE_RECIBIDA) {
+      throw new BusinessException(
+        BusinessErrorCode.TRANSFER_INVALID_STATE,
+        `Solo se pueden cerrar como faltante líneas de transferencias PARCIALMENTE_RECIBIDA (actual: ${t.status})`,
+        HttpStatus.CONFLICT,
+      );
+    }
+
+    const user = await this.prisma.user.findUnique({
+      where: { id: userId },
+      include: { role: true },
+    });
+    if (!user) {
+      throw new BusinessException(
+        BusinessErrorCode.NOT_FOUND,
+        'Usuario no encontrado',
+        HttpStatus.NOT_FOUND,
+      );
+    }
+    if (user.role.name !== 'ADMIN') {
+      throw new BusinessException(
+        BusinessErrorCode.PERMISSION_DENIED,
+        'Solo un administrador puede cerrar líneas como faltante definitivo',
+        HttpStatus.FORBIDDEN,
+      );
+    }
+
+    // Validar líneas seleccionadas
+    const linesToClose: { ti: (typeof t.items)[number]; pendingQty: number }[] = [];
+    for (const lineId of dto.transferItemIds) {
+      const ti = t.items.find((i) => i.id === lineId);
+      if (!ti) {
+        throw new BusinessException(
+          BusinessErrorCode.INVALID_INPUT,
+          'Línea de transferencia no encontrada',
+          HttpStatus.BAD_REQUEST,
+        );
+      }
+      if (ti.status !== TransferItemStatus.RECIBIDO_PARCIAL) {
+        throw new BusinessException(
+          BusinessErrorCode.INVALID_INPUT,
+          `La línea "${ti.item.name}" no está en estado pendiente (actual: ${ti.status})`,
+          HttpStatus.BAD_REQUEST,
+        );
+      }
+      const sentQty = Number(ti.sentQty ?? ti.requestedQty);
+      const received = Number(ti.receivedQty ?? 0);
+      const pending = sentQty - received;
+      if (pending <= 0) {
+        throw new BusinessException(
+          BusinessErrorCode.INVALID_INPUT,
+          `La línea "${ti.item.name}" no tiene cantidad pendiente`,
+          HttpStatus.BAD_REQUEST,
+        );
+      }
+      linesToClose.push({ ti, pendingQty: pending });
+    }
+
+    const reasonLabel = SHORTAGE_REASON_LABELS[dto.reason];
+    const notesSuffix = dto.notes ? ` · ${dto.notes}` : '';
+
+    return this.prisma
+      .$transaction(async (tx) => {
+        const closedAt = new Date();
+        for (const { ti } of linesToClose) {
+          await tx.transferItem.update({
+            where: { id: ti.id },
+            data: {
+              status: TransferItemStatus.FALTANTE_DEFINITIVO,
+              shortageReason: dto.reason,
+              shortageNotes: dto.notes ?? null,
+              closedAt,
+              closedById: userId,
+            },
+          });
+        }
+
+        // Par de Movements en el almacén origen, uno por cada línea cerrada.
+        // Primero ENTRADA(DEVOLUCION): devuelve contablemente las pending unidades
+        // que ya habían salido al crear la transferencia. Luego SALIDA(COMPRA_INCUMPLIDA):
+        // las da de baja con motivo clasificado para reporte.
+        await this.createMovementForTransfer(
+          tx,
+          t.fromWarehouseId,
+          MovementType.ENTRADA,
+          MovementSource.DEVOLUCION,
+          linesToClose.map(({ ti, pendingQty }) => ({
+            itemId: ti.itemId,
+            quantity: pendingQty,
+          })),
+          userId,
+          `Cierre TRF ${t.code} — devolución contable previa a baja`,
+        );
+
+        await this.createMovementForTransfer(
+          tx,
+          t.fromWarehouseId,
+          MovementType.SALIDA,
+          MovementSource.COMPRA_INCUMPLIDA,
+          linesToClose.map(({ ti, pendingQty }) => ({
+            itemId: ti.itemId,
+            quantity: pendingQty,
+          })),
+          userId,
+          `Baja TRF ${t.code} — ${reasonLabel}${notesSuffix}`,
+        );
+
+        const newStatus = await this.computeTransferStatus(tx, id);
+
+        const updated = await tx.transfer.update({
+          where: { id },
+          data: { status: newStatus },
+          include: TRANSFER_INCLUDE,
+        });
+        return updated;
+      })
+      .then((updated) => {
+        this.notify(WS_EVENTS.TRANSFER_RECEIVED, updated);
+        return updated;
+      });
+  }
+
+  /**
+   * Valida que el receptor sea residente responsable de la obra destino
+   * o admin/almacenero (override). Devuelve el warehouse destino con la obra cargada.
+   */
+  private async validateRecipientScope(
+    t: { toWarehouseId: string },
+    overrideReason: string | undefined,
+    userId: string,
+  ) {
     const toWh = await this.prisma.warehouse.findUnique({
       where: { id: t.toWarehouseId },
       include: { obra: { select: { id: true, responsibleUserId: true } } },
@@ -275,132 +621,39 @@ export class TransfersService {
         HttpStatus.FORBIDDEN,
       );
     }
-    // Almacenero o residente responsable: sin motivo. Admin: requiere motivo.
-    await assertOverrideReasonIfNeeded(
-      this.prisma,
-      userId,
-      toWh.obra.id,
-      dto.overrideReason,
+    await assertOverrideReasonIfNeeded(this.prisma, userId, toWh.obra.id, overrideReason);
+    return toWh;
+  }
+
+  /**
+   * Calcula el estado de la transferencia a partir de los estados de sus líneas.
+   * - Todas COMPLETO o FALTANTE_DEFINITIVO → RECIBIDA (cerrada)
+   * - Alguna recibida (COMPLETO/PARCIAL/FALTANTE) y alguna PENDIENTE → PARCIALMENTE_RECIBIDA
+   * - Alguna PARCIAL → PARCIALMENTE_RECIBIDA
+   * - Todas PENDIENTE → EN_TRANSITO (edge: receivedQty=0 en todas)
+   */
+  private async computeTransferStatus(
+    tx: Prisma.TransactionClient,
+    transferId: string,
+  ): Promise<TransferStatus> {
+    const items = await tx.transferItem.findMany({
+      where: { transferId },
+      select: { status: true },
+    });
+    const allTerminal = items.every(
+      (i) =>
+        i.status === TransferItemStatus.RECIBIDO_COMPLETO ||
+        i.status === TransferItemStatus.FALTANTE_DEFINITIVO,
     );
-
-    // Validar guía de remisión: si la transferencia la requiere y no existe aún,
-    // el receptor debe haberla subido en este mismo request.
-    if (t.requiresRecipientDocument && !t.documentUrl && !dto.documentUrl) {
-      throw new BusinessException(
-        BusinessErrorCode.INVALID_INPUT,
-        'DOCUMENT_REQUIRED',
-        HttpStatus.BAD_REQUEST,
-      );
-    }
-
-    // Detectar discrepancia (cantidad recibida ≠ enviada en alguna línea)
-    const discrepancias: {
-      itemId: string;
-      itemName: string;
-      sent: number;
-      received: number;
-    }[] = [];
-
-    return this.prisma
-      .$transaction(async (tx) => {
-        for (const recItem of dto.items) {
-          const ti = t.items.find((i) => i.id === recItem.transferItemId);
-          if (!ti) continue;
-
-          await tx.transferItem.update({
-            where: { id: recItem.transferItemId },
-            data: { receivedQty: recItem.receivedQty },
-          });
-
-          const sentQty = Number(ti.sentQty ?? ti.requestedQty);
-          const receivedQty = Number(recItem.receivedQty);
-          if (Math.abs(sentQty - receivedQty) > 0.0001) {
-            discrepancias.push({
-              itemId: ti.itemId,
-              itemName: ti.item.name,
-              sent: sentQty,
-              received: receivedQty,
-            });
-          }
-        }
-
-        // Sumar stock al almacén destino
-        await this.createMovementForTransfer(
-          tx,
-          t.toWarehouseId,
-          MovementType.ENTRADA,
-          MovementSource.TRANSFERENCIA,
-          dto.items
-            .map((ri) => {
-              const ti = t.items.find((i) => i.id === ri.transferItemId)!;
-              return { itemId: ti.itemId, quantity: ri.receivedQty };
-            })
-            .filter((i) => i.quantity > 0),
-          userId,
-          `Recepción de transferencia ${t.code} desde ${t.fromWarehouse.name}`,
-        );
-
-        // Crear alerta de discrepancia si aplica (guard contra duplicados)
-        if (discrepancias.length > 0) {
-          const existing = await tx.alert.findFirst({
-            where: {
-              type: AlertType.TRANSFER_DISCREPANCIA,
-              warehouseId: t.toWarehouseId,
-              message: { contains: t.code },
-            },
-          });
-          if (!existing) {
-            await tx.alert.create({
-              data: {
-                type: AlertType.TRANSFER_DISCREPANCIA,
-                warehouseId: t.toWarehouseId,
-                itemId: discrepancias[0]!.itemId,
-                quantity: discrepancias[0]!.received,
-                threshold: discrepancias[0]!.sent,
-                message: `Discrepancia en transferencia ${t.code}: ${discrepancias
-                  .map((d) => `${d.itemName} enviado=${d.sent}, recibido=${d.received}`)
-                  .join(' · ')}`,
-              },
-            });
-          }
-        }
-
-        const updated = await tx.transfer.update({
-          where: { id },
-          data: {
-            status: TransferStatus.RECIBIDA,
-            receivedById: userId,
-            receivedAt: new Date(),
-            ...(dto.notes && { notes: dto.notes }),
-            receiveOverrideReason: dto.overrideReason?.trim() || null,
-            // Guardar documento subido por el receptor si aplica
-            ...(dto.documentUrl && {
-              documentUrl: dto.documentUrl,
-              documentName: dto.documentName ?? null,
-              requiresRecipientDocument: false,
-            }),
-          },
-          include: TRANSFER_INCLUDE,
-        });
-
-        return updated;
-      })
-      .then((updated) => {
-        this.notify(WS_EVENTS.TRANSFER_RECEIVED, updated);
-        if (discrepancias.length > 0) {
-          this.realtime.emitToRole('ADMIN', WS_EVENTS.ALERT_CREATED, {
-            type: AlertType.TRANSFER_DISCREPANCIA,
-            message: `Discrepancia en transferencia ${t.code}: ${discrepancias
-              .map((d) => `${d.itemName} enviado=${d.sent}, recibido=${d.received}`)
-              .join(' · ')}`,
-            warehouse: { id: t.toWarehouseId, name: updated.toWarehouse.name },
-            item: { id: discrepancias[0]!.itemId, name: discrepancias[0]!.itemName },
-            quantity: discrepancias[0]!.received,
-            threshold: discrepancias[0]!.sent,
-          });
-        }
-        return updated;
-      });
+    if (allTerminal) return TransferStatus.RECIBIDA;
+    const anyReceived = items.some(
+      (i) =>
+        i.status === TransferItemStatus.RECIBIDO_COMPLETO ||
+        i.status === TransferItemStatus.RECIBIDO_PARCIAL ||
+        i.status === TransferItemStatus.FALTANTE_DEFINITIVO,
+    );
+    if (anyReceived) return TransferStatus.PARCIALMENTE_RECIBIDA;
+    return TransferStatus.EN_TRANSITO;
   }
 
   async reject(id: string, dto: RejectTransferDto, userId: string) {

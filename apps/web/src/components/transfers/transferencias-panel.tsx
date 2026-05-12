@@ -28,6 +28,7 @@ import { useTransfers, type Transfer, type TransferStatus } from '@/hooks/use-tr
 const STATUS_OPTIONS: { value: TransferStatus | '_all'; label: string }[] = [
   { value: '_all', label: 'Todos los estados' },
   { value: 'EN_TRANSITO', label: 'En tránsito' },
+  { value: 'PARCIALMENTE_RECIBIDA', label: 'Parcialmente recibidas' },
   { value: 'RECIBIDA', label: 'Recibidas' },
   { value: 'RECHAZADA', label: 'Rechazadas' },
   { value: 'CANCELADA', label: 'Canceladas' },
@@ -116,16 +117,37 @@ export function TransferenciasPanel({ headerAction }: Props) {
     {
       accessorKey: 'status',
       header: 'Estado',
-      size: 160,
+      size: 180,
       cell: ({ row }) => {
         const t = row.original;
         const inTransit = t.status === 'EN_TRANSITO';
+        const partial = t.status === 'PARCIALMENTE_RECIBIDA';
         const guideMissing = inTransit && t.requiresRecipientDocument && !t.documentUrl;
-        const transit = inTransit ? getTransitTime(t.sentAt ?? t.createdAt) : null;
+        const transit =
+          inTransit || partial ? getTransitTime(t.sentAt ?? t.createdAt) : null;
+        // Resumen "X/Y" en transferencias parciales: cuánto se ha recibido vs.
+        // enviado en total (sumando todas las líneas).
+        let progress: { received: number; sent: number } | null = null;
+        if (partial) {
+          const sent = t.items.reduce(
+            (acc, i) => acc + Number(i.sentQty ?? i.requestedQty ?? 0),
+            0,
+          );
+          const received = t.items.reduce(
+            (acc, i) => acc + Number(i.receivedQty ?? 0),
+            0,
+          );
+          progress = { received, sent };
+        }
         return (
           <div className="flex flex-col items-start gap-1">
             <div className="flex items-center gap-1.5">
               <TransferStatusBadge status={t.status} />
+              {progress && (
+                <span className="text-[10px] font-semibold tabular-nums text-blue-700 dark:text-blue-300">
+                  {progress.received}/{progress.sent}
+                </span>
+              )}
               {guideMissing && (
                 <Tooltip>
                   <TooltipTrigger asChild>

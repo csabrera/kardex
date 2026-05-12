@@ -1,9 +1,11 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
+import { TransferShortageReason } from '@prisma/client';
 import { Type } from 'class-transformer';
 import {
   ArrayMinSize,
   IsArray,
   IsBoolean,
+  IsEnum,
   IsNumber,
   IsOptional,
   IsString,
@@ -158,4 +160,75 @@ export class CancelTransferDto {
   @IsString()
   @MaxLength(500)
   overrideReason?: string;
+}
+
+// ─── Recepción adicional sobre transferencia PARCIALMENTE_RECIBIDA ──────────
+
+class AdditionalReceivedItemDto {
+  @ApiProperty()
+  @IsString()
+  transferItemId: string;
+
+  @ApiProperty({ minimum: 0.001, description: 'Cantidad adicional a sumar a esta línea' })
+  @Type(() => Number)
+  @IsNumber()
+  @Min(0.001)
+  additionalQty: number;
+}
+
+export class ReceiveAdditionalTransferDto {
+  @ApiProperty({ type: [AdditionalReceivedItemDto] })
+  @IsArray()
+  @ArrayMinSize(1)
+  @ValidateNested({ each: true })
+  @Type(() => AdditionalReceivedItemDto)
+  items: AdditionalReceivedItemDto[];
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  notes?: string;
+
+  @ApiPropertyOptional({
+    description:
+      'Motivo de excepción cuando quien actúa no es residente responsable ni almacenero',
+  })
+  @IsOptional()
+  @IsString()
+  @MaxLength(500)
+  overrideReason?: string;
+
+  /** Guía adicional OPCIONAL: la primera guía ya está vinculada a la TRF original. */
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  documentUrl?: string;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  documentName?: string;
+}
+
+// ─── Cierre como faltante definitivo (solo admin) ──────────────────────────
+
+export class CloseShortageDto {
+  @ApiProperty({
+    type: [String],
+    description: 'transferItemIds en estado RECIBIDO_PARCIAL a cerrar como faltante',
+  })
+  @IsArray()
+  @ArrayMinSize(1)
+  @IsString({ each: true })
+  transferItemIds: string[];
+
+  @ApiProperty({ enum: TransferShortageReason })
+  @IsEnum(TransferShortageReason)
+  reason: TransferShortageReason;
+
+  @ApiPropertyOptional({ description: 'Notas adicionales sobre el cierre' })
+  @IsOptional()
+  @IsString()
+  @MaxLength(500)
+  notes?: string;
 }

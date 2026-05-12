@@ -4,7 +4,35 @@ import { toast } from 'sonner';
 import { apiClient } from '@/lib/api-client';
 
 // Fase 7A: flujo simplificado. Estados terminales: RECIBIDA, RECHAZADA, CANCELADA.
-export type TransferStatus = 'EN_TRANSITO' | 'RECIBIDA' | 'RECHAZADA' | 'CANCELADA';
+// PARCIALMENTE_RECIBIDA: el residente recibió < sentQty en alguna línea — espera
+// completar (caso A) o cerrar como faltante definitivo por el admin (caso B).
+export type TransferStatus =
+  | 'EN_TRANSITO'
+  | 'PARCIALMENTE_RECIBIDA'
+  | 'RECIBIDA'
+  | 'RECHAZADA'
+  | 'CANCELADA';
+
+export type TransferItemStatus =
+  | 'PENDIENTE'
+  | 'RECIBIDO_COMPLETO'
+  | 'RECIBIDO_PARCIAL'
+  | 'FALTANTE_DEFINITIVO';
+
+export type TransferShortageReason =
+  | 'INCUMPLIMIENTO_PROVEEDOR'
+  | 'DANIO_EN_TRANSPORTE'
+  | 'ROBO_O_PERDIDA'
+  | 'ERROR_DE_CONTEO'
+  | 'OTRO';
+
+export const SHORTAGE_REASON_LABEL: Record<TransferShortageReason, string> = {
+  INCUMPLIMIENTO_PROVEEDOR: 'Incumplimiento del proveedor',
+  DANIO_EN_TRANSPORTE: 'Daño en transporte',
+  ROBO_O_PERDIDA: 'Robo o pérdida',
+  ERROR_DE_CONTEO: 'Error de conteo',
+  OTRO: 'Otro',
+};
 
 export interface TransferItemData {
   id: string;
@@ -12,6 +40,11 @@ export interface TransferItemData {
   requestedQty: number;
   sentQty?: number | null;
   receivedQty?: number | null;
+  status: TransferItemStatus;
+  shortageReason?: TransferShortageReason | null;
+  shortageNotes?: string | null;
+  closedAt?: string | null;
+  closedBy?: { id: string; firstName: string; lastName: string } | null;
   item: { id: string; code: string; name: string; unit: { abbreviation: string } };
 }
 
@@ -192,5 +225,70 @@ export function useCancelTransfer() {
     },
     onError: (e: any) =>
       toast.error(e.response?.data?.error?.message ?? 'Error al cancelar'),
+  });
+}
+
+/** Recibir la segunda remesa (o siguientes) sobre una TRF PARCIALMENTE_RECIBIDA. */
+export function useReceiveAdditional() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({
+      id,
+      items,
+      notes,
+      overrideReason,
+      documentUrl,
+      documentName,
+    }: {
+      id: string;
+      items: { transferItemId: string; additionalQty: number }[];
+      notes?: string;
+      overrideReason?: string;
+      documentUrl?: string;
+      documentName?: string;
+    }) =>
+      apiClient
+        .patch(`${BASE}/${id}/receive-additional`, {
+          items,
+          notes,
+          overrideReason,
+          documentUrl,
+          documentName,
+        })
+        .then((r) => r.data.data),
+    onSuccess: () => {
+      invalidateTransfers(qc);
+    },
+    onError: (e: any) =>
+      toast.error(
+        e.response?.data?.error?.message ?? 'Error al recibir cantidad adicional',
+      ),
+  });
+}
+
+/** Cerrar una o varias líneas pendientes como faltante definitivo (solo admin). */
+export function useCloseAsShortage() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({
+      id,
+      transferItemIds,
+      reason,
+      notes,
+    }: {
+      id: string;
+      transferItemIds: string[];
+      reason: TransferShortageReason;
+      notes?: string;
+    }) =>
+      apiClient
+        .patch(`${BASE}/${id}/close-shortage`, { transferItemIds, reason, notes })
+        .then((r) => r.data.data),
+    onSuccess: () => {
+      invalidateTransfers(qc);
+      toast.success('Líneas cerradas como faltante definitivo · baja registrada');
+    },
+    onError: (e: any) =>
+      toast.error(e.response?.data?.error?.message ?? 'Error al cerrar líneas'),
   });
 }

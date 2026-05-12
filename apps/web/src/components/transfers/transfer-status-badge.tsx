@@ -4,6 +4,7 @@ import type { TransferStatus } from '@/hooks/use-transfers';
 
 const STATUS_CONFIG: Record<TransferStatus, { label: string; variant: string }> = {
   EN_TRANSITO: { label: 'En tránsito', variant: 'warning' },
+  PARCIALMENTE_RECIBIDA: { label: 'Parcial', variant: 'info' },
   RECIBIDA: { label: 'Recibida', variant: 'success' },
   RECHAZADA: { label: 'Rechazada', variant: 'destructive' },
   CANCELADA: { label: 'Cancelada', variant: 'outline' },

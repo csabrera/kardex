@@ -56,6 +56,7 @@ enum MovementSource {
   DEVOLUCION
   BAJA
   LOST_LOAN
+  COMPRA_INCUMPLIDA
 }
 
 enum AlertType {
@@ -66,9 +67,25 @@ enum AlertType {
 
 enum TransferStatus {
   EN_TRANSITO
+  PARCIALMENTE_RECIBIDA
   RECIBIDA
   RECHAZADA
   CANCELADA
+}
+
+enum TransferItemStatus {
+  PENDIENTE
+  RECIBIDO_COMPLETO
+  RECIBIDO_PARCIAL
+  FALTANTE_DEFINITIVO
+}
+
+enum TransferShortageReason {
+  INCUMPLIMIENTO_PROVEEDOR
+  DANIO_EN_TRANSPORTE
+  ROBO_O_PERDIDA
+  ERROR_DE_CONTEO
+  OTRO
 }
 
 enum InventoryCountStatus {
@@ -106,6 +123,7 @@ model User {
   transfersSent       Transfer[]           @relation("TransferSent")
   transfersReceived   Transfer[]           @relation("TransferReceived")
   transfersRejected   Transfer[]           @relation("TransferRejected")
+  transferItemsClosed TransferItem[]       @relation("TransferItemClosedBy")
   toolLoansLoaned     ToolLoan[]           @relation("ToolLoanLoanedBy")
   toolLoansReturned   ToolLoan[]           @relation("ToolLoanReturnedBy")
   obrasResponsible    Obra[]               @relation("ObraResponsible")
@@ -448,17 +466,27 @@ model Transfer {
 }
 
 model TransferItem {
-  id           String   @id @default(cuid())
+  id           String             @id @default(cuid())
   transferId   String
-  transfer     Transfer @relation(fields: [transferId], references: [id], onDelete: Cascade)
+  transfer     Transfer           @relation(fields: [transferId], references: [id], onDelete: Cascade)
   itemId       String
-  item         Item     @relation(fields: [itemId], references: [id])
-  requestedQty Decimal  @db.Decimal(12, 3)
-  sentQty      Decimal? @db.Decimal(12, 3)
-  receivedQty  Decimal? @db.Decimal(12, 3)
+  item         Item               @relation(fields: [itemId], references: [id])
+  requestedQty Decimal            @db.Decimal(12, 3)
+  sentQty      Decimal?           @db.Decimal(12, 3)
+  // Acumulador: cada recepción adicional (caso A) lo suma.
+  receivedQty  Decimal?           @db.Decimal(12, 3)
+  status       TransferItemStatus @default(PENDIENTE)
+
+  // Cierre como faltante definitivo (caso B) — solo cuando status=FALTANTE_DEFINITIVO.
+  shortageReason TransferShortageReason?
+  shortageNotes  String?
+  closedAt       DateTime?
+  closedById     String?
+  closedBy       User?                   @relation("TransferItemClosedBy", fields: [closedById], references: [id])
 
   @@index([transferId])
   @@index([itemId])
+  @@index([status])
   @@map("transfer_items")
 }
 
