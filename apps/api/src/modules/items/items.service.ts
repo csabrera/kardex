@@ -93,7 +93,9 @@ export class ItemsService {
         category: { select: { id: true, code: true, name: true } },
         unit: { select: { id: true, code: true, name: true, abbreviation: true } },
         stocks: {
-          include: { warehouse: { select: { id: true, code: true, name: true } } },
+          include: {
+            warehouse: { select: { id: true, code: true, name: true, type: true } },
+          },
         },
       },
     });

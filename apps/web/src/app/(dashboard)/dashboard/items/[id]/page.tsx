@@ -314,66 +314,63 @@ export default function ItemDetailPage() {
         </div>
       </div>
 
-      {/* KPIs: Distribución (sustituye Principal+Total) + Compras + 2 si PRESTAMO */}
-      <div
-        className={`grid grid-cols-2 gap-4 ${
-          isLoanItem ? 'lg:grid-cols-4' : 'lg:grid-cols-2'
-        }`}
-      >
-        <KpiCard
-          label="Distribución"
-          value={`${principalStock.toLocaleString('es-PE', { maximumFractionDigits: 3 })} / ${totalStock.toLocaleString('es-PE', { maximumFractionDigits: 3 })}`}
-          unit={item.unit.abbreviation}
-          icon={Package}
-          tone={totalStock === 0 ? 'destructive' : 'default'}
-          hint={(() => {
-            if (totalStock === 0) return `Sin stock · ${minMaxHint}`;
-            const obraCount = obrasWithStock.length;
-            const parts = [];
-            parts.push(`${principalStock.toLocaleString('es-PE')} en Principal`);
-            if (totalInObras > 0) {
-              parts.push(
-                `${totalInObras.toLocaleString('es-PE')} en ${obraCount} ${
-                  obraCount === 1 ? 'obra' : 'obras'
-                }`,
-              );
-            }
-            return parts.join(' · ');
-          })()}
-        />
-        <KpiCard
-          label="Compras"
-          value={purchases.length.toString()}
-          icon={ShoppingCart}
-          tone={purchases.length > 0 ? 'info' : 'default'}
-          hint={(() => {
-            const last = purchases[purchases.length - 1];
-            if (!last) return 'Sin registros';
-            return `Última: ${new Date(last.movement.createdAt).toLocaleDateString('es-PE')}`;
-          })()}
-        />
-        {isLoanItem && (
-          <>
-            <KpiCard
-              label="Prestados"
-              value={totalLoaned.toLocaleString('es-PE', { maximumFractionDigits: 3 })}
-              unit={item.unit.abbreviation}
-              icon={Wrench}
-              tone={totalLoaned > 0 ? 'info' : 'default'}
-              hint="En préstamo activo"
-            />
-            <KpiCard
-              label="Devueltos dañados"
-              value={totalDamagedReturned.toLocaleString('es-PE', {
-                maximumFractionDigits: 3,
-              })}
-              unit={item.unit.abbreviation}
-              icon={TrendingUp}
-              tone={totalDamagedReturned > 0 ? 'destructive' : 'default'}
-              hint="Cuentan en total pero no son utilizables"
-            />
-          </>
-        )}
+      {/* Stat strip horizontal compacto (Opción A) — en lugar de 2-4 cards grandes */}
+      <div className="rounded-xl border bg-card px-5 py-3">
+        <div className="flex flex-wrap items-center gap-x-8 gap-y-3">
+          <StatInline
+            icon={Package}
+            label="Distribución"
+            value={`${principalStock.toLocaleString('es-PE', { maximumFractionDigits: 3 })} / ${totalStock.toLocaleString('es-PE', { maximumFractionDigits: 3 })}`}
+            unit={item.unit.abbreviation}
+            tone={totalStock === 0 ? 'destructive' : 'default'}
+            sub={(() => {
+              if (totalStock === 0) return `Sin stock · ${minMaxHint}`;
+              const obraCount = obrasWithStock.length;
+              const parts = [`${principalStock.toLocaleString('es-PE')} en Principal`];
+              if (totalInObras > 0) {
+                parts.push(
+                  `${totalInObras.toLocaleString('es-PE')} en ${obraCount} ${
+                    obraCount === 1 ? 'obra' : 'obras'
+                  }`,
+                );
+              }
+              return parts.join(' · ');
+            })()}
+          />
+          <StatInline
+            icon={ShoppingCart}
+            label="Compras"
+            value={purchases.length.toString()}
+            tone={purchases.length > 0 ? 'info' : 'default'}
+            sub={(() => {
+              const last = purchases[purchases.length - 1];
+              if (!last) return 'Sin registros';
+              return `Última: ${new Date(last.movement.createdAt).toLocaleDateString('es-PE')}`;
+            })()}
+          />
+          {isLoanItem && (
+            <>
+              <StatInline
+                icon={Wrench}
+                label="Prestados"
+                value={totalLoaned.toLocaleString('es-PE', { maximumFractionDigits: 3 })}
+                unit={item.unit.abbreviation}
+                tone={totalLoaned > 0 ? 'info' : 'default'}
+                sub="En préstamo activo"
+              />
+              <StatInline
+                icon={TrendingUp}
+                label="Devueltos dañados"
+                value={totalDamagedReturned.toLocaleString('es-PE', {
+                  maximumFractionDigits: 3,
+                })}
+                unit={item.unit.abbreviation}
+                tone={totalDamagedReturned > 0 ? 'destructive' : 'default'}
+                sub="No utilizables"
+              />
+            </>
+          )}
+        </div>
       </div>
 
       {/* Tabs */}
@@ -842,20 +839,24 @@ export default function ItemDetailPage() {
 
 type Tone = 'default' | 'success' | 'warning' | 'destructive' | 'info';
 
-function KpiCard({
+/**
+ * KPI inline (estilo stat strip) — icono coloreado + label tiny + valor + sub-línea.
+ * Mucho más denso que KpiCard. Pensado para una sola fila en el header.
+ */
+function StatInline({
   label,
   value,
   unit,
   icon: Icon,
   tone = 'default',
-  hint,
+  sub,
 }: {
   label: string;
   value: string;
   unit?: string;
   icon: React.ElementType;
   tone?: Tone;
-  hint?: string;
+  sub?: string;
 }) {
   const tones: Record<Tone, { bg: string; fg: string; ring: string }> = {
     default: {
@@ -886,22 +887,24 @@ function KpiCard({
   };
   const t = tones[tone];
   return (
-    <div className="rounded-xl border bg-card p-5 shadow-sm">
-      <div className="flex items-center justify-between gap-2">
-        <p className="text-xs font-medium text-muted-foreground">{label}</p>
-        <div
-          className={`flex h-8 w-8 items-center justify-center rounded-lg ring-1 ${t.bg} ${t.ring}`}
-        >
-          <Icon className={`h-4 w-4 ${t.fg}`} />
-        </div>
+    <div className="flex items-center gap-2.5 min-w-0">
+      <div
+        className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-lg ring-1 ${t.bg} ${t.ring}`}
+      >
+        <Icon className={`h-4 w-4 ${t.fg}`} />
       </div>
-      <p className="text-2xl font-bold tracking-tight tabular-nums mt-3 leading-none">
-        {value}
-        {unit && (
-          <span className="text-sm font-normal text-muted-foreground ml-1">{unit}</span>
-        )}
-      </p>
-      {hint && <p className="text-[11px] text-muted-foreground mt-1.5">{hint}</p>}
+      <div className="min-w-0">
+        <p className="text-[10px] uppercase tracking-wide text-muted-foreground font-medium leading-none">
+          {label}
+        </p>
+        <p className="text-base font-semibold tabular-nums mt-1 leading-none">
+          {value}
+          {unit && (
+            <span className="text-xs font-normal text-muted-foreground ml-1">{unit}</span>
+          )}
+        </p>
+        {sub && <p className="text-[10px] text-muted-foreground mt-1 truncate">{sub}</p>}
+      </div>
     </div>
   );
 }

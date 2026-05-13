@@ -35,7 +35,7 @@ import {
 } from '@/components/items/quick-create-dialogs';
 import { QuickEntryDialog } from '@/components/items/quick-entry-dialog';
 import { QuickOutgoingDialog } from '@/components/items/quick-outgoing-dialog';
-import { MultiFileUpload } from '@/components/ui/file-upload';
+import { MultiFileUpload, type UploadedFile } from '@/components/ui/file-upload';
 import { ItemMovementsDialog } from '@/components/movements/item-movements-dialog';
 import { NewTransferDialog } from '@/components/transfers/new-transfer-dialog';
 import { Badge } from '@/components/ui/badge';
@@ -185,6 +185,9 @@ function ItemForm({
   isPending: boolean;
   isEdit?: boolean;
 }) {
+  // Estado local de adjuntos — separado del form state de react-hook-form para
+  // evitar interacción rara con zod resolver / arrays anidados.
+  const [initialAttachments, setInitialAttachments] = useState<UploadedFile[]>([]);
   const {
     register,
     handleSubmit,
@@ -271,17 +274,25 @@ function ItemForm({
     return loadInitialStock ? 'Crear ítem y cargar stock' : 'Crear ítem';
   })();
 
+  // Inyecta los adjuntos del state local en el data antes de pasarlo al consumer.
+  const handleFormSubmit = handleSubmit((data) => {
+    onSubmit({
+      ...data,
+      initialAttachments: initialAttachments.length > 0 ? initialAttachments : undefined,
+    });
+  });
+
   // ── Ctrl+Enter submit ──────────────────────────────────────
   const onKeyDown = (e: React.KeyboardEvent<HTMLFormElement>) => {
     if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') {
       e.preventDefault();
-      handleSubmit(onSubmit)();
+      handleFormSubmit();
     }
   };
 
   return (
     <>
-      <form onSubmit={handleSubmit(onSubmit)} onKeyDown={onKeyDown} className="space-y-5">
+      <form onSubmit={handleFormSubmit} onKeyDown={onKeyDown} className="space-y-5">
         {/* Sección 1 — Identificación */}
         <div className="space-y-4">
           <div className="space-y-1.5">
@@ -590,10 +601,8 @@ function ItemForm({
                   <div className="space-y-1.5">
                     <Label>Adjuntos (opcional)</Label>
                     <MultiFileUpload
-                      value={watch('initialAttachments') ?? []}
-                      onChange={(next) =>
-                        setValue('initialAttachments', next, { shouldDirty: true })
-                      }
+                      value={initialAttachments}
+                      onChange={setInitialAttachments}
                       disabled={isPending}
                       label="Adjunta guía, boleta y/o fotos de la compra"
                     />
