@@ -113,18 +113,36 @@ export default function ItemDetailPage() {
   );
   const principalStock = Number(principalStockEntry?.quantity ?? 0);
 
+  // Solo almacenes con stock real. Al crear un ítem el sistema crea filas Stock(qty=0)
+  // en todos los almacenes — esas filas son ruido visual aquí.
   const stocksByWarehouse = useMemo(() => {
     if (!item?.stocks) return [];
-    return [...item.stocks].sort((a, b) => {
-      if (a.warehouse.type === 'CENTRAL') return -1;
-      if (b.warehouse.type === 'CENTRAL') return 1;
-      return a.warehouse.name.localeCompare(b.warehouse.name);
-    });
+    return [...item.stocks]
+      .filter((s) => Number(s.quantity) > 0)
+      .sort((a, b) => {
+        if (a.warehouse.type === 'CENTRAL') return -1;
+        if (b.warehouse.type === 'CENTRAL') return 1;
+        return a.warehouse.name.localeCompare(b.warehouse.name);
+      });
   }, [item]);
 
   const totalStock = useMemo(
     () => (item?.stocks ?? []).reduce((acc, s) => acc + Number(s.quantity), 0),
     [item],
+  );
+
+  // Breakdown por tipo para el KPI Distribución.
+  const obraStocks = useMemo(
+    () => (item?.stocks ?? []).filter((s) => s.warehouse.type === 'OBRA'),
+    [item],
+  );
+  const obrasWithStock = useMemo(
+    () => obraStocks.filter((s) => Number(s.quantity) > 0),
+    [obraStocks],
+  );
+  const totalInObras = useMemo(
+    () => obraStocks.reduce((acc, s) => acc + Number(s.quantity), 0),
+    [obraStocks],
   );
 
   const totalLoaned = useMemo(
@@ -187,14 +205,6 @@ export default function ItemDetailPage() {
 
   const min = Number(item?.minStock ?? 0);
   const max = item?.maxStock != null ? Number(item.maxStock) : null;
-  const status = useMemo(() => {
-    if (principalStock === 0) return { label: 'Sin stock', tone: 'destructive' as const };
-    if (min > 0 && principalStock < min)
-      return { label: 'Bajo mínimo', tone: 'warning' as const };
-    if (max && principalStock > max)
-      return { label: 'Sobre máximo', tone: 'warning' as const };
-    return { label: 'Óptimo', tone: 'success' as const };
-  }, [principalStock, min, max]);
 
   const itemWithPrincipalStock = item ? { ...item, principalStock } : null;
 
@@ -304,29 +314,32 @@ export default function ItemDetailPage() {
         </div>
       </div>
 
-      {/* KPIs reducidos: 3 base + 2 si PRESTAMO */}
+      {/* KPIs: Distribución (sustituye Principal+Total) + Compras + 2 si PRESTAMO */}
       <div
         className={`grid grid-cols-2 gap-4 ${
-          isLoanItem ? 'lg:grid-cols-5' : 'lg:grid-cols-3'
+          isLoanItem ? 'lg:grid-cols-4' : 'lg:grid-cols-2'
         }`}
       >
         <KpiCard
-          label="Stock en Principal"
-          value={principalStock.toLocaleString('es-PE', { maximumFractionDigits: 3 })}
-          unit={item.unit.abbreviation}
-          icon={Star}
-          tone={status.tone}
-          hint={`${status.label} · ${minMaxHint}`}
-        />
-        <KpiCard
-          label="Stock total"
-          value={totalStock.toLocaleString('es-PE', { maximumFractionDigits: 3 })}
+          label="Distribución"
+          value={`${principalStock.toLocaleString('es-PE', { maximumFractionDigits: 3 })} / ${totalStock.toLocaleString('es-PE', { maximumFractionDigits: 3 })}`}
           unit={item.unit.abbreviation}
           icon={Package}
-          tone="default"
-          hint={`En ${stocksByWarehouse.length} ${
-            stocksByWarehouse.length === 1 ? 'almacén' : 'almacenes'
-          }`}
+          tone={totalStock === 0 ? 'destructive' : 'default'}
+          hint={(() => {
+            if (totalStock === 0) return `Sin stock · ${minMaxHint}`;
+            const obraCount = obrasWithStock.length;
+            const parts = [];
+            parts.push(`${principalStock.toLocaleString('es-PE')} en Principal`);
+            if (totalInObras > 0) {
+              parts.push(
+                `${totalInObras.toLocaleString('es-PE')} en ${obraCount} ${
+                  obraCount === 1 ? 'obra' : 'obras'
+                }`,
+              );
+            }
+            return parts.join(' · ');
+          })()}
         />
         <KpiCard
           label="Compras"
