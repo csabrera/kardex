@@ -54,6 +54,10 @@ interface ItemQuery {
   search?: string;
   type?: ItemType;
   categoryId?: string;
+  /** Filtra ítems con Stock en este almacén. */
+  warehouseId?: string;
+  /** Junto con warehouseId, exige quantity > 0. */
+  onlyWithStock?: boolean;
 }
 
 export interface CreateItemDto {

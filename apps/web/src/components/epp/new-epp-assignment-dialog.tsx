@@ -133,6 +133,9 @@ export function NewEPPAssignmentDialog({
     search: itemSearch || undefined,
     type: 'ASIGNACION',
     pageSize: 30,
+    // Solo EPP que efectivamente está en el almacén seleccionado.
+    warehouseId: warehouseId || undefined,
+    onlyWithStock: !!warehouseId,
   });
   const eppItems: Item[] = useMemo(() => itemsData?.items ?? [], [itemsData]);
   const selectedItem = eppItems.find((i) => i.id === itemId);

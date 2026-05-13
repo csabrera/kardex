@@ -15,7 +15,8 @@ import {
 import { FileInterceptor } from '@nestjs/platform-express';
 import { ApiConsumes, ApiTags } from '@nestjs/swagger';
 import { ItemType } from '@prisma/client';
-import { IsEnum, IsOptional, IsString } from 'class-validator';
+import { Transform, Type } from 'class-transformer';
+import { IsBoolean, IsEnum, IsOptional, IsString } from 'class-validator';
 import type { Response } from 'express';
 
 import { RequirePermissions } from '../auth/decorators/permissions.decorator';
@@ -34,6 +35,22 @@ class ItemQueryDto extends PaginationQueryDto {
   @IsOptional()
   @IsString()
   categoryId?: string;
+
+  /** Filtra ítems que tienen Stock asociado a este almacén. */
+  @IsOptional()
+  @IsString()
+  warehouseId?: string;
+
+  /** Si true (junto con warehouseId), exige quantity > 0 en ese almacén. */
+  @IsOptional()
+  @Type(() => String)
+  @Transform(({ value }) => {
+    if (value === true || value === 'true') return true;
+    if (value === false || value === 'false') return false;
+    return undefined;
+  })
+  @IsBoolean()
+  onlyWithStock?: boolean;
 }
 
 @ApiTags('items')

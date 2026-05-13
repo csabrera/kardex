@@ -16,7 +16,16 @@ export class ItemsService {
     private readonly attachments: AttachmentsService,
   ) {}
 
-  async findAll(query: PaginationQueryDto & { type?: ItemType; categoryId?: string }) {
+  async findAll(
+    query: PaginationQueryDto & {
+      type?: ItemType;
+      categoryId?: string;
+      /** Si viene, filtra a ítems que tienen Stock en ese almacén. */
+      warehouseId?: string;
+      /** Solo aplica si warehouseId está set — exige quantity > 0 en ese almacén. */
+      onlyWithStock?: boolean;
+    },
+  ) {
     const {
       page = 1,
       pageSize = 20,
@@ -25,6 +34,8 @@ export class ItemsService {
       search,
       type,
       categoryId,
+      warehouseId,
+      onlyWithStock,
     } = query;
     const skip = (page - 1) * pageSize;
 
@@ -32,6 +43,14 @@ export class ItemsService {
       deletedAt: null,
       ...(type && { type }),
       ...(categoryId && { categoryId }),
+      ...(warehouseId && {
+        stocks: {
+          some: {
+            warehouseId,
+            ...(onlyWithStock && { quantity: { gt: 0 } }),
+          },
+        },
+      }),
       ...(search && {
         OR: [
           { code: { contains: search, mode: 'insensitive' as const } },

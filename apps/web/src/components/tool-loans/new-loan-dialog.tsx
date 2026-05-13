@@ -154,11 +154,14 @@ export function NewLoanDialog({
   const { data: itemsData, isFetching: itemsLoading } = useItems({
     search: itemSearch || undefined,
     pageSize: 30,
+    type: 'PRESTAMO',
+    // Solo herramientas que efectivamente están en el almacén seleccionado.
+    // Sin este filtro aparecerían herramientas del Principal o de otras obras
+    // que el residente no puede prestar.
+    warehouseId: warehouseId || undefined,
+    onlyWithStock: !!warehouseId,
   });
-  const filteredItems: Item[] = useMemo(
-    () => (itemsData?.items ?? []).filter((i) => i.type === 'PRESTAMO'),
-    [itemsData],
-  );
+  const filteredItems: Item[] = useMemo(() => itemsData?.items ?? [], [itemsData]);
   const selectedItem = (itemsData?.items ?? []).find((i) => i.id === itemId);
 
   const mutation = useCreateToolLoan();
