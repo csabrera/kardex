@@ -29,6 +29,10 @@ class ToolLoanQueryDto extends PaginationQueryDto {
 
   @IsOptional()
   @IsString()
+  itemId?: string;
+
+  @IsOptional()
+  @IsString()
   borrowerWorkerId?: string;
 
   @IsOptional()

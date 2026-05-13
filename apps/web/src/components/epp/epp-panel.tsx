@@ -34,6 +34,8 @@ interface Props {
   workerId?: string;
   /** Filtra por almacén específico (ficha de almacén de obra). */
   warehouseId?: string;
+  /** Filtra por ítem específico (ficha del ítem tab Asignaciones). */
+  itemId?: string;
   /** Pre-selecciona obra al abrir Nueva asignación. */
   defaultObraId?: string;
   /** Oculta el filtro de obra cuando ya estás en contexto de una obra. */
@@ -46,6 +48,7 @@ export function EppPanel({
   headerAction,
   workerId,
   warehouseId,
+  itemId,
   defaultObraId,
   hideObraFilter,
   hideNewAction,
@@ -68,6 +71,7 @@ export function EppPanel({
     obraId: obraId === '_all' ? undefined : obraId,
     workerId,
     warehouseId,
+    itemId,
   } as any);
 
   const action = hideNewAction

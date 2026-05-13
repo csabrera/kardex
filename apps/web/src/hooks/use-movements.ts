@@ -76,6 +76,8 @@ export interface KardexEntry {
     createdAt: string;
     warehouse: { id: string; code: string; name: string };
     user: { firstName: string; lastName: string };
+    supplier?: { id: string; code: string; name: string } | null;
+    attachmentsCount: number;
   };
 }
 
@@ -127,12 +129,21 @@ export function useMovement(id: string) {
   });
 }
 
-export function useKardex(itemId: string, warehouseId?: string) {
+export function useKardex(
+  itemId: string,
+  opts: { warehouseId?: string; source?: MovementSource } = {},
+) {
+  const { warehouseId, source } = opts;
   return useQuery<KardexEntry[]>({
-    queryKey: ['kardex', itemId, warehouseId],
+    queryKey: ['kardex', itemId, warehouseId ?? null, source ?? null],
     queryFn: () =>
       apiClient
-        .get(`${BASE}/kardex/${itemId}`, { params: warehouseId ? { warehouseId } : {} })
+        .get(`${BASE}/kardex/${itemId}`, {
+          params: {
+            ...(warehouseId && { warehouseId }),
+            ...(source && { source }),
+          },
+        })
         .then((r) => r.data.data),
     enabled: !!itemId,
   });

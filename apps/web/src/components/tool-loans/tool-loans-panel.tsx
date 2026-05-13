@@ -65,6 +65,8 @@ interface Props {
   workerId?: string;
   /** Filtra por almacén específico (usado en ficha de almacén de obra). */
   warehouseId?: string;
+  /** Filtra por ítem específico (usado en ficha del ítem tab Préstamos). */
+  itemId?: string;
   /** Oculta el grid de StatCards (usado cuando va embebido en una ficha). */
   hideSummary?: boolean;
   /** Pre-selecciona obra al abrir el modal de Nuevo préstamo. */
@@ -77,6 +79,7 @@ export function ToolLoansPanel({
   headerAction,
   workerId,
   warehouseId,
+  itemId,
   hideSummary,
   defaultObraId,
   hideNewAction,
@@ -105,6 +108,7 @@ export function ToolLoansPanel({
     search: debouncedSearch || undefined,
     borrowerWorkerId: workerId,
     warehouseId,
+    itemId,
   });
 
   const action = hideNewAction

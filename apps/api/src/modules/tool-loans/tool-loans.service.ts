@@ -73,6 +73,7 @@ export class ToolLoansService {
     status?: ToolLoanStatus;
     obraId?: string;
     warehouseId?: string;
+    itemId?: string;
     borrowerWorkerId?: string;
     overdueOnly?: boolean;
     search?: string;
@@ -83,6 +84,7 @@ export class ToolLoansService {
       status,
       obraId,
       warehouseId,
+      itemId,
       borrowerWorkerId,
       overdueOnly,
       search,
@@ -93,6 +95,7 @@ export class ToolLoansService {
     if (status) andConditions.push({ status });
     if (warehouseId) andConditions.push({ warehouseId });
     if (obraId) andConditions.push({ warehouse: { obraId } });
+    if (itemId) andConditions.push({ itemId });
     if (borrowerWorkerId) andConditions.push({ borrowerWorkerId });
     if (overdueOnly) {
       andConditions.push({

@@ -152,11 +152,17 @@ export class MovementsService {
     return { ...movement, attachments };
   }
 
-  async kardex(itemId: string, warehouseId?: string) {
+  async kardex(itemId: string, warehouseId?: string, source?: MovementSource) {
+    const movementWhere: Prisma.MovementWhereInput = {
+      ...(warehouseId && { warehouseId }),
+      ...(source && { source }),
+    };
+    const hasMovementFilter = Object.keys(movementWhere).length > 0;
+
     const entries = await this.prisma.movementItem.findMany({
       where: {
         itemId,
-        movement: warehouseId ? { warehouseId } : undefined,
+        ...(hasMovementFilter && { movement: movementWhere }),
       },
       include: {
         movement: {
@@ -169,6 +175,7 @@ export class MovementsService {
             createdAt: true,
             warehouse: { select: { id: true, code: true, name: true } },
             user: { select: { firstName: true, lastName: true } },
+            supplier: { select: { id: true, code: true, name: true } },
           },
         },
         item: {
@@ -178,7 +185,26 @@ export class MovementsService {
       orderBy: { movement: { createdAt: 'asc' } },
     });
 
-    return entries;
+    // Conteo de adjuntos por movement (relación polimórfica, sin FK).
+    const movementIds = Array.from(new Set(entries.map((e) => e.movement.id)));
+    const counts = movementIds.length
+      ? await this.prisma.attachment.groupBy({
+          by: ['ownerId'],
+          where: { ownerType: 'MOVEMENT', ownerId: { in: movementIds } },
+          _count: { _all: true },
+        })
+      : [];
+    const countByMovement = new Map(
+      counts.map((c) => [c.ownerId, c._count._all] as const),
+    );
+
+    return entries.map((e) => ({
+      ...e,
+      movement: {
+        ...e.movement,
+        attachmentsCount: countByMovement.get(e.movement.id) ?? 0,
+      },
+    }));
   }
 
   async create(dto: CreateMovementDto, userId: string) {

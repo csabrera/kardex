@@ -44,8 +44,12 @@ export class MovementsController {
 
   @Get('kardex/:itemId')
   @RequirePermissions('movements:read')
-  kardex(@Param('itemId') itemId: string, @Query('warehouseId') warehouseId?: string) {
-    return this.service.kardex(itemId, warehouseId);
+  kardex(
+    @Param('itemId') itemId: string,
+    @Query('warehouseId') warehouseId?: string,
+    @Query('source') source?: MovementSource,
+  ) {
+    return this.service.kardex(itemId, warehouseId, source);
   }
 
   @Get(':id')

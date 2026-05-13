@@ -6,10 +6,10 @@ import { useState } from 'react';
 
 import { DataTable } from '@/components/data-table/data-table';
 import { rowNumberColumn } from '@/components/data-table/row-number-column';
+import { MovementDetail, SOURCE_LABELS } from '@/components/movements/movement-detail';
 import { ActionButton } from '@/components/ui/action-button';
 import { Badge } from '@/components/ui/badge';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
-import { DocumentViewButton } from '@/components/ui/file-upload';
 import { type Item } from '@/hooks/use-items';
 import { useMovements, type Movement, type MovementType } from '@/hooks/use-movements';
 import { useMainWarehouse } from '@/hooks/use-warehouses';
@@ -25,132 +25,6 @@ const TYPE_LABELS: Record<MovementType, string> = {
   SALIDA: 'Salida',
   AJUSTE: 'Ajuste',
 };
-
-const SOURCE_LABELS: Record<string, string> = {
-  COMPRA: 'Compra',
-  CONSUMO: 'Consumo',
-  TRANSFERENCIA: 'Transferencia',
-  AJUSTE: 'Ajuste',
-  INVENTARIO: 'Inventario',
-  DEVOLUCION: 'Devolución',
-  BAJA: 'Baja',
-  LOST_LOAN: 'Pérdida de préstamo',
-  COMPRA_INCUMPLIDA: 'Compra incumplida',
-  DEVOLUCION_PARCIAL_TRF: 'Devolución parcial TRF',
-};
-
-function MovementDetail({ movement }: { movement: Movement }) {
-  return (
-    <div className="space-y-4">
-      <div className="grid grid-cols-2 gap-4 text-sm">
-        <div>
-          <p className="text-muted-foreground">Código</p>
-          <p className="font-mono font-semibold">{movement.code}</p>
-        </div>
-        <div>
-          <p className="text-muted-foreground">Tipo</p>
-          <Badge variant={TYPE_VARIANT[movement.type] as any}>
-            {TYPE_LABELS[movement.type]}
-          </Badge>
-        </div>
-        <div>
-          <p className="text-muted-foreground">Almacén</p>
-          <p>{movement.warehouse.name}</p>
-        </div>
-        <div>
-          <p className="text-muted-foreground">Motivo</p>
-          <p>{SOURCE_LABELS[movement.source] ?? movement.source}</p>
-        </div>
-        <div>
-          <p className="text-muted-foreground">Usuario</p>
-          <p>
-            {movement.user.firstName} {movement.user.lastName}
-          </p>
-        </div>
-        <div>
-          <p className="text-muted-foreground">Fecha</p>
-          <p>{new Date(movement.createdAt).toLocaleString('es-PE')}</p>
-        </div>
-        {movement.notes && (
-          <div className="col-span-2">
-            <p className="text-muted-foreground">Observaciones</p>
-            <p>{movement.notes}</p>
-          </div>
-        )}
-      </div>
-
-      <div>
-        <p className="text-sm font-medium mb-2">Ítems del movimiento</p>
-        <div className="rounded-md border overflow-hidden">
-          <table className="w-full text-sm">
-            <thead className="bg-muted/50">
-              <tr>
-                <th className="px-3 py-2 text-left text-muted-foreground font-medium">
-                  Ítem
-                </th>
-                <th className="px-3 py-2 text-right text-muted-foreground font-medium">
-                  Cantidad
-                </th>
-                <th className="px-3 py-2 text-right text-muted-foreground font-medium">
-                  Stock antes
-                </th>
-                <th className="px-3 py-2 text-right text-muted-foreground font-medium">
-                  Stock después
-                </th>
-              </tr>
-            </thead>
-            <tbody>
-              {movement.items.map((mi) => (
-                <tr key={mi.id} className="border-t">
-                  <td className="px-3 py-2">
-                    <span className="font-mono text-xs text-muted-foreground mr-1">
-                      {mi.item.code}
-                    </span>
-                    {mi.item.name}
-                  </td>
-                  <td className="px-3 py-2 text-right font-medium tabular-nums">
-                    {Number(mi.quantity).toLocaleString('es-PE', {
-                      maximumFractionDigits: 3,
-                    })}{' '}
-                    {mi.item.unit.abbreviation}
-                  </td>
-                  <td className="px-3 py-2 text-right text-muted-foreground tabular-nums">
-                    {Number(mi.stockBefore).toLocaleString('es-PE', {
-                      maximumFractionDigits: 3,
-                    })}
-                  </td>
-                  <td className="px-3 py-2 text-right font-medium tabular-nums">
-                    {Number(mi.stockAfter).toLocaleString('es-PE', {
-                      maximumFractionDigits: 3,
-                    })}
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      </div>
-
-      {/* Adjuntos del movimiento (guía/boleta/fotos de compra) */}
-      {movement.attachments && movement.attachments.length > 0 && (
-        <div>
-          <p className="text-sm font-medium mb-2">
-            Adjuntos ({movement.attachments.length})
-          </p>
-          <div className="flex flex-wrap gap-2">
-            {movement.attachments.map((a) => (
-              <DocumentViewButton
-                key={a.id}
-                filename={a.filename}
-                originalName={a.originalName}
-              />
-            ))}
-          </div>
-        </div>
-      )}
-    </div>
-  );
-}
 
 interface Props {
   item: Item | null;

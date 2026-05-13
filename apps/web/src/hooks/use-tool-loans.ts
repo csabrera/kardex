@@ -52,6 +52,7 @@ interface ToolLoansQuery {
   pageSize?: number;
   status?: ToolLoanStatus;
   warehouseId?: string;
+  itemId?: string;
   borrowerId?: string;
   borrowerWorkerId?: string;
   overdueOnly?: boolean;
