@@ -93,10 +93,10 @@ const NAV_ITEMS: {
     keywords: 'prestamos loans herramientas',
   },
   {
-    label: 'Inventarios físicos',
+    label: 'Conteos físicos',
     href: '/dashboard/almacen-principal?tab=inventarios',
     icon: ClipboardCheck,
-    keywords: 'conteo ajuste',
+    keywords: 'conteo fisico inventario auditoria ajuste',
   },
   {
     label: 'Movimientos del Principal',

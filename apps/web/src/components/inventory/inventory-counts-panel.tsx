@@ -1,6 +1,6 @@
 'use client';
 
-import { ClipboardCheck, Eye, Plus } from 'lucide-react';
+import { ClipboardCheck, Eye, Info, Plus } from 'lucide-react';
 import Link from 'next/link';
 import { useState } from 'react';
 
@@ -54,12 +54,27 @@ export function InventoryCountsPanel({ headerAction }: Props) {
   const action = headerAction ?? (
     <Button onClick={() => setNewOpen(true)} className="gap-2">
       <Plus className="h-4 w-4" />
-      Nuevo conteo
+      Iniciar conteo físico
     </Button>
   );
 
   return (
     <div className="space-y-4">
+      {/* Banner explicativo — el flujo de "conteo físico" no es obvio para alguien
+          sin experiencia en gestión de bodegas. */}
+      <div className="rounded-lg border border-info/30 bg-info/5 px-4 py-3 flex gap-3">
+        <Info className="h-4 w-4 text-info shrink-0 mt-0.5" />
+        <div className="text-xs text-foreground/80 leading-relaxed">
+          <p className="font-medium text-foreground mb-1">¿Qué es un conteo físico?</p>
+          <p>
+            Un conteo es una auditoría del stock real de un almacén. Al iniciarlo se toma
+            una "foto" del stock actual; tú vas físicamente a contar cada ítem y registras
+            lo encontrado. Al cerrar, el sistema ajusta automáticamente las diferencias
+            dejando registro en el kardex.
+          </p>
+        </div>
+      </div>
+
       <div className="flex flex-wrap items-center gap-3">
         <Select
           value={status}
@@ -107,12 +122,12 @@ export function InventoryCountsPanel({ headerAction }: Props) {
                 <TableCell colSpan={6}>
                   <EmptyState
                     icon={ClipboardCheck}
-                    title="Sin conteos registrados"
-                    description="Iniciá un nuevo conteo para ajustar el stock según lo contado físicamente."
+                    title="Sin conteos físicos registrados"
+                    description="Empieza un conteo cuando necesites verificar que el stock del sistema coincide con lo que hay físicamente en la bodega."
                     action={
                       <Button onClick={() => setNewOpen(true)} className="gap-2">
                         <Plus className="h-4 w-4" />
-                        Nuevo conteo
+                        Iniciar conteo físico
                       </Button>
                     }
                   />

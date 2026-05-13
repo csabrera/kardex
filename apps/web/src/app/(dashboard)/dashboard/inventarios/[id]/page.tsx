@@ -99,14 +99,14 @@ export default function InventoryCountDetailPage({ params }: PageProps) {
 
   const handleClose = async () => {
     const ok = await confirm({
-      title: '¿Cerrar conteo?',
+      title: '¿Cerrar el conteo y ajustar el stock?',
       description:
         stats && stats.withVariance > 0
-          ? `Se generará un ajuste AJUSTE source=INVENTARIO con ${stats.withVariance} línea(s) con diferencia. Esta acción es irreversible.`
+          ? `Se ajustará el stock de ${stats.withVariance} ítem(s) con diferencia entre lo esperado y lo contado. Quedará registrado en el kardex como ajuste por inventario. Esta acción no se puede deshacer.`
           : stats && stats.pending > 0
-            ? `Hay ${stats.pending} línea(s) sin contar — no se ajustarán (solo se ajustan las contadas con diferencia). ¿Continuar?`
-            : 'Todas las líneas cuadran — el conteo se cerrará sin generar ajustes. ¿Confirmar?',
-      confirmText: 'Cerrar conteo',
+            ? `Quedan ${stats.pending} ítem(s) sin contar — esos no se ajustarán. Solo se ajusta el stock de los ítems contados que tienen diferencia. ¿Cerrar de todos modos?`
+            : 'Todas las líneas cuadran con lo esperado — el conteo se cerrará sin tocar el stock.',
+      confirmText: 'Cerrar y ajustar',
     });
     if (!ok) return;
     closeMut.mutate(
