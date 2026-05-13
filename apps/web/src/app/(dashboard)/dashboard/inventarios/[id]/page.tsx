@@ -13,7 +13,7 @@ import {
 } from 'lucide-react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { use, useMemo, useState } from 'react';
+import { useMemo, useState } from 'react';
 
 import { InventoryStatusBadge } from '@/components/inventory/inventory-status-badge';
 import { PageHeader } from '@/components/layout/page-header';
@@ -47,11 +47,11 @@ import {
 } from '@/hooks/use-inventory-counts';
 
 interface PageProps {
-  params: Promise<{ id: string }>;
+  params: { id: string };
 }
 
 export default function InventoryCountDetailPage({ params }: PageProps) {
-  const { id } = use(params);
+  const { id } = params;
   const router = useRouter();
   const confirm = useConfirm();
   const { data: count, isLoading } = useInventoryCount(id);
