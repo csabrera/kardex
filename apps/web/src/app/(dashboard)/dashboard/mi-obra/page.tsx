@@ -133,10 +133,16 @@ export default function MiObraPage() {
   });
   // allStock excluye filas con quantity = 0 (son "fantasmas" que persisten en BD
   // por historial de movimientos pero que físicamente no tienen nada).
-  const allStock = useMemo(
-    () => stockResults.flatMap((q) => q.data ?? []).filter((s) => Number(s.quantity) > 0),
-    [stockResults],
-  );
+  // Filtro defensivo: solo conserva stocks cuyo warehouseId está en la obra actual
+  // — protege contra data stale en React Query si las queryKeys de obras anteriores
+  // queda cacheada por error.
+  const allStock = useMemo(() => {
+    const validIds = new Set(warehouseIds);
+    return stockResults
+      .flatMap((q) => q.data ?? [])
+      .filter((s) => Number(s.quantity) > 0)
+      .filter((s) => validIds.has(s.warehouseId));
+  }, [stockResults, warehouseIds]);
 
   const movementsResults = useQueries({
     queries: warehouseIds.map((id) => ({
