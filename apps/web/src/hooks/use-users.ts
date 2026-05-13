@@ -91,12 +91,32 @@ export function useUpdateUser() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: ({ id, dto }: { id: string; dto: UpdateUserDto }) =>
-      apiClient.patch(`${BASE}/${id}`, dto).then((r) => r.data.data),
+      apiClient.patch(`${BASE}/${id}`, dto).then((r) => r.data.data as User),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['users'] });
-      toast.success('Usuario actualizado');
+      // Toast lo muestra el componente para permitir errores backend inline.
     },
-    onError: () => toast.error('Error al actualizar usuario'),
+  });
+}
+
+/**
+ * Resetea la contraseña del usuario al número de documento + fuerza cambio
+ * en el siguiente login. Usado cuando el usuario olvida la contraseña y no
+ * tiene email para auto-recuperar.
+ */
+export function useResetUserPassword() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (id: string) =>
+      apiClient.patch(`${BASE}/${id}/reset-password`).then((r) => r.data.data as User),
+    onSuccess: (user) => {
+      qc.invalidateQueries({ queryKey: ['users'] });
+      toast.success(
+        `Contraseña restablecida. Nueva contraseña: ${user.documentNumber}. Comunícale al usuario que se le pedirá cambiarla al ingresar.`,
+        { duration: 10000 },
+      );
+    },
+    onError: () => toast.error('Error al restablecer contraseña'),
   });
 }
 

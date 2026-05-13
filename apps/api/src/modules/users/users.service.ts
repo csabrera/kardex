@@ -179,6 +179,22 @@ export class UsersService {
     });
   }
 
+  /**
+   * Resetea la contraseña al número de documento del usuario + marca
+   * mustChangePassword=true para forzar cambio en el siguiente login.
+   * Pensado para que un admin recupere acceso de un usuario que olvidó la
+   * contraseña y no tiene email registrado (no puede usar /forgot-password).
+   */
+  async resetPassword(id: string) {
+    const user = await this.findOne(id);
+    const passwordHash = await bcrypt.hash(user.documentNumber, BCRYPT_ROUNDS);
+    return this.prisma.user.update({
+      where: { id },
+      data: { passwordHash, mustChangePassword: true },
+      select: USER_SELECT,
+    });
+  }
+
   async getRoles() {
     return this.prisma.role.findMany({ orderBy: { name: 'asc' } });
   }

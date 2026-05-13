@@ -2,8 +2,8 @@
 
 import { zodResolver } from '@hookform/resolvers/zod';
 import { type ColumnDef } from '@tanstack/react-table';
-import { Info, KeyRound, Plus, UserCheck, Users, UserX } from 'lucide-react';
-import { useState } from 'react';
+import { Info, KeyRound, Pencil, Plus, UserCheck, Users, UserX } from 'lucide-react';
+import { useEffect, useState } from 'react';
 import { useForm } from 'react-hook-form';
 import { toast } from 'sonner';
 import { z } from 'zod';
@@ -14,6 +14,7 @@ import { PageHeader } from '@/components/layout/page-header';
 import { ActionButton } from '@/components/ui/action-button';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
+import { useConfirm } from '@/components/ui/confirm-provider';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -29,7 +30,9 @@ import {
   useUsers,
   useRoles,
   useCreateUser,
+  useResetUserPassword,
   useSetUserActive,
+  useUpdateUser,
   type User,
 } from '@/hooks/use-users';
 
@@ -370,12 +373,219 @@ function CreateUserDialog({ open, onClose }: { open: boolean; onClose: () => voi
   );
 }
 
+// ─── Modal de edición — sin password ni documento (no editables) ────────────
+
+const editSchema = z.object({
+  firstName: z
+    .string()
+    .min(2, 'Mínimo 2 caracteres')
+    .max(100)
+    .regex(NAME_REGEX, 'Solo letras, espacios, tildes y guiones'),
+  lastName: z
+    .string()
+    .min(2, 'Mínimo 2 caracteres')
+    .max(100)
+    .regex(NAME_REGEX, 'Solo letras, espacios, tildes y guiones'),
+  email: z.string().email('Email inválido').max(120).optional().or(z.literal('')),
+  phone: z
+    .string()
+    .regex(/^9\d{8}$/, 'Celular Perú: 9 dígitos que empiece con 9')
+    .optional()
+    .or(z.literal('')),
+  roleId: z.string().min(1, 'Selecciona un rol'),
+});
+
+type EditForm = z.infer<typeof editSchema>;
+
+function EditUserDialog({ user, onClose }: { user: User | null; onClose: () => void }) {
+  const { data: roles, isLoading: rolesLoading } = useRoles();
+  const mutation = useUpdateUser();
+
+  const {
+    register,
+    handleSubmit,
+    setValue,
+    watch,
+    reset,
+    setError,
+    formState: { errors, isValid, isSubmitted },
+  } = useForm<EditForm>({
+    resolver: zodResolver(editSchema),
+    mode: 'onBlur',
+    defaultValues: {
+      firstName: '',
+      lastName: '',
+      email: '',
+      phone: '',
+      roleId: '',
+    },
+  });
+
+  const roleId = watch('roleId');
+  const selectedRole = roles?.find((r) => r.id === roleId);
+
+  // Pre-fill cuando el usuario cambia (open).
+  useEffect(() => {
+    if (!user) return;
+    reset({
+      firstName: user.firstName,
+      lastName: user.lastName,
+      email: user.email ?? '',
+      phone: user.phone ?? '',
+      roleId: user.role.id,
+    });
+  }, [user, reset]);
+
+  const onSubmit = (data: EditForm) => {
+    if (!user) return;
+    mutation.mutate(
+      {
+        id: user.id,
+        dto: {
+          firstName: data.firstName.trim(),
+          lastName: data.lastName.trim(),
+          email: data.email?.trim() || undefined,
+          phone: data.phone?.trim() || undefined,
+          roleId: data.roleId,
+        },
+      },
+      {
+        onSuccess: () => {
+          toast.success('Usuario actualizado');
+          onClose();
+        },
+        onError: (err: any) => {
+          const code = err?.response?.data?.error?.code;
+          const msg = err?.response?.data?.error?.message;
+          if (code === 'USER_ALREADY_EXISTS') {
+            setError('email', { message: 'Este email ya está registrado' });
+            return;
+          }
+          toast.error(msg ?? 'Error al actualizar usuario');
+        },
+      },
+    );
+  };
+
+  return (
+    <Dialog open={!!user} onOpenChange={(v) => !v && onClose()}>
+      <DialogContent className="max-w-lg">
+        <DialogHeader>
+          <DialogTitle>Editar usuario</DialogTitle>
+        </DialogHeader>
+
+        {/* Banner: el documento no es editable */}
+        {user && (
+          <div className="flex gap-2.5 rounded-md bg-muted/50 p-2.5 text-[11px]">
+            <Info className="h-3.5 w-3.5 shrink-0 text-muted-foreground mt-0.5" />
+            <p className="text-muted-foreground">
+              Documento{' '}
+              <span className="font-mono font-semibold text-foreground">
+                {user.documentType} {user.documentNumber}
+              </span>{' '}
+              no es editable. Si está incorrecto, desactiva este usuario y crea uno nuevo.
+            </p>
+          </div>
+        )}
+
+        <form onSubmit={handleSubmit(onSubmit)} className="space-y-3">
+          <div className="grid grid-cols-2 gap-3">
+            <div className="space-y-1.5">
+              <Label>
+                Nombres <span className="text-destructive">*</span>
+              </Label>
+              <Input {...register('firstName')} />
+              {errors.firstName && (
+                <p className="text-xs text-destructive">{errors.firstName.message}</p>
+              )}
+            </div>
+            <div className="space-y-1.5">
+              <Label>
+                Apellidos <span className="text-destructive">*</span>
+              </Label>
+              <Input {...register('lastName')} />
+              {errors.lastName && (
+                <p className="text-xs text-destructive">{errors.lastName.message}</p>
+              )}
+            </div>
+          </div>
+
+          <div className="grid grid-cols-2 gap-3">
+            <div className="space-y-1.5">
+              <Label>Email</Label>
+              <Input
+                {...register('email')}
+                type="email"
+                placeholder="usuario@empresa.com"
+              />
+              {errors.email && (
+                <p className="text-xs text-destructive">{errors.email.message}</p>
+              )}
+            </div>
+            <div className="space-y-1.5">
+              <Label>Celular</Label>
+              <Input {...register('phone')} placeholder="987654321" maxLength={9} />
+              {errors.phone && (
+                <p className="text-xs text-destructive">{errors.phone.message}</p>
+              )}
+            </div>
+          </div>
+
+          <div className="space-y-1.5">
+            <Label>
+              Rol <span className="text-destructive">*</span>
+            </Label>
+            <Select
+              value={roleId}
+              onValueChange={(v) => setValue('roleId', v, { shouldValidate: true })}
+              disabled={rolesLoading}
+            >
+              <SelectTrigger>
+                <SelectValue placeholder="Selecciona un rol" />
+              </SelectTrigger>
+              <SelectContent>
+                {roles?.map((r) => (
+                  <SelectItem key={r.id} value={r.id}>
+                    {r.name}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            <p className="text-[11px] text-muted-foreground">
+              {selectedRole && ROLE_DESCRIPTIONS[selectedRole.name]
+                ? ROLE_DESCRIPTIONS[selectedRole.name]
+                : 'Selecciona el rol del usuario'}
+            </p>
+            {errors.roleId && (
+              <p className="text-xs text-destructive">{errors.roleId.message}</p>
+            )}
+          </div>
+
+          <div className="flex justify-end gap-2 pt-2 border-t">
+            <Button type="button" variant="outline" onClick={onClose}>
+              Cancelar
+            </Button>
+            <Button
+              type="submit"
+              disabled={mutation.isPending || (isSubmitted && !isValid)}
+            >
+              {mutation.isPending ? 'Guardando...' : 'Guardar cambios'}
+            </Button>
+          </div>
+        </form>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
 export default function UsuariosPage() {
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(10);
   const [search, setSearch] = useState('');
   const [showCreate, setShowCreate] = useState(false);
+  const [editTarget, setEditTarget] = useState<User | null>(null);
   const debouncedSearch = useDebounce(search, 300);
+  const confirm = useConfirm();
 
   const { data, isLoading } = useUsers({
     page,
@@ -383,6 +593,33 @@ export default function UsuariosPage() {
     search: debouncedSearch || undefined,
   });
   const setActive = useSetUserActive();
+  const resetPassword = useResetUserPassword();
+
+  const handleToggleActive = async (user: User) => {
+    if (user.active) {
+      const ok = await confirm({
+        title: `¿Desactivar a ${user.firstName} ${user.lastName}?`,
+        description:
+          'El usuario perderá el acceso al sistema. Sus datos quedan registrados ' +
+          '(no se elimina) y puedes reactivarlo más tarde.',
+        confirmText: 'Desactivar',
+        tone: 'destructive',
+      });
+      if (!ok) return;
+    }
+    setActive.mutate({ id: user.id, active: !user.active });
+  };
+
+  const handleResetPassword = async (user: User) => {
+    const ok = await confirm({
+      title: `¿Restablecer la contraseña de ${user.firstName} ${user.lastName}?`,
+      description: `La nueva contraseña será su número de documento (${user.documentNumber}). El sistema le pedirá cambiarla en su próximo ingreso. Esta acción no se puede deshacer — el usuario no podrá entrar con su contraseña anterior.`,
+      confirmText: 'Restablecer contraseña',
+      tone: 'destructive',
+    });
+    if (!ok) return;
+    resetPassword.mutate(user.id);
+  };
 
   const columns: ColumnDef<User>[] = [
     rowNumberColumn<User>({ page, pageSize }),
@@ -432,15 +669,28 @@ export default function UsuariosPage() {
     {
       id: 'actions',
       header: 'Acciones',
-      size: 100,
+      size: 160,
       cell: ({ row }) => (
         <div className="flex gap-1.5">
+          <ActionButton
+            icon={Pencil}
+            label="Editar usuario"
+            tone="info"
+            onClick={() => setEditTarget(row.original)}
+          />
+          <ActionButton
+            icon={KeyRound}
+            label="Restablecer contraseña"
+            tone="warning"
+            onClick={() => handleResetPassword(row.original)}
+            disabled={resetPassword.isPending}
+          />
           {row.original.active ? (
             <ActionButton
               icon={UserX}
               label="Desactivar usuario"
-              tone="warning"
-              onClick={() => setActive.mutate({ id: row.original.id, active: false })}
+              tone="destructive"
+              onClick={() => handleToggleActive(row.original)}
               disabled={setActive.isPending}
             />
           ) : (
@@ -448,7 +698,7 @@ export default function UsuariosPage() {
               icon={UserCheck}
               label="Activar usuario"
               tone="success"
-              onClick={() => setActive.mutate({ id: row.original.id, active: true })}
+              onClick={() => handleToggleActive(row.original)}
               disabled={setActive.isPending}
             />
           )}
@@ -492,6 +742,7 @@ export default function UsuariosPage() {
       />
 
       <CreateUserDialog open={showCreate} onClose={() => setShowCreate(false)} />
+      <EditUserDialog user={editTarget} onClose={() => setEditTarget(null)} />
     </div>
   );
 }

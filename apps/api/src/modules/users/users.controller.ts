@@ -65,4 +65,10 @@ export class UsersController {
   deactivate(@Param('id') id: string) {
     return this.service.setActive(id, false);
   }
+
+  @Patch(':id/reset-password')
+  @RequirePermissions('users:update')
+  resetPassword(@Param('id') id: string) {
+    return this.service.resetPassword(id);
+  }
 }
