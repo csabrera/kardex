@@ -1,7 +1,14 @@
 'use client';
 
 import { zodResolver } from '@hookform/resolvers/zod';
-import { AlertCircle, ArrowRight, Minus, Plus, Star } from 'lucide-react';
+import {
+  AlertCircle,
+  ArrowRight,
+  Minus,
+  Plus,
+  Star,
+  Warehouse as WarehouseIcon,
+} from 'lucide-react';
 import { useEffect, useMemo, useState } from 'react';
 import { useFieldArray, useForm } from 'react-hook-form';
 import { z } from 'zod';
@@ -29,6 +36,7 @@ import {
 } from '@/components/ui/select';
 import { useDebounce } from '@/hooks/use-debounce';
 import { useItems, type Item } from '@/hooks/use-items';
+import { useObras } from '@/hooks/use-obras';
 import { useStock } from '@/hooks/use-stock';
 import { useCreateTransfer } from '@/hooks/use-transfers';
 import { useMainWarehouse, useWarehouses } from '@/hooks/use-warehouses';
@@ -51,14 +59,26 @@ type FormData = z.infer<typeof schema>;
 interface Props {
   open: boolean;
   onClose: () => void;
+  /** Cuando viene, fija el primer ítem como read-only (atajo desde dropdown del inventario). */
+  defaultItem?: Item | null;
 }
 
-export function NewTransferDialog({ open, onClose }: Props) {
+export function NewTransferDialog({ open, onClose, defaultItem }: Props) {
   const main = useMainWarehouse();
   const fromWarehouseId = main.data?.id ?? '';
 
-  // Almacenes destino: solo OBRA, activos.
-  const { data: warehousesData } = useWarehouses({ pageSize: 100, type: 'OBRA' });
+  // Obra destino — paso 1 del selector de 2 niveles.
+  const [obraId, setObraId] = useState('');
+  const { data: obrasData } = useObras({ pageSize: 100, status: 'ACTIVA' });
+  const obras = obrasData?.items ?? [];
+
+  // Almacenes de la obra seleccionada — paso 2 (auto-colapsa si solo hay 1).
+  const { data: warehousesData } = useWarehouses({
+    pageSize: 50,
+    type: 'OBRA',
+    obraId,
+    enabled: !!obraId,
+  });
   const obraWarehouses = warehousesData?.items ?? [];
 
   const mutation = useCreateTransfer();
@@ -88,17 +108,34 @@ export function NewTransferDialog({ open, onClose }: Props) {
   const watchedItems = watch('items');
   const watchedToWarehouseId = watch('toWarehouseId');
 
-  // Reset al cerrar
+  // Reset al abrir — si viene defaultItem, lo fija como primera línea.
   useEffect(() => {
     if (!open) return;
     reset({
       toWarehouseId: '',
       notes: '',
-      items: [{ itemId: '', requestedQty: 0 }],
+      items: defaultItem
+        ? [{ itemId: defaultItem.id, requestedQty: 1 }]
+        : [{ itemId: '', requestedQty: 0 }],
     });
+    setObraId('');
     setAdminHasGuide(false);
     setUploadedDoc(null);
-  }, [open, reset]);
+  }, [open, reset, defaultItem]);
+
+  // Al cambiar de obra, limpiar el almacén elegido.
+  useEffect(() => {
+    setValue('toWarehouseId', '', { shouldValidate: false });
+  }, [obraId, setValue]);
+
+  // Auto-colapso: si la obra tiene un único almacén, lo seleccionamos automáticamente.
+  useEffect(() => {
+    if (!obraId) return;
+    const onlyOne = obraWarehouses.length === 1 ? obraWarehouses[0] : null;
+    if (onlyOne) {
+      setValue('toWarehouseId', onlyOne.id, { shouldValidate: false });
+    }
+  }, [obraId, obraWarehouses, setValue]);
 
   const onSubmit = (data: FormData) => {
     if (!fromWarehouseId) return;
@@ -197,52 +234,105 @@ export function NewTransferDialog({ open, onClose }: Props) {
             </p>
           </div>
 
-          {/* Destino — solo obras */}
+          {/* Destino — paso 1: obra */}
           <div className="space-y-1.5">
             <Label>
-              Destino <span className="text-destructive">*</span>
+              Obra destino <span className="text-destructive">*</span>
             </Label>
-            {obraWarehouses.length === 0 ? (
+            {obras.length === 0 ? (
               <div className="rounded-md border border-amber-300 bg-amber-50 dark:bg-amber-950/30 p-3 text-xs">
                 <p className="font-medium text-amber-900 dark:text-amber-200 flex items-center gap-1.5">
                   <AlertCircle className="h-3.5 w-3.5" />
-                  No hay almacenes de obra activos
+                  No hay obras activas
                 </p>
                 <p className="text-amber-800 dark:text-amber-200/80 mt-1">
-                  Crea un almacén tipo OBRA en{' '}
-                  <a href="/dashboard/almacenes" className="underline font-medium">
-                    Maestros → Almacenes
+                  Crea una obra en{' '}
+                  <a href="/dashboard/obras" className="underline font-medium">
+                    Maestros → Obras
                   </a>
                   .
                 </p>
               </div>
             ) : (
-              <Select
-                value={watchedToWarehouseId}
-                onValueChange={(v) =>
-                  setValue('toWarehouseId', v, { shouldValidate: isSubmitted })
-                }
-              >
+              <Select value={obraId} onValueChange={setObraId}>
                 <SelectTrigger>
-                  <SelectValue placeholder="Seleccionar almacén de obra..." />
+                  <SelectValue placeholder="Seleccionar obra activa..." />
                 </SelectTrigger>
                 <SelectContent>
-                  {obraWarehouses.map((w) => (
-                    <SelectItem key={w.id} value={w.id}>
-                      [{w.code}] {w.name}
-                      {w.obra?.name ? ` · ${w.obra.name}` : ''}
+                  {obras.map((o) => (
+                    <SelectItem key={o.id} value={o.id}>
+                      [{o.code}] {o.name}
                     </SelectItem>
                   ))}
                 </SelectContent>
               </Select>
             )}
             <p className="text-[11px] text-muted-foreground">
-              Almacén de obra que recibirá el stock transferido
+              Obra a la que va dirigido el stock transferido
             </p>
-            {errors.toWarehouseId && (
-              <p className="text-xs text-destructive">{errors.toWarehouseId.message}</p>
-            )}
           </div>
+
+          {/* Destino — paso 2: almacén dentro de la obra (auto-colapsa si solo hay 1) */}
+          {obraId && (
+            <div className="space-y-1.5">
+              <Label>
+                Almacén destino <span className="text-destructive">*</span>
+              </Label>
+              {obraWarehouses.length === 0 ? (
+                <div className="rounded-md border border-amber-300 bg-amber-50 dark:bg-amber-950/30 p-3 text-xs">
+                  <p className="font-medium text-amber-900 dark:text-amber-200 flex items-center gap-1.5">
+                    <AlertCircle className="h-3.5 w-3.5" />
+                    Esta obra no tiene almacenes activos
+                  </p>
+                  <p className="text-amber-800 dark:text-amber-200/80 mt-1">
+                    Crea un almacén tipo OBRA en{' '}
+                    <a href="/dashboard/almacenes" className="underline font-medium">
+                      Maestros → Almacenes
+                    </a>
+                    .
+                  </p>
+                </div>
+              ) : obraWarehouses.length === 1 && obraWarehouses[0] ? (
+                <div className="flex items-center gap-3 rounded-md border bg-muted/30 p-2.5">
+                  <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-md bg-info/10 text-info ring-1 ring-info/20">
+                    <WarehouseIcon className="h-4 w-4" />
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm font-medium truncate">
+                      {obraWarehouses[0].name}
+                    </p>
+                    <p className="text-[11px] font-mono text-muted-foreground">
+                      {obraWarehouses[0].code}
+                    </p>
+                  </div>
+                  <Badge variant="outline" className="text-[10px]">
+                    Único almacén
+                  </Badge>
+                </div>
+              ) : (
+                <Select
+                  value={watchedToWarehouseId}
+                  onValueChange={(v) =>
+                    setValue('toWarehouseId', v, { shouldValidate: isSubmitted })
+                  }
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Seleccionar almacén de la obra..." />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {obraWarehouses.map((w) => (
+                      <SelectItem key={w.id} value={w.id}>
+                        [{w.code}] {w.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              )}
+              {errors.toWarehouseId && (
+                <p className="text-xs text-destructive">{errors.toWarehouseId.message}</p>
+              )}
+            </div>
+          )}
 
           {/* Ítems */}
           <div className="space-y-2">
@@ -270,6 +360,7 @@ export function NewTransferDialog({ open, onClose }: Props) {
                   isSubmitted={isSubmitted}
                   onRemove={() => fields.length > 1 && remove(index)}
                   canRemove={fields.length > 1}
+                  lockedItem={index === 0 && defaultItem ? defaultItem : undefined}
                 />
               ))}
             </div>
@@ -353,7 +444,8 @@ export function NewTransferDialog({ open, onClose }: Props) {
               disabled={
                 mutation.isPending ||
                 !fromWarehouseId ||
-                obraWarehouses.length === 0 ||
+                !obraId ||
+                !watchedToWarehouseId ||
                 (isSubmitted && !isValid) ||
                 (adminHasGuide && !uploadedDoc)
               }
@@ -381,6 +473,7 @@ function ItemRow({
   isSubmitted,
   onRemove,
   canRemove,
+  lockedItem,
 }: {
   index: number;
   setValue: any;
@@ -391,6 +484,7 @@ function ItemRow({
   isSubmitted: boolean;
   onRemove: () => void;
   canRemove: boolean;
+  lockedItem?: Item;
 }) {
   const [search, setSearch] = useState('');
   const debouncedSearch = useDebounce(search, 300);
@@ -404,7 +498,7 @@ function ItemRow({
   const requestedQty = Number(watch(`items.${index}.requestedQty`)) || 0;
 
   const allItems = itemsData?.items ?? [];
-  const selectedItem = allItems.find((i) => i.id === itemId) ?? null;
+  const selectedItem = lockedItem ?? allItems.find((i) => i.id === itemId) ?? null;
 
   const availableStock = itemId ? (stockMap.get(itemId) ?? 0) : null;
   const overflow = availableStock !== null && requestedQty > availableStock;
@@ -416,29 +510,46 @@ function ItemRow({
     <div className="rounded-md border bg-background p-3 space-y-2">
       <div className="flex gap-2 items-start">
         <div className="flex-1 min-w-0">
-          <SearchCombobox<Item>
-            value={itemId}
-            onChange={(id) => {
-              setValue(`items.${index}.itemId`, id, { shouldValidate: isSubmitted });
-            }}
-            items={allItems}
-            selectedItem={selectedItem}
-            isLoading={itemsLoading}
-            onSearchChange={setSearch}
-            getId={(i) => i.id}
-            getLabel={(i) => i.name}
-            renderItem={(i) => (
-              <>
-                <span>{i.name}</span>
-                <span className="ml-1 text-[10px] text-muted-foreground">
-                  ({i.unit.abbreviation})
-                </span>
-              </>
-            )}
-            placeholder="Buscar ítem..."
-            emptyMessage="Sin coincidencias"
-            error={!!itemError?.itemId}
-          />
+          {lockedItem ? (
+            <div className="flex items-center gap-2 rounded-md border bg-muted/30 px-2.5 py-1.5 h-9">
+              <span className="font-mono text-[11px] text-muted-foreground">
+                {lockedItem.code}
+              </span>
+              <span className="text-sm font-medium truncate flex-1">
+                {lockedItem.name}
+              </span>
+              <span className="text-[10px] text-muted-foreground shrink-0">
+                ({lockedItem.unit.abbreviation})
+              </span>
+              <Badge variant="outline" className="text-[10px] shrink-0">
+                Fijado
+              </Badge>
+            </div>
+          ) : (
+            <SearchCombobox<Item>
+              value={itemId}
+              onChange={(id) => {
+                setValue(`items.${index}.itemId`, id, { shouldValidate: isSubmitted });
+              }}
+              items={allItems}
+              selectedItem={selectedItem}
+              isLoading={itemsLoading}
+              onSearchChange={setSearch}
+              getId={(i) => i.id}
+              getLabel={(i) => i.name}
+              renderItem={(i) => (
+                <>
+                  <span>{i.name}</span>
+                  <span className="ml-1 text-[10px] text-muted-foreground">
+                    ({i.unit.abbreviation})
+                  </span>
+                </>
+              )}
+              placeholder="Buscar ítem..."
+              emptyMessage="Sin coincidencias"
+              error={!!itemError?.itemId}
+            />
+          )}
           {itemError?.itemId && (
             <p className="text-xs text-destructive mt-0.5">{itemError.itemId.message}</p>
           )}
@@ -463,7 +574,7 @@ function ItemRow({
           variant="ghost"
           size="sm"
           onClick={onRemove}
-          disabled={!canRemove}
+          disabled={!canRemove || !!lockedItem}
           aria-label="Quitar ítem"
         >
           <Minus className="h-3.5 w-3.5 text-destructive" />

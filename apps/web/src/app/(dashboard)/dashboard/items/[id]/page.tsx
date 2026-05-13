@@ -30,7 +30,7 @@ import {
 import { QuickAdjustDialog } from '@/components/items/quick-adjust-dialog';
 import { QuickEntryDialog } from '@/components/items/quick-entry-dialog';
 import { QuickOutgoingDialog } from '@/components/items/quick-outgoing-dialog';
-import { QuickTransferDialog } from '@/components/items/quick-transfer-dialog';
+import { NewTransferDialog } from '@/components/transfers/new-transfer-dialog';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import {
@@ -508,8 +508,9 @@ export default function ItemDetailPage() {
         item={showOutgoing ? itemWithPrincipalStock : null}
         onClose={() => setShowOutgoing(false)}
       />
-      <QuickTransferDialog
-        item={showTransfer ? itemWithPrincipalStock : null}
+      <NewTransferDialog
+        open={showTransfer}
+        defaultItem={showTransfer ? itemWithPrincipalStock : null}
         onClose={() => setShowTransfer(false)}
       />
       <QuickAdjustDialog

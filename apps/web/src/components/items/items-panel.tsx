@@ -35,8 +35,8 @@ import {
 } from '@/components/items/quick-create-dialogs';
 import { QuickEntryDialog } from '@/components/items/quick-entry-dialog';
 import { QuickOutgoingDialog } from '@/components/items/quick-outgoing-dialog';
-import { QuickTransferDialog } from '@/components/items/quick-transfer-dialog';
 import { ItemMovementsDialog } from '@/components/movements/item-movements-dialog';
+import { NewTransferDialog } from '@/components/transfers/new-transfer-dialog';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Checkbox } from '@/components/ui/checkbox';
@@ -1041,8 +1041,9 @@ export function ItemsPanel({
         item={quickOutgoingItem}
         onClose={() => setQuickOutgoingItem(null)}
       />
-      <QuickTransferDialog
-        item={quickTransferItem}
+      <NewTransferDialog
+        open={!!quickTransferItem}
+        defaultItem={quickTransferItem}
         onClose={() => setQuickTransferItem(null)}
       />
       <QuickAdjustDialog
