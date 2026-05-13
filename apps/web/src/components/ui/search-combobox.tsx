@@ -47,6 +47,8 @@ interface SearchComboboxProps<T> {
   getLabel: (item: T) => string;
   /** Render custom de cada fila del dropdown. Default: usa getLabel. */
   renderItem?: (item: T, selected: boolean) => React.ReactNode;
+  /** Si retorna true, el item se renderiza deshabilitado y no se puede seleccionar. */
+  isDisabled?: (item: T) => boolean;
   /** Para mostrar el label del item ya seleccionado cuando items aún no contiene al seleccionado (ej. form cargado con data previa). */
   selectedItem?: T | null;
   placeholder?: string;
@@ -72,6 +74,7 @@ export function SearchCombobox<T>({
   getId,
   getLabel,
   renderItem,
+  isDisabled,
   selectedItem,
   placeholder = 'Buscar...',
   emptyMessage = 'Sin resultados',
@@ -126,6 +129,7 @@ export function SearchCombobox<T>({
   const showLoading = open && isLoading;
 
   const select = (item: T) => {
+    if (isDisabled?.(item)) return;
     onChange(getId(item), item);
     setQuery('');
     setOpen(false);
@@ -152,8 +156,9 @@ export function SearchCombobox<T>({
       setActiveIndex((i) => Math.max(0, i - 1));
     } else if (e.key === 'Enter') {
       e.preventDefault();
-      if (open && items[activeIndex]) {
-        select(items[activeIndex]);
+      const target = open ? items[activeIndex] : undefined;
+      if (target && !isDisabled?.(target)) {
+        select(target);
       }
     } else if (e.key === 'Escape') {
       setOpen(false);
@@ -243,20 +248,25 @@ export function SearchCombobox<T>({
                   ? getId(item) === getId(resolvedSelected)
                   : false;
                 const active = idx === activeIndex;
+                const disabledItem = isDisabled?.(item) ?? false;
                 return (
                   <button
                     key={getId(item)}
                     type="button"
                     role="option"
                     aria-selected={selected}
+                    aria-disabled={disabledItem}
+                    disabled={disabledItem}
                     onMouseDown={(e) => e.preventDefault()}
                     onClick={() => select(item)}
-                    onMouseEnter={() => setActiveIndex(idx)}
+                    onMouseEnter={() => !disabledItem && setActiveIndex(idx)}
                     className={cn(
                       'flex w-full items-center gap-2 px-3 py-2 text-left text-sm transition-colors border-b last:border-b-0',
-                      active
-                        ? 'bg-accent/10 text-foreground'
-                        : 'hover:bg-muted text-foreground',
+                      disabledItem
+                        ? 'opacity-50 cursor-not-allowed text-muted-foreground'
+                        : active
+                          ? 'bg-accent/10 text-foreground'
+                          : 'hover:bg-muted text-foreground',
                     )}
                   >
                     <div className="flex-1 min-w-0">

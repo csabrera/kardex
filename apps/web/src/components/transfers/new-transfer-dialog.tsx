@@ -347,22 +347,35 @@ export function NewTransferDialog({ open, onClose, defaultItem }: Props) {
               </span>
             </div>
 
+            {/* Encabezados de columna — visibles solo cuando hay al menos una fila tradicional */}
+            <div className="flex gap-2 px-3 text-[10px] uppercase tracking-wide text-muted-foreground font-medium">
+              <span className="flex-1">Ítem</span>
+              <span className="w-32 shrink-0">Cantidad a transferir</span>
+              <span className="w-9 shrink-0" aria-hidden />
+            </div>
+
             <div className="space-y-3">
-              {fields.map((field, index) => (
-                <ItemRow
-                  key={field.id}
-                  index={index}
-                  setValue={setValue}
-                  watch={watch}
-                  errors={errors}
-                  register={register}
-                  stockMap={stockMap}
-                  isSubmitted={isSubmitted}
-                  onRemove={() => fields.length > 1 && remove(index)}
-                  canRemove={fields.length > 1}
-                  lockedItem={index === 0 && defaultItem ? defaultItem : undefined}
-                />
-              ))}
+              {fields.map((field, index) => {
+                const usedInOtherRows = (watchedItems ?? [])
+                  .map((it, idx) => (idx !== index ? it.itemId : null))
+                  .filter((id): id is string => !!id);
+                return (
+                  <ItemRow
+                    key={field.id}
+                    index={index}
+                    setValue={setValue}
+                    watch={watch}
+                    errors={errors}
+                    register={register}
+                    stockMap={stockMap}
+                    isSubmitted={isSubmitted}
+                    onRemove={() => fields.length > 1 && remove(index)}
+                    canRemove={fields.length > 1}
+                    lockedItem={index === 0 && defaultItem ? defaultItem : undefined}
+                    usedInOtherRows={usedInOtherRows}
+                  />
+                );
+              })}
             </div>
 
             <Button
@@ -474,6 +487,7 @@ function ItemRow({
   onRemove,
   canRemove,
   lockedItem,
+  usedInOtherRows,
 }: {
   index: number;
   setValue: any;
@@ -485,6 +499,7 @@ function ItemRow({
   onRemove: () => void;
   canRemove: boolean;
   lockedItem?: Item;
+  usedInOtherRows: string[];
 }) {
   const [search, setSearch] = useState('');
   const debouncedSearch = useDebounce(search, 300);
@@ -537,14 +552,23 @@ function ItemRow({
               onSearchChange={setSearch}
               getId={(i) => i.id}
               getLabel={(i) => i.name}
-              renderItem={(i) => (
-                <>
-                  <span>{i.name}</span>
-                  <span className="ml-1 text-[10px] text-muted-foreground">
-                    ({i.unit.abbreviation})
-                  </span>
-                </>
-              )}
+              isDisabled={(i) => usedInOtherRows.includes(i.id)}
+              renderItem={(i) => {
+                const alreadyAdded = usedInOtherRows.includes(i.id);
+                return (
+                  <>
+                    <span>{i.name}</span>
+                    <span className="ml-1 text-[10px] text-muted-foreground">
+                      ({i.unit.abbreviation})
+                    </span>
+                    {alreadyAdded && (
+                      <span className="ml-2 text-[10px] italic text-muted-foreground">
+                        · ya agregado
+                      </span>
+                    )}
+                  </>
+                );
+              }}
               placeholder="Buscar ítem..."
               emptyMessage="Sin coincidencias"
               error={!!itemError?.itemId}
@@ -559,8 +583,10 @@ function ItemRow({
             type="number"
             step="0.001"
             min="0.001"
-            placeholder="Cantidad"
+            placeholder="0"
+            aria-label="Cantidad a transferir"
             {...register(`items.${index}.requestedQty`)}
+            onWheel={(e) => e.currentTarget.blur()}
             className={`flex h-9 w-full rounded-md border bg-transparent px-3 py-1 text-sm shadow-sm transition-colors placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50 ${overflow ? 'border-destructive' : 'border-input'}`}
           />
           {itemError?.requestedQty && (
