@@ -21,7 +21,7 @@ import {
   Warehouse,
   Wrench,
 } from 'lucide-react';
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 
 import { NewEPPAssignmentDialog } from '@/components/epp/new-epp-assignment-dialog';
 import { QuickAdjustDialog } from '@/components/items/quick-adjust-dialog';
@@ -110,6 +110,14 @@ export default function MiObraPage() {
 
   // Selección de almacén con default = TODOS si hay >1
   const [selectedWarehouseId, setSelectedWarehouseId] = useState<string>('');
+
+  // Si el residente cambia de obra, la selección anterior de almacén ya no aplica.
+  // Sin este reset, selectedWarehouseId podía referirse a un almacén de otra obra
+  // → effectiveWarehouseId queda apuntando a un id que no está en warehouseIds,
+  // y visibleStock queda vacío aunque la obra nueva sí tenga stock.
+  useEffect(() => {
+    setSelectedWarehouseId('');
+  }, [obraId]);
   const effectiveWarehouseId = useMemo(() => {
     if (selectedWarehouseId) return selectedWarehouseId;
     if (obraWarehouses.length > 1) return ALL;
@@ -718,9 +726,7 @@ export default function MiObraPage() {
                       <tr>
                         <th className="text-left px-4 py-3 font-medium">Ítem</th>
                         <th className="text-left px-4 py-3 font-medium">Tipo</th>
-                        <th className="text-left px-4 py-3 font-medium hidden md:table-cell">
-                          Por almacén
-                        </th>
+                        <th className="text-left px-4 py-3 font-medium ">Por almacén</th>
                         <th className="text-right px-4 py-3 font-medium">Disponible</th>
                         <th className="text-left px-4 py-3 font-medium">Estado</th>
                       </tr>
@@ -758,7 +764,7 @@ export default function MiObraPage() {
                                 {typeConf.label}
                               </span>
                             </td>
-                            <td className="px-4 py-3 text-xs hidden md:table-cell">
+                            <td className="px-4 py-3 text-xs ">
                               <div className="space-y-0.5">
                                 {r.breakdown.map((b) => (
                                   <div

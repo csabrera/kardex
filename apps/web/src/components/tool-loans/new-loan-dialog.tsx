@@ -174,7 +174,7 @@ export function NewLoanDialog({
     setItemSearch('');
   }, [obraId, defaultWarehouseId, setValue]);
 
-  const { data: itemStock } = useStock({
+  const { data: itemStock, isFetching: stockLoading } = useStock({
     itemId: itemId || undefined,
     warehouseId: warehouseId || undefined,
     enabled: !!(itemId && warehouseId),
@@ -521,31 +521,46 @@ export function NewLoanDialog({
                 {!defaultItem && errors.itemId && (
                   <p className="text-xs text-destructive">{errors.itemId.message}</p>
                 )}
-                {itemId && warehouseId && availableQty !== null && totalQty !== null && (
-                  <p
-                    className={`text-[11px] tabular-nums ${
-                      availableQty === 0 ? 'text-destructive' : 'text-muted-foreground'
-                    }`}
-                  >
-                    Disponible:{' '}
-                    <span className="font-semibold">
-                      {availableQty.toLocaleString('es-PE', { maximumFractionDigits: 3 })}
-                    </span>
-                    <span className="ml-1">
-                      {selectedItem?.unit.abbreviation ?? defaultItem?.unit?.abbreviation}
-                    </span>
-                    {totalQty > availableQty && (
-                      <span className="ml-2 text-muted-foreground/70">
-                        (de{' '}
-                        {totalQty.toLocaleString('es-PE', { maximumFractionDigits: 3 })}{' '}
-                        totales ·{' '}
-                        {(totalQty - availableQty).toLocaleString('es-PE', {
-                          maximumFractionDigits: 3,
-                        })}{' '}
-                        en préstamo)
-                      </span>
+                {/* Hint de stock — siempre visible al elegir herramienta + almacén */}
+                {itemId && warehouseId && (
+                  <div className="rounded-md border bg-muted/30 px-3 py-2 text-xs">
+                    {stockLoading ? (
+                      <p className="text-muted-foreground">Consultando stock...</p>
+                    ) : availableQty === null || totalQty === null ? (
+                      <p className="text-muted-foreground">Sin información de stock</p>
+                    ) : (
+                      <p
+                        className={`tabular-nums ${
+                          availableQty === 0 ? 'text-destructive' : 'text-foreground/80'
+                        }`}
+                      >
+                        Stock en este almacén:{' '}
+                        <span className="font-semibold">
+                          {availableQty.toLocaleString('es-PE', {
+                            maximumFractionDigits: 3,
+                          })}
+                        </span>
+                        <span className="ml-1 text-muted-foreground">
+                          {selectedItem?.unit.abbreviation ??
+                            defaultItem?.unit?.abbreviation}{' '}
+                          disponibles
+                        </span>
+                        {totalQty > availableQty && (
+                          <span className="ml-2 text-muted-foreground">
+                            (
+                            {totalQty.toLocaleString('es-PE', {
+                              maximumFractionDigits: 3,
+                            })}{' '}
+                            total ·{' '}
+                            {(totalQty - availableQty).toLocaleString('es-PE', {
+                              maximumFractionDigits: 3,
+                            })}{' '}
+                            en préstamo)
+                          </span>
+                        )}
+                      </p>
                     )}
-                  </p>
+                  </div>
                 )}
               </div>
 
