@@ -56,7 +56,9 @@ interface ItemQuery {
   categoryId?: string;
   /** Filtra ítems con Stock en este almacén. */
   warehouseId?: string;
-  /** Junto con warehouseId, exige quantity > 0. */
+  /** Filtra ítems con Stock en algún almacén de esa obra. Ignorado si warehouseId está set. */
+  obraId?: string;
+  /** Junto con warehouseId u obraId, exige quantity > 0. */
   onlyWithStock?: boolean;
 }
 

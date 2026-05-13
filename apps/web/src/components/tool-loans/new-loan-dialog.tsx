@@ -156,10 +156,12 @@ export function NewLoanDialog({
     pageSize: 30,
     type: 'PRESTAMO',
     // Solo herramientas que efectivamente están en el almacén seleccionado.
-    // Sin este filtro aparecerían herramientas del Principal o de otras obras
-    // que el residente no puede prestar.
+    // Si todavía no hay almacén elegido pero sí obra, mostrar herramientas de
+    // CUALQUIER almacén de esa obra (no el catálogo global, que incluye Principal
+    // y otras obras que el residente no puede prestar).
     warehouseId: warehouseId || undefined,
-    onlyWithStock: !!warehouseId,
+    obraId: !warehouseId && obraId ? obraId : undefined,
+    onlyWithStock: !!(warehouseId || obraId),
   });
   const filteredItems: Item[] = useMemo(() => itemsData?.items ?? [], [itemsData]);
   const selectedItem = (itemsData?.items ?? []).find((i) => i.id === itemId);

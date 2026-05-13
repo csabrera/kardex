@@ -20,9 +20,12 @@ export class ItemsService {
     query: PaginationQueryDto & {
       type?: ItemType;
       categoryId?: string;
-      /** Si viene, filtra a ítems que tienen Stock en ese almacén. */
+      /** Filtra a ítems que tienen Stock en ese almacén. */
       warehouseId?: string;
-      /** Solo aplica si warehouseId está set — exige quantity > 0 en ese almacén. */
+      /** Filtra a ítems que tienen Stock en algún almacén de esa obra.
+       *  Se ignora si warehouseId está set (más específico gana). */
+      obraId?: string;
+      /** Junto con warehouseId u obraId, exige quantity > 0. */
       onlyWithStock?: boolean;
     },
   ) {
@@ -35,22 +38,33 @@ export class ItemsService {
       type,
       categoryId,
       warehouseId,
+      obraId,
       onlyWithStock,
     } = query;
     const skip = (page - 1) * pageSize;
+
+    // warehouseId tiene prioridad sobre obraId — más específico.
+    const stocksFilter = warehouseId
+      ? {
+          some: {
+            warehouseId,
+            ...(onlyWithStock && { quantity: { gt: 0 } }),
+          },
+        }
+      : obraId
+        ? {
+            some: {
+              warehouse: { obraId },
+              ...(onlyWithStock && { quantity: { gt: 0 } }),
+            },
+          }
+        : undefined;
 
     const where = {
       deletedAt: null,
       ...(type && { type }),
       ...(categoryId && { categoryId }),
-      ...(warehouseId && {
-        stocks: {
-          some: {
-            warehouseId,
-            ...(onlyWithStock && { quantity: { gt: 0 } }),
-          },
-        },
-      }),
+      ...(stocksFilter && { stocks: stocksFilter }),
       ...(search && {
         OR: [
           { code: { contains: search, mode: 'insensitive' as const } },

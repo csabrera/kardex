@@ -41,7 +41,12 @@ class ItemQueryDto extends PaginationQueryDto {
   @IsString()
   warehouseId?: string;
 
-  /** Si true (junto con warehouseId), exige quantity > 0 en ese almacén. */
+  /** Filtra ítems con Stock en algún almacén de esa obra. Ignorado si warehouseId está set. */
+  @IsOptional()
+  @IsString()
+  obraId?: string;
+
+  /** Si true (junto con warehouseId u obraId), exige quantity > 0. */
   @IsOptional()
   @Type(() => String)
   @Transform(({ value }) => {
