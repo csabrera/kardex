@@ -23,7 +23,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog';
-import { FileUpload } from '@/components/ui/file-upload';
+import { MultiFileUpload, type UploadedFile } from '@/components/ui/file-upload';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { SearchCombobox } from '@/components/ui/search-combobox';
@@ -85,10 +85,7 @@ export function NewTransferDialog({ open, onClose, defaultItem }: Props) {
 
   // Estado para guía de remisión
   const [adminHasGuide, setAdminHasGuide] = useState(false);
-  const [uploadedDoc, setUploadedDoc] = useState<{
-    filename: string;
-    originalName: string;
-  } | null>(null);
+  const [uploadedDocs, setUploadedDocs] = useState<UploadedFile[]>([]);
 
   const { register, handleSubmit, setValue, watch, control, reset, setError, formState } =
     useForm<FormData>({
@@ -120,7 +117,7 @@ export function NewTransferDialog({ open, onClose, defaultItem }: Props) {
     });
     setObraId('');
     setAdminHasGuide(false);
-    setUploadedDoc(null);
+    setUploadedDocs([]);
   }, [open, reset, defaultItem]);
 
   // Al cambiar de obra, limpiar el almacén elegido.
@@ -141,7 +138,7 @@ export function NewTransferDialog({ open, onClose, defaultItem }: Props) {
     if (!fromWarehouseId) return;
 
     // Si admin marcó que tiene la guía pero no subió nada, bloquear.
-    if (adminHasGuide && !uploadedDoc) return;
+    if (adminHasGuide && uploadedDocs.length === 0) return;
 
     // Validación cruzada cantidad vs stock disponible (cliente).
     let hasOverflow = false;
@@ -161,8 +158,7 @@ export function NewTransferDialog({ open, onClose, defaultItem }: Props) {
         ...data,
         fromWarehouseId,
         requiresRecipientDocument: !adminHasGuide,
-        documentUrl: uploadedDoc?.filename ?? undefined,
-        documentName: uploadedDoc?.originalName ?? undefined,
+        attachments: uploadedDocs.length > 0 ? uploadedDocs : undefined,
       },
       {
         onSuccess: () => {
@@ -416,7 +412,7 @@ export function NewTransferDialog({ open, onClose, defaultItem }: Props) {
                 checked={adminHasGuide}
                 onCheckedChange={(v) => {
                   setAdminHasGuide(!!v);
-                  if (!v) setUploadedDoc(null);
+                  if (!v) setUploadedDocs([]);
                 }}
               />
               <div className="space-y-0.5">
@@ -433,14 +429,15 @@ export function NewTransferDialog({ open, onClose, defaultItem }: Props) {
             </div>
             {adminHasGuide && (
               <div className="pl-6">
-                <FileUpload
-                  value={uploadedDoc}
-                  onChange={setUploadedDoc}
+                <MultiFileUpload
+                  value={uploadedDocs}
+                  onChange={setUploadedDocs}
                   disabled={mutation.isPending}
+                  label="Adjunta guía, boleta y/o fotos"
                 />
-                {isSubmitted && adminHasGuide && !uploadedDoc && (
+                {isSubmitted && adminHasGuide && uploadedDocs.length === 0 && (
                   <p className="text-xs text-destructive mt-1">
-                    Debes adjuntar la guía antes de continuar
+                    Debes adjuntar al menos un archivo antes de continuar
                   </p>
                 )}
               </div>
@@ -460,7 +457,7 @@ export function NewTransferDialog({ open, onClose, defaultItem }: Props) {
                 !obraId ||
                 !watchedToWarehouseId ||
                 (isSubmitted && !isValid) ||
-                (adminHasGuide && !uploadedDoc)
+                (adminHasGuide && uploadedDocs.length === 0)
               }
               className="gap-2"
             >

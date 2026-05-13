@@ -76,6 +76,13 @@ export interface CreateItemDto {
   initialSupplierId?: string;
   /** Notas libres para el movimiento inicial. */
   initialNotes?: string;
+  /** Adjuntos (guía/boleta) para la carga inicial. Solo aplica si initialSource=COMPRA. */
+  initialAttachments?: {
+    filename: string;
+    originalName: string;
+    mimetype: string;
+    size: number;
+  }[];
 }
 
 const BASE = '/items';

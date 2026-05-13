@@ -12,7 +12,26 @@ export type MovementSource =
   | 'INVENTARIO'
   | 'DEVOLUCION'
   | 'BAJA'
-  | 'LOST_LOAN';
+  | 'LOST_LOAN'
+  | 'COMPRA_INCUMPLIDA'
+  | 'DEVOLUCION_PARCIAL_TRF';
+
+export interface AttachmentData {
+  id: string;
+  filename: string;
+  originalName: string;
+  mimetype: string;
+  size: number;
+  uploadedById: string;
+  createdAt: string;
+}
+
+export interface AttachmentInput {
+  filename: string;
+  originalName: string;
+  mimetype: string;
+  size: number;
+}
 
 export interface MovementItem {
   id: string;
@@ -33,8 +52,11 @@ export interface Movement {
   warehouse: { id: string; code: string; name: string };
   userId: string;
   user: { id: string; firstName: string; lastName: string };
+  supplierId?: string | null;
+  supplier?: { id: string; code: string; name: string } | null;
   notes?: string | null;
   items: MovementItem[];
+  attachments?: AttachmentData[];
   createdAt: string;
 }
 
@@ -61,8 +83,10 @@ interface MovementQuery {
   page?: number;
   pageSize?: number;
   type?: MovementType;
+  source?: MovementSource;
   warehouseId?: string;
   itemId?: string;
+  supplierId?: string;
   search?: string;
   enabled?: boolean;
 }
@@ -75,6 +99,8 @@ export interface CreateMovementDto {
   supplierId?: string;
   notes?: string;
   items: { itemId: string; quantity: number; unitCost?: number }[];
+  /** Adjuntos (guía/boleta). Solo válido si source=COMPRA. */
+  attachments?: AttachmentInput[];
 }
 
 const BASE = '/movements';

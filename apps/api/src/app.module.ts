@@ -30,6 +30,7 @@ import { UsersModule } from './modules/users/users.module';
 import { WorkStationsModule } from './modules/work-stations/work-stations.module';
 import { WorkersModule } from './modules/workers/workers.module';
 import { CategoriesModule } from './modules/categories/categories.module';
+import { AttachmentsModule } from './modules/attachments/attachments.module';
 import { UploadsModule } from './modules/uploads/uploads.module';
 import { HealthModule } from './modules/health/health.module';
 import { ItemsModule } from './modules/items/items.module';
@@ -74,6 +75,7 @@ import { PrismaModule } from './prisma/prisma.module';
     WorkersModule,
     WorkStationsModule,
     UploadsModule,
+    AttachmentsModule,
   ],
   providers: [
     // Self-healing: en arranque siembra roles+permissions si la BD está vacía.

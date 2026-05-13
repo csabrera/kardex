@@ -12,7 +12,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog';
-import { FileUpload } from '@/components/ui/file-upload';
+import { MultiFileUpload, type UploadedFile } from '@/components/ui/file-upload';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
@@ -34,10 +34,7 @@ export function ReceiveAdditionalDialog({ transfer: t, open, onClose }: Props) {
   const partialLines = t.items.filter((i) => i.status === 'RECIBIDO_PARCIAL');
 
   const [qtys, setQtys] = useState<Record<string, string>>({});
-  const [recipientDoc, setRecipientDoc] = useState<{
-    filename: string;
-    originalName: string;
-  } | null>(null);
+  const [recipientDocs, setRecipientDocs] = useState<UploadedFile[]>([]);
   const [overrideReason, setOverrideReason] = useState('');
   const [overrideError, setOverrideError] = useState<string | null>(null);
   const [isSubmitted, setIsSubmitted] = useState(false);
@@ -57,7 +54,7 @@ export function ReceiveAdditionalDialog({ transfer: t, open, onClose }: Props) {
       init[i.id] = String(sent - recvd);
     });
     setQtys(init);
-    setRecipientDoc(null);
+    setRecipientDocs([]);
     setOverrideReason('');
     setOverrideError(null);
     setIsSubmitted(false);
@@ -112,8 +109,7 @@ export function ReceiveAdditionalDialog({ transfer: t, open, onClose }: Props) {
         id: t.id,
         items: itemsToSubmit,
         overrideReason: needsOverride ? overrideReason.trim() : undefined,
-        documentUrl: recipientDoc?.filename ?? undefined,
-        documentName: recipientDoc?.originalName ?? undefined,
+        attachments: recipientDocs.length > 0 ? recipientDocs : undefined,
       },
       {
         onSuccess: () => {
@@ -202,10 +198,11 @@ export function ReceiveAdditionalDialog({ transfer: t, open, onClose }: Props) {
           {/* Guía OPCIONAL */}
           <div className="space-y-1.5">
             <Label className="text-xs">Guía de remisión adicional (opcional)</Label>
-            <FileUpload
-              value={recipientDoc}
-              onChange={setRecipientDoc}
+            <MultiFileUpload
+              value={recipientDocs}
+              onChange={setRecipientDocs}
               disabled={mutation.isPending}
+              label="Adjunta guía o boleta adicional (opcional)"
             />
             <p className="text-[11px] text-muted-foreground">
               Si llegó con una guía nueva, adjúntala. Si no, deja vacío.

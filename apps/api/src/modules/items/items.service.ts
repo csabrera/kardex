@@ -5,12 +5,16 @@ import { BusinessException } from '../../common/exceptions/business.exception';
 import { BusinessErrorCode } from '@kardex/types';
 import { generateCode } from '../../common/utils/code-generator';
 import { PrismaService } from '../../prisma/prisma.service';
+import { AttachmentsService } from '../attachments/attachments.service';
 import type { PaginationQueryDto } from '../../common/dto/pagination.dto';
 import type { CreateItemDto, UpdateItemDto } from './dto/item.dto';
 
 @Injectable()
 export class ItemsService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly attachments: AttachmentsService,
+  ) {}
 
   async findAll(query: PaginationQueryDto & { type?: ItemType; categoryId?: string }) {
     const {
@@ -310,7 +314,7 @@ export class ItemsService {
         });
         const movementCode = `ENT-${String(seq.lastValue).padStart(5, '0')}`;
 
-        await tx.movement.create({
+        const movement = await tx.movement.create({
           data: {
             code: movementCode,
             type: MovementType.ENTRADA,
@@ -332,6 +336,17 @@ export class ItemsService {
             },
           },
         });
+
+        // Adjuntos (guía/boleta) — solo si la carga inicial es COMPRA
+        if (initialSource === MovementSource.COMPRA && dto.initialAttachments?.length) {
+          await this.attachments.attach(
+            tx,
+            'MOVEMENT',
+            movement.id,
+            dto.initialAttachments,
+            userId,
+          );
+        }
       }
 
       return item;

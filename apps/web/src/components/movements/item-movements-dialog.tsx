@@ -9,6 +9,7 @@ import { rowNumberColumn } from '@/components/data-table/row-number-column';
 import { ActionButton } from '@/components/ui/action-button';
 import { Badge } from '@/components/ui/badge';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { DocumentViewButton } from '@/components/ui/file-upload';
 import { type Item } from '@/hooks/use-items';
 import { useMovements, type Movement, type MovementType } from '@/hooks/use-movements';
 import { useMainWarehouse } from '@/hooks/use-warehouses';
@@ -34,6 +35,8 @@ const SOURCE_LABELS: Record<string, string> = {
   DEVOLUCION: 'Devolución',
   BAJA: 'Baja',
   LOST_LOAN: 'Pérdida de préstamo',
+  COMPRA_INCUMPLIDA: 'Compra incumplida',
+  DEVOLUCION_PARCIAL_TRF: 'Devolución parcial TRF',
 };
 
 function MovementDetail({ movement }: { movement: Movement }) {
@@ -127,6 +130,24 @@ function MovementDetail({ movement }: { movement: Movement }) {
           </table>
         </div>
       </div>
+
+      {/* Adjuntos del movimiento (guía/boleta/fotos de compra) */}
+      {movement.attachments && movement.attachments.length > 0 && (
+        <div>
+          <p className="text-sm font-medium mb-2">
+            Adjuntos ({movement.attachments.length})
+          </p>
+          <div className="flex flex-wrap gap-2">
+            {movement.attachments.map((a) => (
+              <DocumentViewButton
+                key={a.id}
+                filename={a.filename}
+                originalName={a.originalName}
+              />
+            ))}
+          </div>
+        </div>
+      )}
     </div>
   );
 }

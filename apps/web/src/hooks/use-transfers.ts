@@ -65,8 +65,7 @@ export interface Transfer {
   rejectOverrideReason?: string | null;
   cancelOverrideReason?: string | null;
   requiresRecipientDocument: boolean;
-  documentUrl?: string | null;
-  documentName?: string | null;
+  attachments?: AttachmentData[];
   items: TransferItemData[];
   createdAt: string;
   approvedAt?: string | null;
@@ -85,14 +84,26 @@ interface TransferQuery {
   enabled?: boolean;
 }
 
+export interface AttachmentInput {
+  filename: string;
+  originalName: string;
+  mimetype: string;
+  size: number;
+}
+
+export interface AttachmentData extends AttachmentInput {
+  id: string;
+  uploadedById: string;
+  createdAt: string;
+}
+
 export interface CreateTransferDto {
   fromWarehouseId: string;
   toWarehouseId: string;
   notes?: string;
   items: { itemId: string; requestedQty: number }[];
   requiresRecipientDocument?: boolean;
-  documentUrl?: string;
-  documentName?: string;
+  attachments?: AttachmentInput[];
 }
 
 const BASE = '/transfers';
@@ -161,23 +172,20 @@ export function useReceiveTransfer() {
       items,
       notes,
       overrideReason,
-      documentUrl,
-      documentName,
+      attachments,
     }: {
       id: string;
       items: { transferItemId: string; receivedQty: number }[];
       notes?: string;
       overrideReason?: string;
-      documentUrl?: string;
-      documentName?: string;
+      attachments?: AttachmentInput[];
     }) =>
       apiClient
         .patch(`${BASE}/${id}/receive`, {
           items,
           notes,
           overrideReason,
-          documentUrl,
-          documentName,
+          attachments,
         })
         .then((r) => r.data.data),
     onSuccess: () => {
@@ -237,23 +245,20 @@ export function useReceiveAdditional() {
       items,
       notes,
       overrideReason,
-      documentUrl,
-      documentName,
+      attachments,
     }: {
       id: string;
       items: { transferItemId: string; additionalQty: number }[];
       notes?: string;
       overrideReason?: string;
-      documentUrl?: string;
-      documentName?: string;
+      attachments?: AttachmentInput[];
     }) =>
       apiClient
         .patch(`${BASE}/${id}/receive-additional`, {
           items,
           notes,
           overrideReason,
-          documentUrl,
-          documentName,
+          attachments,
         })
         .then((r) => r.data.data),
     onSuccess: () => {

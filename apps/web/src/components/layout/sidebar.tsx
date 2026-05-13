@@ -8,6 +8,7 @@ import {
   LayoutDashboard,
   Ruler,
   ShieldCheck,
+  ShoppingCart,
   Star,
   Tag,
   Truck,
@@ -62,6 +63,7 @@ const ALMACENERO_SECTIONS: NavSection[] = [
       { label: 'Empleados', href: '/dashboard/empleados', icon: HardHat },
       { label: 'Almacenes', href: '/dashboard/almacenes', icon: Warehouse },
       { label: 'Proveedores', href: '/dashboard/proveedores', icon: Truck },
+      { label: 'Compras', href: '/dashboard/compras', icon: ShoppingCart },
     ],
   },
   {

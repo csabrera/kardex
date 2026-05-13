@@ -12,6 +12,7 @@ import { PrismaService } from '../../prisma/prisma.service';
 import { BusinessException } from '../../common/exceptions/business.exception';
 import { BusinessErrorCode, WS_EVENTS } from '@kardex/types';
 import { RealtimeService } from '../realtime/realtime.service';
+import { AttachmentsService } from '../attachments/attachments.service';
 import { assertOverrideReasonIfNeeded } from '../../common/utils/scope';
 import type {
   CancelTransferDto,
@@ -66,6 +67,7 @@ export class TransfersService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly realtime: RealtimeService,
+    private readonly attachments: AttachmentsService,
   ) {}
 
   private notify(
@@ -118,7 +120,32 @@ export class TransfersService {
       this.prisma.transfer.count({ where }),
     ]);
 
-    return { items, total, page, pageSize, totalPages: Math.ceil(total / pageSize) };
+    // Adjuntos polimórficos (relación no FK).
+    const ids = items.map((t) => t.id);
+    const atts = ids.length
+      ? await this.prisma.attachment.findMany({
+          where: { ownerType: 'TRANSFER', ownerId: { in: ids } },
+          orderBy: { createdAt: 'asc' },
+        })
+      : [];
+    const byOwner = new Map<string, typeof atts>();
+    for (const a of atts) {
+      const arr = byOwner.get(a.ownerId) ?? [];
+      arr.push(a);
+      byOwner.set(a.ownerId, arr);
+    }
+    const itemsWithAtts = items.map((t) => ({
+      ...t,
+      attachments: byOwner.get(t.id) ?? [],
+    }));
+
+    return {
+      items: itemsWithAtts,
+      total,
+      page,
+      pageSize,
+      totalPages: Math.ceil(total / pageSize),
+    };
   }
 
   async findOne(id: string) {
@@ -133,7 +160,11 @@ export class TransfersService {
         HttpStatus.NOT_FOUND,
       );
     }
-    return transfer;
+    const attachments = await this.prisma.attachment.findMany({
+      where: { ownerType: 'TRANSFER', ownerId: id },
+      orderBy: { createdAt: 'asc' },
+    });
+    return { ...transfer, attachments };
   }
 
   /**
@@ -194,8 +225,6 @@ export class TransfersService {
           status: TransferStatus.EN_TRANSITO,
           notes: dto.notes,
           requiresRecipientDocument: dto.requiresRecipientDocument ?? false,
-          documentUrl: dto.documentUrl ?? null,
-          documentName: dto.documentName ?? null,
           items: {
             create: dto.items.map((i) => ({
               itemId: i.itemId,
@@ -206,6 +235,8 @@ export class TransfersService {
         },
         include: TRANSFER_INCLUDE,
       });
+
+      await this.attachments.attach(tx, 'TRANSFER', transfer.id, dto.attachments, userId);
 
       // Descontar stock del origen (SALIDA TRANSFERENCIA)
       await this.createMovementForTransfer(
@@ -271,12 +302,18 @@ export class TransfersService {
 
     // Validar scope (residente responsable o admin/almacenero) + override + guía
     await this.validateRecipientScope(t, dto.overrideReason, userId);
-    if (t.requiresRecipientDocument && !t.documentUrl && !dto.documentUrl) {
-      throw new BusinessException(
-        BusinessErrorCode.INVALID_INPUT,
-        'DOCUMENT_REQUIRED',
-        HttpStatus.BAD_REQUEST,
-      );
+    if (t.requiresRecipientDocument) {
+      const existing = await this.prisma.attachment.count({
+        where: { ownerType: 'TRANSFER', ownerId: id },
+      });
+      const incoming = dto.attachments?.length ?? 0;
+      if (existing + incoming === 0) {
+        throw new BusinessException(
+          BusinessErrorCode.INVALID_INPUT,
+          'DOCUMENT_REQUIRED',
+          HttpStatus.BAD_REQUEST,
+        );
+      }
     }
 
     // Validar que no se reciba más de lo enviado por línea
@@ -350,6 +387,10 @@ export class TransfersService {
 
         const newStatus = await this.computeTransferStatus(tx, id);
 
+        // Persistir nuevos adjuntos antes del update final para que el conteo
+        // en `requiresRecipientDocument` futuro refleje la realidad.
+        await this.attachments.attach(tx, 'TRANSFER', id, dto.attachments, userId);
+
         const updated = await tx.transfer.update({
           where: { id },
           data: {
@@ -360,9 +401,8 @@ export class TransfersService {
             }),
             ...(dto.notes && { notes: dto.notes }),
             receiveOverrideReason: dto.overrideReason?.trim() || null,
-            ...(dto.documentUrl && {
-              documentUrl: dto.documentUrl,
-              documentName: dto.documentName ?? null,
+            // Una vez que ya hay attachments, la regla queda cumplida.
+            ...((dto.attachments?.length ?? 0) > 0 && {
               requiresRecipientDocument: false,
             }),
           },
@@ -467,16 +507,14 @@ export class TransfersService {
 
         const newStatus = await this.computeTransferStatus(tx, id);
 
+        await this.attachments.attach(tx, 'TRANSFER', id, dto.attachments, userId);
+
         const updated = await tx.transfer.update({
           where: { id },
           data: {
             status: newStatus,
             ...(dto.notes && { notes: dto.notes }),
-            // Si llegó nueva guía con esta remesa, la actualiza (la última gana —
-            // el caso típico es: primera guía sin documento, segunda con guía formal).
-            ...(dto.documentUrl && {
-              documentUrl: dto.documentUrl,
-              documentName: dto.documentName ?? null,
+            ...((dto.attachments?.length ?? 0) > 0 && {
               requiresRecipientDocument: false,
             }),
           },

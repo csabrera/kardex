@@ -1,6 +1,6 @@
 import { Body, Controller, Get, Param, Post, Query, Req } from '@nestjs/common';
 import { ApiTags } from '@nestjs/swagger';
-import { MovementType } from '@prisma/client';
+import { MovementSource, MovementType } from '@prisma/client';
 import { IsEnum, IsOptional, IsString } from 'class-validator';
 
 import { RequirePermissions } from '../auth/decorators/permissions.decorator';
@@ -15,12 +15,20 @@ class MovementQueryDto extends PaginationQueryDto {
   type?: MovementType;
 
   @IsOptional()
+  @IsEnum(MovementSource)
+  source?: MovementSource;
+
+  @IsOptional()
   @IsString()
   warehouseId?: string;
 
   @IsOptional()
   @IsString()
   itemId?: string;
+
+  @IsOptional()
+  @IsString()
+  supplierId?: string;
 }
 
 @ApiTags('movements')

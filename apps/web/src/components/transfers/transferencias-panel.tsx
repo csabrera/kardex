@@ -122,7 +122,8 @@ export function TransferenciasPanel({ headerAction }: Props) {
         const t = row.original;
         const inTransit = t.status === 'EN_TRANSITO';
         const partial = t.status === 'PARCIALMENTE_RECIBIDA';
-        const guideMissing = inTransit && t.requiresRecipientDocument && !t.documentUrl;
+        const guideMissing =
+          inTransit && t.requiresRecipientDocument && (t.attachments?.length ?? 0) === 0;
         const transit =
           inTransit || partial ? getTransitTime(t.sentAt ?? t.createdAt) : null;
         // Resumen "X/Y" en transferencias parciales: cuánto se ha recibido vs.

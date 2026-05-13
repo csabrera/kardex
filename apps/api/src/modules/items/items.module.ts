@@ -2,12 +2,13 @@ import { Module } from '@nestjs/common';
 import { MulterModule } from '@nestjs/platform-express';
 import { memoryStorage } from 'multer';
 
+import { AttachmentsModule } from '../attachments/attachments.module';
 import { ItemsController } from './items.controller';
 import { ItemsService } from './items.service';
 import { ItemsImportService } from './items-import.service';
 
 @Module({
-  imports: [MulterModule.register({ storage: memoryStorage() })],
+  imports: [MulterModule.register({ storage: memoryStorage() }), AttachmentsModule],
   controllers: [ItemsController],
   providers: [ItemsService, ItemsImportService],
   exports: [ItemsService],

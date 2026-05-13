@@ -2,6 +2,8 @@ import { ApiProperty, ApiPropertyOptional, PartialType } from '@nestjs/swagger';
 import { ItemType, MovementSource } from '@prisma/client';
 import { Type } from 'class-transformer';
 import {
+  ArrayMaxSize,
+  IsArray,
   IsBoolean,
   IsEnum,
   IsNumber,
@@ -9,7 +11,13 @@ import {
   IsString,
   MaxLength,
   Min,
+  ValidateNested,
 } from 'class-validator';
+
+import {
+  ATTACHMENTS_MAX_PER_OWNER,
+  AttachmentInputDto,
+} from '../../attachments/dto/attachment.dto';
 
 export class CreateItemDto {
   @ApiPropertyOptional({ description: 'Se auto-genera si no se proporciona' })
@@ -101,6 +109,17 @@ export class CreateItemDto {
   @IsString()
   @MaxLength(500)
   initialNotes?: string;
+
+  @ApiPropertyOptional({
+    type: [AttachmentInputDto],
+    description: `Adjuntos para la carga inicial (guía/boleta). Solo válido si initialSource=COMPRA. Máx ${ATTACHMENTS_MAX_PER_OWNER}.`,
+  })
+  @IsOptional()
+  @IsArray()
+  @ArrayMaxSize(ATTACHMENTS_MAX_PER_OWNER)
+  @ValidateNested({ each: true })
+  @Type(() => AttachmentInputDto)
+  initialAttachments?: AttachmentInputDto[];
 }
 
 export class UpdateItemDto extends PartialType(CreateItemDto) {

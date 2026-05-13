@@ -35,6 +35,7 @@ import {
 } from '@/components/items/quick-create-dialogs';
 import { QuickEntryDialog } from '@/components/items/quick-entry-dialog';
 import { QuickOutgoingDialog } from '@/components/items/quick-outgoing-dialog';
+import { MultiFileUpload } from '@/components/ui/file-upload';
 import { ItemMovementsDialog } from '@/components/movements/item-movements-dialog';
 import { NewTransferDialog } from '@/components/transfers/new-transfer-dialog';
 import { Badge } from '@/components/ui/badge';
@@ -129,6 +130,17 @@ const schema = z
     initialSource: z.enum(['COMPRA', 'DEVOLUCION']).optional(),
     initialSupplierId: z.string().optional(),
     initialNotes: z.string().max(500).optional(),
+    initialAttachments: z
+      .array(
+        z.object({
+          filename: z.string(),
+          originalName: z.string(),
+          mimetype: z.string(),
+          size: z.number(),
+        }),
+      )
+      .max(5)
+      .optional(),
   })
   .refine(
     (d) =>
@@ -572,6 +584,21 @@ function ItemForm({
                     Opcional · referencia de factura, guía de remisión u observaciones
                   </p>
                 </div>
+
+                {/* Adjuntos — solo aplica si la carga inicial es una COMPRA */}
+                {initialSource === 'COMPRA' && (
+                  <div className="space-y-1.5">
+                    <Label>Adjuntos (opcional)</Label>
+                    <MultiFileUpload
+                      value={watch('initialAttachments') ?? []}
+                      onChange={(next) =>
+                        setValue('initialAttachments', next, { shouldDirty: true })
+                      }
+                      disabled={isPending}
+                      label="Adjunta guía, boleta y/o fotos de la compra"
+                    />
+                  </div>
+                )}
               </div>
             )}
           </div>
@@ -965,6 +992,9 @@ export function ItemsPanel({
                 payload.initialNotes = dto.initialNotes?.trim();
                 if (dto.initialSource === 'COMPRA') {
                   payload.initialSupplierId = dto.initialSupplierId;
+                  if (dto.initialAttachments && dto.initialAttachments.length > 0) {
+                    payload.initialAttachments = dto.initialAttachments;
+                  }
                 }
               }
               createMutation.mutate(payload as CreateItemDto, {

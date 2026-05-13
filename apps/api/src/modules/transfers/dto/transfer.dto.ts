@@ -2,6 +2,7 @@ import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { TransferShortageReason } from '@prisma/client';
 import { Type } from 'class-transformer';
 import {
+  ArrayMaxSize,
   ArrayMinSize,
   IsArray,
   IsBoolean,
@@ -13,6 +14,11 @@ import {
   Min,
   ValidateNested,
 } from 'class-validator';
+
+import {
+  ATTACHMENTS_MAX_PER_OWNER,
+  AttachmentInputDto,
+} from '../../attachments/dto/attachment.dto';
 
 export class TransferItemDto {
   @ApiProperty()
@@ -47,23 +53,20 @@ export class CreateTransferDto {
   @Type(() => TransferItemDto)
   items: TransferItemDto[];
 
-  /** true → residente debe subir la guía antes de confirmar recepción */
+  /** true → residente debe subir al menos un Attachment antes de confirmar recepción */
   @ApiPropertyOptional()
   @IsOptional()
   @IsBoolean()
   requiresRecipientDocument?: boolean;
 
-  /** URL del archivo ya subido por el admin (si tiene la guía al crear) */
-  @ApiPropertyOptional()
+  /** Adjuntos (guía/boleta) que el admin ya tiene al crear la transferencia. */
+  @ApiPropertyOptional({ type: [AttachmentInputDto] })
   @IsOptional()
-  @IsString()
-  documentUrl?: string;
-
-  /** Nombre original del archivo */
-  @ApiPropertyOptional()
-  @IsOptional()
-  @IsString()
-  documentName?: string;
+  @IsArray()
+  @ArrayMaxSize(ATTACHMENTS_MAX_PER_OWNER)
+  @ValidateNested({ each: true })
+  @Type(() => AttachmentInputDto)
+  attachments?: AttachmentInputDto[];
 }
 
 export class SendTransferDto {
@@ -112,16 +115,14 @@ export class ReceiveTransferDto {
   @MaxLength(500)
   overrideReason?: string;
 
-  /** URL del documento subido por el residente (si requiresRecipientDocument=true) */
-  @ApiPropertyOptional()
+  /** Adjuntos que sube el residente al recibir (si requiresRecipientDocument=true). */
+  @ApiPropertyOptional({ type: [AttachmentInputDto] })
   @IsOptional()
-  @IsString()
-  documentUrl?: string;
-
-  @ApiPropertyOptional()
-  @IsOptional()
-  @IsString()
-  documentName?: string;
+  @IsArray()
+  @ArrayMaxSize(ATTACHMENTS_MAX_PER_OWNER)
+  @ValidateNested({ each: true })
+  @Type(() => AttachmentInputDto)
+  attachments?: AttachmentInputDto[];
 }
 
 class ReceivedItemDto {
@@ -198,16 +199,14 @@ export class ReceiveAdditionalTransferDto {
   @MaxLength(500)
   overrideReason?: string;
 
-  /** Guía adicional OPCIONAL: la primera guía ya está vinculada a la TRF original. */
-  @ApiPropertyOptional()
+  /** Adjuntos adicionales OPCIONALES asociados a esta remesa parcial. */
+  @ApiPropertyOptional({ type: [AttachmentInputDto] })
   @IsOptional()
-  @IsString()
-  documentUrl?: string;
-
-  @ApiPropertyOptional()
-  @IsOptional()
-  @IsString()
-  documentName?: string;
+  @IsArray()
+  @ArrayMaxSize(ATTACHMENTS_MAX_PER_OWNER)
+  @ValidateNested({ each: true })
+  @Type(() => AttachmentInputDto)
+  attachments?: AttachmentInputDto[];
 }
 
 // ─── Cierre como faltante definitivo (solo admin) ──────────────────────────

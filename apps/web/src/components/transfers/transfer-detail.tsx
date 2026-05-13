@@ -12,7 +12,11 @@ import { toast } from 'sonner';
 
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { DocumentViewButton, FileUpload } from '@/components/ui/file-upload';
+import {
+  DocumentViewButton,
+  MultiFileUpload,
+  type UploadedFile,
+} from '@/components/ui/file-upload';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
@@ -61,10 +65,7 @@ export function TransferDetail({ transfer: snapshot, onClose }: Props) {
       snapshot.items.map((i) => [i.id, String(Number(i.sentQty ?? i.requestedQty))]),
     ),
   );
-  const [recipientDoc, setRecipientDoc] = useState<{
-    filename: string;
-    originalName: string;
-  } | null>(null);
+  const [recipientDocs, setRecipientDocs] = useState<UploadedFile[]>([]);
   const [showAdditional, setShowAdditional] = useState(false);
   const [showCloseShortage, setShowCloseShortage] = useState(false);
 
@@ -109,13 +110,16 @@ export function TransferDetail({ transfer: snapshot, onClose }: Props) {
     return true;
   };
 
+  const existingAttachmentsCount = t.attachments?.length ?? 0;
   const needsDocument =
-    t.status === 'EN_TRANSITO' && t.requiresRecipientDocument && !t.documentUrl;
+    t.status === 'EN_TRANSITO' &&
+    t.requiresRecipientDocument &&
+    existingAttachmentsCount === 0;
 
   const handleReceive = () => {
     setIsSubmitted(true);
     if (hasLineErrors) return;
-    if (needsDocument && !recipientDoc) return;
+    if (needsDocument && recipientDocs.length === 0) return;
     if (!validateOverride()) return;
     receive.mutate(
       {
@@ -125,8 +129,7 @@ export function TransferDetail({ transfer: snapshot, onClose }: Props) {
           receivedQty: Number(receivedQtys[i.id] ?? 0),
         })),
         overrideReason: needsOverride ? overrideReason.trim() : undefined,
-        documentUrl: recipientDoc?.filename ?? undefined,
-        documentName: recipientDoc?.originalName ?? undefined,
+        attachments: recipientDocs.length > 0 ? recipientDocs : undefined,
       },
       {
         onSuccess: (updated: Transfer) => {
@@ -401,11 +404,21 @@ export function TransferDetail({ transfer: snapshot, onClose }: Props) {
         </div>
       )}
 
-      {/* Guía de remisión */}
-      {t.documentUrl && t.documentName && (
+      {/* Adjuntos existentes (guía/boleta/fotos) */}
+      {t.attachments && t.attachments.length > 0 && (
         <div className="space-y-1.5">
-          <Label className="text-xs text-muted-foreground">Guía de remisión</Label>
-          <DocumentViewButton filename={t.documentUrl} originalName={t.documentName} />
+          <Label className="text-xs text-muted-foreground">
+            Adjuntos ({t.attachments.length})
+          </Label>
+          <div className="flex flex-wrap gap-2">
+            {t.attachments.map((a) => (
+              <DocumentViewButton
+                key={a.id}
+                filename={a.filename}
+                originalName={a.originalName}
+              />
+            ))}
+          </div>
         </div>
       )}
 
@@ -414,16 +427,17 @@ export function TransferDetail({ transfer: snapshot, onClose }: Props) {
         <div className="rounded-md border border-amber-300 bg-amber-50 dark:bg-amber-950/30 p-3 space-y-2">
           <p className="text-xs font-medium text-amber-900 dark:text-amber-200 flex items-center gap-1.5">
             <AlertCircle className="h-3.5 w-3.5 shrink-0" />
-            Se requiere adjuntar la guía de remisión para confirmar la recepción
+            Se requiere adjuntar la guía de remisión o boleta para confirmar la recepción
           </p>
-          <FileUpload
-            value={recipientDoc}
-            onChange={setRecipientDoc}
+          <MultiFileUpload
+            value={recipientDocs}
+            onChange={setRecipientDocs}
             disabled={receive.isPending}
+            label="Adjunta guía, boleta y/o fotos"
           />
-          {isSubmitted && !recipientDoc && (
+          {isSubmitted && recipientDocs.length === 0 && (
             <p className="text-xs text-destructive">
-              Debes adjuntar la guía antes de continuar
+              Debes adjuntar al menos un archivo antes de continuar
             </p>
           )}
         </div>
@@ -482,7 +496,7 @@ export function TransferDetail({ transfer: snapshot, onClose }: Props) {
             disabled={
               receive.isPending ||
               (isSubmitted && hasLineErrors) ||
-              (isSubmitted && needsDocument && !recipientDoc)
+              (isSubmitted && needsDocument && recipientDocs.length === 0)
             }
             className="gap-1.5"
           >

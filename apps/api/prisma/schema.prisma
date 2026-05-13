@@ -95,6 +95,12 @@ enum InventoryCountStatus {
   CANCELLED
 }
 
+// Tipos de entidad a la que un Attachment puede pertenecer (relación polimórfica).
+enum AttachmentOwnerType {
+  MOVEMENT
+  TRANSFER
+}
+
 // ============================================================================
 // USER & AUTH
 // ============================================================================
@@ -132,6 +138,7 @@ model User {
   inventoryCountsStarted    InventoryCount[] @relation("InventoryCountStartedBy")
   inventoryCountsClosed     InventoryCount[] @relation("InventoryCountClosedBy")
   inventoryCountsCancelled  InventoryCount[] @relation("InventoryCountCancelledBy")
+  attachmentsUploaded       Attachment[]     @relation("AttachmentUploadedBy")
 
   @@unique([documentType, documentNumber, deletedAt])
   @@index([deletedAt])
@@ -445,11 +452,10 @@ model Transfer {
   rejectOverrideReason  String?
   cancelOverrideReason  String?
 
-  // Guía de remisión adjunta (solo para COMPRA).
-  // requiresRecipientDocument=true → el residente debe subir el doc antes de confirmar.
+  // Guía de remisión adjunta. requiresRecipientDocument=true → el residente debe
+  // subir al menos un Attachment(ownerType=TRANSFER) antes de confirmar recepción.
+  // Los archivos viven en la tabla `attachments` (polimórfica).
   requiresRecipientDocument Boolean @default(false)
-  documentUrl               String?
-  documentName              String?
 
   items           TransferItem[]
   createdAt       DateTime       @default(now())
@@ -818,4 +824,29 @@ model InventoryCountItem {
   @@unique([countId, itemId])
   @@index([countId])
   @@map("inventory_count_items")
+}
+
+// ============================================================================
+// ATTACHMENTS (polimórficos) — soportan adjuntos en Movement (compras con guía/
+// boleta) y Transfer (guía de remisión). Cada fila cuelga de su owner vía
+// (ownerType, ownerId) — el modelo es polimórfico por convención (no hay FK
+// directa al owner para evitar acoplar el schema con cada entidad adjuntable).
+// El archivo físico vive en disco (UPLOADS_DIR); `filename` es el nombre en disco.
+// ============================================================================
+
+model Attachment {
+  id            String              @id @default(cuid())
+  filename      String              // nombre en disco (hex random)
+  originalName  String              // nombre original que subió el usuario
+  mimetype      String
+  size          Int                 // bytes
+  ownerType     AttachmentOwnerType
+  ownerId       String
+  uploadedById  String
+  uploadedBy    User                @relation("AttachmentUploadedBy", fields: [uploadedById], references: [id])
+  createdAt     DateTime            @default(now())
+
+  @@index([ownerType, ownerId])
+  @@index([uploadedById])
+  @@map("attachments")
 }

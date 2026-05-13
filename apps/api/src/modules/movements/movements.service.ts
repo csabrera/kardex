@@ -5,6 +5,7 @@ import { PrismaService } from '../../prisma/prisma.service';
 import { BusinessException } from '../../common/exceptions/business.exception';
 import { BusinessErrorCode, WS_EVENTS } from '@kardex/types';
 import { RealtimeService } from '../realtime/realtime.service';
+import { AttachmentsService } from '../attachments/attachments.service';
 import { assertWarehouseScope } from '../../common/utils/scope';
 import type { CreateMovementDto } from './dto/movement.dto';
 
@@ -19,22 +20,36 @@ export class MovementsService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly realtime: RealtimeService,
+    private readonly attachments: AttachmentsService,
   ) {}
 
   async findAll(query: {
     page?: number;
     pageSize?: number;
     type?: MovementType;
+    source?: MovementSource;
     warehouseId?: string;
     itemId?: string;
+    supplierId?: string;
     search?: string;
   }) {
-    const { page = 1, pageSize = 20, type, warehouseId, itemId, search } = query;
+    const {
+      page = 1,
+      pageSize = 20,
+      type,
+      source,
+      warehouseId,
+      itemId,
+      supplierId,
+      search,
+    } = query;
     const skip = (page - 1) * pageSize;
 
     const where: Prisma.MovementWhereInput = {
       ...(type && { type }),
+      ...(source && { source }),
       ...(warehouseId && { warehouseId }),
+      ...(supplierId && { supplierId }),
       ...(itemId && { items: { some: { itemId } } }),
       ...(search && {
         OR: [
@@ -50,6 +65,7 @@ export class MovementsService {
         include: {
           warehouse: { select: { id: true, code: true, name: true } },
           user: { select: { id: true, firstName: true, lastName: true } },
+          supplier: { select: { id: true, code: true, name: true } },
           items: {
             include: {
               item: {
@@ -70,8 +86,27 @@ export class MovementsService {
       this.prisma.movement.count({ where }),
     ]);
 
+    // Adjuntar attachments (relación polimórfica — no FK directa).
+    const ids = movements.map((m) => m.id);
+    const atts = ids.length
+      ? await this.prisma.attachment.findMany({
+          where: { ownerType: 'MOVEMENT', ownerId: { in: ids } },
+          orderBy: { createdAt: 'asc' },
+        })
+      : [];
+    const byOwner = new Map<string, typeof atts>();
+    for (const a of atts) {
+      const arr = byOwner.get(a.ownerId) ?? [];
+      arr.push(a);
+      byOwner.set(a.ownerId, arr);
+    }
+    const itemsWithAtts = movements.map((m) => ({
+      ...m,
+      attachments: byOwner.get(m.id) ?? [],
+    }));
+
     return {
-      items: movements,
+      items: itemsWithAtts,
       total,
       page,
       pageSize,
@@ -85,6 +120,7 @@ export class MovementsService {
       include: {
         warehouse: { select: { id: true, code: true, name: true } },
         user: { select: { id: true, firstName: true, lastName: true } },
+        supplier: { select: { id: true, code: true, name: true } },
         items: {
           include: {
             item: {
@@ -107,7 +143,13 @@ export class MovementsService {
         HttpStatus.NOT_FOUND,
       );
     }
-    return movement;
+
+    const attachments = await this.prisma.attachment.findMany({
+      where: { ownerType: 'MOVEMENT', ownerId: id },
+      orderBy: { createdAt: 'asc' },
+    });
+
+    return { ...movement, attachments };
   }
 
   async kardex(itemId: string, warehouseId?: string) {
@@ -187,6 +229,19 @@ export class MovementsService {
       throw new BusinessException(
         BusinessErrorCode.INVALID_INPUT,
         'El proveedor solo aplica cuando el origen es COMPRA.',
+        HttpStatus.BAD_REQUEST,
+      );
+    }
+
+    // Adjuntos: válidos solo en COMPRA (guía/boleta). Cualquier otro source los rechaza.
+    if (
+      dto.attachments &&
+      dto.attachments.length > 0 &&
+      dto.source !== MovementSource.COMPRA
+    ) {
+      throw new BusinessException(
+        BusinessErrorCode.INVALID_INPUT,
+        'Los adjuntos solo aplican a movimientos de origen COMPRA.',
         HttpStatus.BAD_REQUEST,
       );
     }
@@ -335,6 +390,9 @@ export class MovementsService {
           },
         },
       });
+
+      // Adjuntos (solo COMPRA, ya validado arriba)
+      await this.attachments.attach(tx, 'MOVEMENT', movement.id, dto.attachments, userId);
 
       // Notify connected clients of stock changes in this warehouse
       this.realtime.emitToWarehouse(dto.warehouseId, WS_EVENTS.STOCK_CHANGED, {

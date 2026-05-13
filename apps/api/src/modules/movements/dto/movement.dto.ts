@@ -2,6 +2,7 @@ import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { MovementSource, MovementType } from '@prisma/client';
 import { Type } from 'class-transformer';
 import {
+  ArrayMaxSize,
   ArrayMinSize,
   IsArray,
   IsEnum,
@@ -11,6 +12,11 @@ import {
   Min,
   ValidateNested,
 } from 'class-validator';
+
+import {
+  ATTACHMENTS_MAX_PER_OWNER,
+  AttachmentInputDto,
+} from '../../attachments/dto/attachment.dto';
 
 export class MovementItemDto {
   @ApiProperty()
@@ -63,4 +69,15 @@ export class CreateMovementDto {
   @ValidateNested({ each: true })
   @Type(() => MovementItemDto)
   items: MovementItemDto[];
+
+  @ApiPropertyOptional({
+    type: [AttachmentInputDto],
+    description: `Adjuntos (guía/boleta). Solo válido si source=COMPRA. Máx ${ATTACHMENTS_MAX_PER_OWNER}.`,
+  })
+  @IsOptional()
+  @IsArray()
+  @ArrayMaxSize(ATTACHMENTS_MAX_PER_OWNER)
+  @ValidateNested({ each: true })
+  @Type(() => AttachmentInputDto)
+  attachments?: AttachmentInputDto[];
 }

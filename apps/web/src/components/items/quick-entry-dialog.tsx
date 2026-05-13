@@ -8,6 +8,7 @@ import { z } from 'zod';
 
 import { QuickCreateSupplierDialog } from '@/components/items/quick-create-dialogs';
 import { Button } from '@/components/ui/button';
+import { MultiFileUpload, type UploadedFile } from '@/components/ui/file-upload';
 import {
   Dialog,
   DialogContent,
@@ -60,6 +61,7 @@ interface Props {
 export function QuickEntryDialog({ item, onClose }: Props) {
   const { data: mainWarehouse } = useMainWarehouse();
   const createMut = useCreateMovement();
+  const [attachments, setAttachments] = useState<UploadedFile[]>([]);
 
   const {
     register,
@@ -74,7 +76,7 @@ export function QuickEntryDialog({ item, onClose }: Props) {
   });
 
   useEffect(() => {
-    if (item)
+    if (item) {
       reset({
         quantity: 1,
         unitCost: '',
@@ -82,6 +84,8 @@ export function QuickEntryDialog({ item, onClose }: Props) {
         supplierId: '',
         notes: '',
       });
+      setAttachments([]);
+    }
   }, [item, reset]);
 
   const source = watch('source');
@@ -108,6 +112,8 @@ export function QuickEntryDialog({ item, onClose }: Props) {
         warehouseId: mainWarehouse.id,
         supplierId: data.source === 'COMPRA' ? data.supplierId : undefined,
         notes: data.notes || undefined,
+        attachments:
+          data.source === 'COMPRA' && attachments.length > 0 ? attachments : undefined,
         items: [
           {
             itemId: item.id,
@@ -246,6 +252,19 @@ export function QuickEntryDialog({ item, onClose }: Props) {
                 placeholder="Opcional: nº factura, guía, etc."
               />
             </div>
+
+            {/* Adjuntos — solo aplica si la entrada es una COMPRA */}
+            {source === 'COMPRA' && (
+              <div className="space-y-1.5">
+                <Label>Adjuntos (opcional)</Label>
+                <MultiFileUpload
+                  value={attachments}
+                  onChange={setAttachments}
+                  disabled={createMut.isPending}
+                  label="Adjunta guía, boleta y/o fotos"
+                />
+              </div>
+            )}
 
             <div className="flex justify-end gap-2 pt-2 border-t">
               <Button type="button" variant="outline" onClick={onClose}>
