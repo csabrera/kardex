@@ -506,7 +506,7 @@ describe('TransfersService', () => {
       expect(state.transfer.status).toBe(TransferStatus.RECIBIDA);
     });
 
-    it('recepción parcial → TRF en PARCIALMENTE_RECIBIDA, línea en RECIBIDO_PARCIAL', async () => {
+    it('recepción parcial → TRF en PARCIALMENTE_RECIBIDA, línea en RECIBIDO_PARCIAL, las no recibidas vuelven al origen', async () => {
       await service.receive(
         't-1',
         { items: [{ transferItemId: 'ti-1', receivedQty: 8 }] }, // se enviaron 10, recibieron 8
@@ -514,7 +514,10 @@ describe('TransfersService', () => {
       );
       expect(state.transfer.status).toBe(TransferStatus.PARCIALMENTE_RECIBIDA);
       expect(state.transfer.items[0].status).toBe(TransferItemStatus.RECIBIDO_PARCIAL);
-      expect(state.stocks[0].quantity).toBe(8);
+      const toStock = state.stocks.find((s) => s.warehouseId === 'wh-to');
+      const fromStock = state.stocks.find((s) => s.warehouseId === 'wh-from');
+      expect(toStock?.quantity).toBe(8); // destino: lo recibido
+      expect(fromStock?.quantity).toBe(2); // origen: las 2 no recibidas vuelven contablemente
       // NO se emite alerta (la alerta TRANSFER_DISCREPANCIA fue eliminada — el estado es la señal)
       const alertCalls = realtimeMock.emitToRole.mock.calls.filter(
         (c) => c[1] === 'alert.created',
@@ -535,11 +538,19 @@ describe('TransfersService', () => {
 
   describe('receiveAdditional (PARCIALMENTE_RECIBIDA → completar)', () => {
     beforeEach(() => {
-      // Partimos de TRF parcial: enviaron 10, recibieron 6, faltan 4
+      // Partimos de TRF parcial: enviaron 10, recibieron 6, faltan 4.
+      // En Modelo C las 4 pendientes ya están como saldo del origen (devueltas
+      // contablemente en receive). El destino tiene los 6 recibidos.
       state.transfer.status = TransferStatus.PARCIALMENTE_RECIBIDA;
       state.transfer.items[0].sentQty = 10;
       state.transfer.items[0].receivedQty = 6;
       state.transfer.items[0].status = TransferItemStatus.RECIBIDO_PARCIAL;
+      state.stocks.push({
+        itemId: 'item-1',
+        warehouseId: 'wh-from',
+        quantity: 4,
+        version: 0,
+      });
       state.stocks.push({
         itemId: 'item-1',
         warehouseId: 'wh-to',
@@ -548,7 +559,11 @@ describe('TransfersService', () => {
       });
     });
 
-    it('completa la línea y cierra la TRF a RECIBIDA', async () => {
+    const fromStock = () =>
+      state.stocks.find((s) => s.warehouseId === 'wh-from')?.quantity;
+    const toStock = () => state.stocks.find((s) => s.warehouseId === 'wh-to')?.quantity;
+
+    it('completa la línea: saca del origen y suma al destino', async () => {
       await service.receiveAdditional(
         't-1',
         { items: [{ transferItemId: 'ti-1', additionalQty: 4 }] },
@@ -557,7 +572,8 @@ describe('TransfersService', () => {
       expect(state.transfer.items[0].receivedQty).toBe(10);
       expect(state.transfer.items[0].status).toBe(TransferItemStatus.RECIBIDO_COMPLETO);
       expect(state.transfer.status).toBe(TransferStatus.RECIBIDA);
-      expect(state.stocks[0].quantity).toBe(10);
+      expect(fromStock()).toBe(0); // origen: 4 → 0
+      expect(toStock()).toBe(10); // destino: 6 → 10
     });
 
     it('recepción adicional parcial mantiene PARCIALMENTE_RECIBIDA', async () => {
@@ -569,6 +585,8 @@ describe('TransfersService', () => {
       expect(state.transfer.items[0].receivedQty).toBe(8);
       expect(state.transfer.items[0].status).toBe(TransferItemStatus.RECIBIDO_PARCIAL);
       expect(state.transfer.status).toBe(TransferStatus.PARCIALMENTE_RECIBIDA);
+      expect(fromStock()).toBe(2); // origen: 4 → 2
+      expect(toStock()).toBe(8); // destino: 6 → 8
     });
 
     it('rechaza additionalQty que excede lo pendiente', async () => {
@@ -599,16 +617,17 @@ describe('TransfersService', () => {
       state.transfer.items[0].sentQty = 10;
       state.transfer.items[0].receivedQty = 6;
       state.transfer.items[0].status = TransferItemStatus.RECIBIDO_PARCIAL;
-      // El origen tenía 90 después de enviar 10
+      // Modelo C: el origen tiene las 4 pendientes (devueltas en receive parcial).
+      // Compra fue 90, salieron 10 a TRF, volvieron 4 → saldo 84.
       state.stocks.push({
         itemId: 'item-1',
         warehouseId: 'wh-from',
-        quantity: 90,
+        quantity: 84,
         version: 0,
       });
     });
 
-    it('cierra línea, crea par ENTRADA+SALIDA en el origen, TRF queda RECIBIDA', async () => {
+    it('SALIDA directa del origen con motivo, baja el saldo visible', async () => {
       prismaMock.user.findUnique.mockResolvedValueOnce({
         id: 'admin-1',
         role: { name: 'ADMIN' },
@@ -624,8 +643,8 @@ describe('TransfersService', () => {
       );
       expect(state.transfer.items[0].status).toBe(TransferItemStatus.FALTANTE_DEFINITIVO);
       expect(state.transfer.items[0].shortageReason).toBe('INCUMPLIMIENTO_PROVEEDOR');
-      // El origen: +4 (devolución) -4 (baja) = neto 0 → sigue en 90
-      expect(state.stocks[0].quantity).toBe(90);
+      // El origen: 84 - 4 = 80 (las 4 pendientes salen con motivo COMPRA_INCUMPLIDA)
+      expect(state.stocks[0].quantity).toBe(80);
       // TRF cierra como RECIBIDA (toda línea pendiente queda terminal)
       expect(state.transfer.status).toBe(TransferStatus.RECIBIDA);
     });

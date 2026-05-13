@@ -1,6 +1,6 @@
 'use client';
 
-import { BarChart3, Building, Coins, Package, Truck, TrendingUp } from 'lucide-react';
+import { BarChart3, Building, Coins, Package, TrendingUp } from 'lucide-react';
 import Link from 'next/link';
 
 import { PageHeader } from '@/components/layout/page-header';
@@ -66,14 +66,6 @@ const REPORTS: ReportCard[] = [
     icon: BarChart3,
     title: 'Movimientos agregados',
     description: 'Evolución de entradas, salidas y ajustes por día, semana o mes.',
-    tone: 'warning',
-  },
-  {
-    href: '/dashboard/reportes/en-transito',
-    icon: Truck,
-    title: 'Stock en tránsito',
-    description:
-      'Unidades que salieron del origen pero no llegaron al destino. Saldos pendientes por transferencia, con antigüedad.',
     tone: 'warning',
   },
 ];

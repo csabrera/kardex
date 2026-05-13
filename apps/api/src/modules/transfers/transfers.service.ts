@@ -325,6 +325,29 @@ export class TransfersService {
           `Recepción de transferencia ${t.code} desde ${t.fromWarehouse.name}`,
         );
 
+        // Devolución contable al origen de lo no recibido. Las unidades vuelven
+        // al saldo del origen como "responsabilidad contable hasta resolver"
+        // (espera segunda remesa o cierre como faltante por admin).
+        const shortageReturns = dto.items
+          .map((ri) => {
+            const ti = t.items.find((i) => i.id === ri.transferItemId)!;
+            const sent = Number(ti.sentQty ?? ti.requestedQty);
+            const pending = sent - Number(ri.receivedQty);
+            return { itemId: ti.itemId, quantity: pending };
+          })
+          .filter((i) => i.quantity > 0.0001);
+        if (shortageReturns.length > 0) {
+          await this.createMovementForTransfer(
+            tx,
+            t.fromWarehouseId,
+            MovementType.ENTRADA,
+            MovementSource.DEVOLUCION_PARCIAL_TRF,
+            shortageReturns,
+            userId,
+            `Devolución contable parcial de ${t.code} — saldo pendiente al origen`,
+          );
+        }
+
         const newStatus = await this.computeTransferStatus(tx, id);
 
         const updated = await tx.transfer.update({
@@ -414,16 +437,30 @@ export class TransfersService {
           });
         }
 
-        // Sumar stock al destino con la qty adicional
+        // Modelo C: las pendientes están físicamente como saldo del origen tras
+        // la recepción parcial inicial. Para la segunda remesa, primero las
+        // sacamos del origen (SALIDA) y luego las acreditamos al destino (ENTRADA).
+        const adjustedItems = dto.items.map((ri) => {
+          const ti = t.items.find((i) => i.id === ri.transferItemId)!;
+          return { itemId: ti.itemId, quantity: ri.additionalQty };
+        });
+
+        await this.createMovementForTransfer(
+          tx,
+          t.fromWarehouseId,
+          MovementType.SALIDA,
+          MovementSource.TRANSFERENCIA,
+          adjustedItems,
+          userId,
+          `Salida adicional para transferencia ${t.code} (segunda remesa)`,
+        );
+
         await this.createMovementForTransfer(
           tx,
           t.toWarehouseId,
           MovementType.ENTRADA,
           MovementSource.TRANSFERENCIA,
-          dto.items.map((ri) => {
-            const ti = t.items.find((i) => i.id === ri.transferItemId)!;
-            return { itemId: ti.itemId, quantity: ri.additionalQty };
-          }),
+          adjustedItems,
           userId,
           `Recepción adicional de transferencia ${t.code}`,
         );
@@ -538,23 +575,10 @@ export class TransfersService {
           });
         }
 
-        // Par de Movements en el almacén origen, uno por cada línea cerrada.
-        // Primero ENTRADA(DEVOLUCION): devuelve contablemente las pending unidades
-        // que ya habían salido al crear la transferencia. Luego SALIDA(COMPRA_INCUMPLIDA):
-        // las da de baja con motivo clasificado para reporte.
-        await this.createMovementForTransfer(
-          tx,
-          t.fromWarehouseId,
-          MovementType.ENTRADA,
-          MovementSource.DEVOLUCION,
-          linesToClose.map(({ ti, pendingQty }) => ({
-            itemId: ti.itemId,
-            quantity: pendingQty,
-          })),
-          userId,
-          `Cierre TRF ${t.code} — devolución contable previa a baja`,
-        );
-
+        // Modelo C: las pendientes ya fueron devueltas al origen vía
+        // DEVOLUCION_PARCIAL_TRF en receive() y están como saldo del origen.
+        // Ahora solo las sacamos del origen con motivo clasificado. El saldo
+        // del origen baja visiblemente y la baja queda registrada en kardex.
         await this.createMovementForTransfer(
           tx,
           t.fromWarehouseId,

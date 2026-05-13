@@ -21,23 +21,6 @@ export interface Item {
   createdAt: string;
   /** Stock actual en el Almacén Principal (inyectado por el backend en el listado) */
   principalStock?: number;
-  /** Unidades pendientes en TRFs activas (EN_TRANSITO + PARCIALMENTE_RECIBIDA). */
-  inTransitQty?: number;
-}
-
-export interface InTransitLine {
-  transferItemId: string;
-  pendingQty: number;
-  lineStatus: 'PENDIENTE' | 'RECIBIDO_PARCIAL';
-  transfer: {
-    id: string;
-    code: string;
-    status: 'EN_TRANSITO' | 'PARCIALMENTE_RECIBIDA';
-    sentAt: string;
-    daysSinceSent: number;
-  };
-  fromWarehouse: { id: string; code: string; name: string };
-  toWarehouse: { id: string; code: string; name: string };
 }
 
 /** Shape extendida devuelta por GET /items/:id — incluye stock por almacén */
@@ -55,10 +38,6 @@ export interface ItemDetail extends Item {
     /** Devueltos con condición DAMAGED en este almacén. */
     damagedReturnedQty: number;
   }[];
-  /** Líneas de transferencias pendientes (no llegaron al destino aún). */
-  inTransit?: InTransitLine[];
-  /** Suma total de pendingQty en todas las líneas inTransit. */
-  totalInTransit?: number;
 }
 
 interface ItemPage {

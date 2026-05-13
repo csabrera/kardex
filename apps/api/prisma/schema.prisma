@@ -57,6 +57,7 @@ enum MovementSource {
   BAJA
   LOST_LOAN
   COMPRA_INCUMPLIDA
+  DEVOLUCION_PARCIAL_TRF
 }
 
 enum AlertType {

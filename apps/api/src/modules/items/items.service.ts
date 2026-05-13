@@ -63,36 +63,14 @@ export class ItemsService {
       this.prisma.item.count({ where }),
     ]);
 
-    // Sumar pendingQty (sent - received) por itemId para los items de esta página.
-    // Cubre TRFs EN_TRANSITO + PARCIALMENTE_RECIBIDA con líneas pendientes. Una sola
-    // query, hecha en JS porque `pendingQty` es derivado (sent - received).
-    const itemIds = items.map((i) => i.id);
-    const inTransitMap = new Map<string, number>();
-    if (itemIds.length > 0) {
-      const transferItems = await this.prisma.transferItem.findMany({
-        where: {
-          itemId: { in: itemIds },
-          status: { in: ['PENDIENTE', 'RECIBIDO_PARCIAL'] },
-          transfer: { status: { in: ['EN_TRANSITO', 'PARCIALMENTE_RECIBIDA'] } },
-        },
-        select: { itemId: true, sentQty: true, receivedQty: true, requestedQty: true },
-      });
-      for (const ti of transferItems) {
-        const sent = Number(ti.sentQty ?? ti.requestedQty);
-        const recvd = Number(ti.receivedQty ?? 0);
-        const pending = sent - recvd;
-        if (pending > 0) {
-          inTransitMap.set(ti.itemId, (inTransitMap.get(ti.itemId) ?? 0) + pending);
-        }
-      }
-    }
-
-    // Aplanar: agregar `principalStock` e `inTransitQty` a cada item
+    // Aplanar: agregar `principalStock` a cada item.
+    // Las TRFs parciales ya devuelven contablemente al origen las unidades no
+    // recibidas (Modelo C), así que `principalStock` ya refleja todo el saldo
+    // contable. No hace falta un campo `inTransitQty` adicional.
     const itemsWithStock = items.map((item: any) => {
       const principalStock = mainWarehouse ? Number(item.stocks?.[0]?.quantity ?? 0) : 0;
-      const inTransitQty = inTransitMap.get(item.id) ?? 0;
       const { stocks, ...rest } = item;
-      return { ...rest, principalStock, inTransitQty };
+      return { ...rest, principalStock };
     });
 
     return {
@@ -122,60 +100,6 @@ export class ItemsService {
         HttpStatus.NOT_FOUND,
       );
     }
-
-    // Stock "en tránsito": líneas pendientes (PENDIENTE / RECIBIDO_PARCIAL) de
-    // transferencias activas (EN_TRANSITO o PARCIALMENTE_RECIBIDA). Resuelve el
-    // agujero visual: descontadas del origen, no acreditadas al destino.
-    const inTransitItems = await this.prisma.transferItem.findMany({
-      where: {
-        itemId: id,
-        status: { in: ['PENDIENTE', 'RECIBIDO_PARCIAL'] },
-        transfer: {
-          status: { in: ['EN_TRANSITO', 'PARCIALMENTE_RECIBIDA'] },
-        },
-      },
-      include: {
-        transfer: {
-          select: {
-            id: true,
-            code: true,
-            status: true,
-            sentAt: true,
-            createdAt: true,
-            fromWarehouse: { select: { id: true, code: true, name: true } },
-            toWarehouse: { select: { id: true, code: true, name: true } },
-          },
-        },
-      },
-      orderBy: { transfer: { sentAt: 'asc' } },
-    });
-    const now = Date.now();
-    const inTransit = inTransitItems
-      .map((ti) => {
-        const sent = Number(ti.sentQty ?? ti.requestedQty);
-        const received = Number(ti.receivedQty ?? 0);
-        const pendingQty = sent - received;
-        if (pendingQty <= 0) return null;
-        const baseDate = ti.transfer.sentAt ?? ti.transfer.createdAt;
-        return {
-          transferItemId: ti.id,
-          pendingQty,
-          lineStatus: ti.status,
-          transfer: {
-            id: ti.transfer.id,
-            code: ti.transfer.code,
-            status: ti.transfer.status,
-            sentAt: baseDate.toISOString(),
-            daysSinceSent: Math.floor(
-              (now - new Date(baseDate).getTime()) / (1000 * 60 * 60 * 24),
-            ),
-          },
-          fromWarehouse: ti.transfer.fromWarehouse,
-          toWarehouse: ti.transfer.toWarehouse,
-        };
-      })
-      .filter((r): r is NonNullable<typeof r> => r !== null);
-    const totalInTransit = inTransit.reduce((acc, r) => acc + r.pendingQty, 0);
 
     // Para items PRESTAMO, anotar cada stock con loanedQty/availableQty/damagedReturnedQty.
     if (item.type === 'PRESTAMO' && item.stocks.length > 0) {
@@ -213,7 +137,7 @@ export class ItemsService {
           damagedReturnedQty: damaged,
         };
       });
-      return { ...item, stocks, inTransit, totalInTransit };
+      return { ...item, stocks };
     }
 
     // Otros tipos: anotar campos en 0 para consistencia de shape en el frontend.
@@ -223,7 +147,7 @@ export class ItemsService {
       availableQty: Number(s.quantity),
       damagedReturnedQty: 0,
     }));
-    return { ...item, stocks, inTransit, totalInTransit };
+    return { ...item, stocks };
   }
 
   async create(dto: CreateItemDto, userId?: string) {

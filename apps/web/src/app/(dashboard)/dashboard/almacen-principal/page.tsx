@@ -8,7 +8,6 @@ import {
   Shield,
   Star,
   TrendingDown,
-  Truck,
   Warehouse as WarehouseIcon,
   Wrench,
 } from 'lucide-react';
@@ -30,7 +29,6 @@ import {
 } from '@/components/ui/select';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { useAlerts } from '@/hooks/use-alerts';
-import { useInTransitReport } from '@/hooks/use-reports';
 import { useStock } from '@/hooks/use-stock';
 import { useMainWarehouse } from '@/hooks/use-warehouses';
 import { cn } from '@/lib/cn';
@@ -74,9 +72,6 @@ export default function AlmacenPrincipalPage() {
 
   const stock = useStock({ warehouseId: mainId, enabled: !!mainId });
   const alerts = useAlerts({ warehouseId: mainId, read: false, enabled: !!mainId });
-  // Pendientes en tránsito de TODAS las TRFs activas (sin filtrar por almacén
-  // porque el indicador es global del sistema, no específico del Principal).
-  const inTransit = useInTransitReport();
 
   // KPIs
   const items = stock.data ?? [];
@@ -86,11 +81,6 @@ export default function AlmacenPrincipalPage() {
   ).length;
 
   const alertsCount = alerts.data?.length ?? 0;
-  const inTransitTotalQty = (inTransit.data?.totalsByItem ?? []).reduce(
-    (acc, t) => acc + t.totalPending,
-    0,
-  );
-  const inTransitLines = inTransit.data?.totalRows ?? 0;
 
   return (
     <div className="space-y-4">
@@ -113,7 +103,7 @@ export default function AlmacenPrincipalPage() {
         </div>
 
         {/* KPIs como "strip" horizontal compacto */}
-        <div className="grid grid-cols-2 md:grid-cols-5 lg:flex lg:items-center gap-3 lg:gap-6">
+        <div className="grid grid-cols-2 md:grid-cols-4 lg:flex lg:items-center gap-3 lg:gap-6">
           <KpiInline
             label="Ítems"
             value={items.length}
@@ -125,23 +115,6 @@ export default function AlmacenPrincipalPage() {
             value={totalQty.toLocaleString('es-PE', { maximumFractionDigits: 0 })}
             icon={Package}
             loading={stock.isLoading}
-          />
-          <KpiInline
-            label="En tránsito"
-            value={
-              inTransitLines > 0
-                ? `${inTransitTotalQty.toLocaleString('es-PE', { maximumFractionDigits: 0 })}`
-                : 0
-            }
-            sub={
-              inTransitLines > 0
-                ? `${inTransitLines} línea${inTransitLines === 1 ? '' : 's'}`
-                : undefined
-            }
-            icon={Truck}
-            tone={inTransitLines > 0 ? 'warning' : 'muted'}
-            href="/dashboard/reportes/en-transito"
-            loading={inTransit.isLoading}
           />
           <KpiInline
             label="Bajo mínimo"
