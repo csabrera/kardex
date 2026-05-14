@@ -2,6 +2,7 @@ import { Module } from '@nestjs/common';
 import { ConfigModule } from '@nestjs/config';
 import { APP_FILTER, APP_GUARD, APP_INTERCEPTOR } from '@nestjs/core';
 import { ScheduleModule } from '@nestjs/schedule';
+import { ThrottlerGuard, ThrottlerModule } from '@nestjs/throttler';
 
 import { BootstrapService } from './bootstrap/bootstrap.service';
 import { AuditInterceptor } from './common/interceptors/audit.interceptor';
@@ -51,6 +52,12 @@ import { PrismaModule } from './prisma/prisma.module';
       envFilePath: ['.env', '.env.local'],
     }),
     ScheduleModule.forRoot(),
+    // Rate limiting: default 60 req/min por IP. Override más estricto en
+    // endpoints sensibles vía @Throttle (ver auth.controller).
+    // - El guard registrado abajo lee la IP del request (en prod, viene del
+    //   X-Forwarded-For de Railway gracias a `trust proxy` en main.ts).
+    // - Para saltar el límite en una ruta concreta, usar @SkipThrottle().
+    ThrottlerModule.forRoot([{ name: 'global', ttl: 60_000, limit: 60 }]),
     PrismaModule,
     AuthModule,
     HealthModule,
@@ -82,7 +89,10 @@ import { PrismaModule } from './prisma/prisma.module';
   providers: [
     // Self-healing: en arranque siembra roles+permissions si la BD está vacía.
     BootstrapService,
-    // Guards — order matters: JWT → Roles → Permissions
+    // Guards — order: Throttler → JWT → Roles → Permissions.
+    // Throttler primero para que brute-force de endpoints públicos (login,
+    // forgot-password) sea bloqueado ANTES de tocar la BD.
+    { provide: APP_GUARD, useClass: ThrottlerGuard },
     { provide: APP_GUARD, useClass: JwtAuthGuard },
     { provide: APP_GUARD, useClass: RolesGuard },
     { provide: APP_GUARD, useClass: PermissionsGuard },

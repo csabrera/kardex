@@ -10,6 +10,7 @@ import {
   Res,
 } from '@nestjs/common';
 import { ApiOperation, ApiTags, ApiCookieAuth } from '@nestjs/swagger';
+import { Throttle } from '@nestjs/throttler';
 import type { Request, Response } from 'express';
 
 import { Public } from './decorators/public.decorator';
@@ -47,6 +48,9 @@ export class AuthController {
   @Public()
   @Post('login')
   @HttpCode(HttpStatus.OK)
+  // Brute-force protection: 5 intentos por IP cada 15 min.
+  // El override (sobrescribe el global 60/min) usa el mismo nombre 'global'.
+  @Throttle({ global: { limit: 5, ttl: 900_000 } })
   @ApiOperation({ summary: 'Login con tipo + número de documento y contraseña' })
   async login(@Body() dto: LoginDto, @Res({ passthrough: true }) res: Response) {
     const result = await this.authService.login(dto);
@@ -91,6 +95,8 @@ export class AuthController {
   @Public()
   @Post('forgot-password')
   @HttpCode(HttpStatus.OK)
+  // Anti-enumeración/anti-spam: 3 intentos por IP por hora.
+  @Throttle({ global: { limit: 3, ttl: 3_600_000 } })
   @ApiOperation({ summary: 'Solicitar recuperación de contraseña por documento' })
   forgotPassword(@Body() dto: ForgotPasswordDto, @Req() req: Request) {
     const isDev =

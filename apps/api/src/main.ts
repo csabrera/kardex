@@ -1,6 +1,7 @@
 import { ValidationPipe } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { NestFactory } from '@nestjs/core';
+import type { NestExpressApplication } from '@nestjs/platform-express';
 import { IoAdapter } from '@nestjs/platform-socket.io';
 import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
 import helmet from 'helmet';
@@ -10,7 +11,7 @@ import { AppModule } from './app.module';
 import { PrismaService } from './prisma/prisma.service';
 
 async function bootstrap(): Promise<void> {
-  const app = await NestFactory.create(AppModule, {
+  const app = await NestFactory.create<NestExpressApplication>(AppModule, {
     logger: ['log', 'error', 'warn', 'debug', 'verbose'],
   });
 
@@ -20,6 +21,16 @@ async function bootstrap(): Promise<void> {
   const corsOrigin =
     configService.get<string>('app.corsOrigin') ?? 'http://localhost:3000';
   const env = configService.get<string>('app.env') ?? 'development';
+
+  // ===========================================================================
+  // Trust proxy: en producción detrás de Railway, leemos la IP real del
+  // cliente desde X-Forwarded-For (el proxy de Railway agrega ese header).
+  // Sin esto, el rate limiter ve "la IP del proxy" y todos los usuarios
+  // comparten cuota — bloqueo masivo al primer brute-force.
+  // ===========================================================================
+  if (env === 'production') {
+    app.set('trust proxy', 1);
+  }
 
   // ===========================================================================
   // Cookie parser (needed for refresh token httpOnly cookie)
