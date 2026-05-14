@@ -3,6 +3,7 @@
 import { zodResolver } from '@hookform/resolvers/zod';
 import { type ColumnDef } from '@tanstack/react-table';
 import {
+  AlertTriangle,
   ArrowDownCircle,
   ArrowRight,
   ArrowUpCircle,
@@ -12,6 +13,7 @@ import {
   ExternalLink,
   FileUp,
   History,
+  Info,
   Plus,
   Shield,
   SlidersHorizontal,
@@ -265,7 +267,15 @@ function ItemForm({
   // ── Carga inicial (Wave 2) ─────────────────────────────────
   const loadInitialStock = watch('loadInitialStock') ?? false;
   const initialSource = watch('initialSource');
+  const watchedName = watch('name') ?? '';
   const watchedDescription = watch('description') ?? '';
+  const watchedInitialNotes = watch('initialNotes') ?? '';
+
+  // ── Detección de cambio de Tipo en modo Editar ─────────────
+  // Cambiar el Tipo de un ítem con historia puede dejar préstamos/asignaciones
+  // en estado inconsistente. Mostramos warning, no bloqueamos.
+  const watchedType = watch('type');
+  const typeChanged = isEdit && defaultValues?.type && watchedType !== defaultValues.type;
 
   // ── Submit button label dinámico ───────────────────────────
   const submitLabel = (() => {
@@ -293,15 +303,61 @@ function ItemForm({
   return (
     <>
       <form onSubmit={handleFormSubmit} onKeyDown={onKeyDown} className="space-y-5">
+        {/* Banner explicativo: solo en modo crear */}
+        {!isEdit && (
+          <div
+            className="flex gap-2.5 rounded-lg border border-info/30 bg-info/10 p-3 text-xs"
+            role="note"
+          >
+            <Info className="h-4 w-4 shrink-0 text-info mt-0.5" />
+            <div className="space-y-0.5">
+              <p className="font-semibold text-foreground">
+                El código se genera automáticamente
+              </p>
+              <p className="text-muted-foreground">
+                El <strong>Tipo</strong> determina cómo se mueve el ítem (sale del
+                almacén, se presta y vuelve, o se asigna individualmente) y conviene
+                definirlo bien desde el inicio.
+              </p>
+            </div>
+          </div>
+        )}
+
+        {/* Warning: el Tipo cambió en modo Editar */}
+        {typeChanged && (
+          <div
+            className="flex gap-2.5 rounded-md border border-amber-300 bg-amber-50 dark:bg-amber-950/30 p-3 text-xs"
+            role="alert"
+          >
+            <AlertTriangle className="h-4 w-4 shrink-0 text-amber-700 dark:text-amber-300 mt-0.5" />
+            <div className="space-y-0.5">
+              <p className="font-medium text-amber-900 dark:text-amber-200">
+                Estás cambiando el Tipo del ítem
+              </p>
+              <p className="text-amber-800 dark:text-amber-200/80">
+                Si el ítem ya tiene préstamos activos o asignaciones EPP en curso, cambiar
+                el Tipo puede dejarlos en estado inconsistente. Asegúrate de que no hay
+                historia abierta antes de guardar.
+              </p>
+            </div>
+          </div>
+        )}
+
         {/* Sección 1 — Identificación */}
         <div className="space-y-4">
           <div className="space-y-1.5">
-            <Label>
-              Nombre <span className="text-destructive">*</span>
-            </Label>
+            <div className="flex items-center justify-between">
+              <Label>
+                Nombre <span className="text-destructive">*</span>
+              </Label>
+              <span className="text-[11px] text-muted-foreground tabular-nums">
+                {watchedName.length}/200
+              </span>
+            </div>
             <Input
               {...register('name')}
               onChange={toUpperOnChange('name')}
+              maxLength={200}
               placeholder="Cemento Portland Tipo I — bolsa 42.5 kg"
               autoFocus
             />
@@ -584,10 +640,16 @@ function ItemForm({
                 )}
 
                 <div className="space-y-1.5">
-                  <Label>Notas</Label>
+                  <div className="flex items-center justify-between">
+                    <Label>Notas</Label>
+                    <span className="text-[11px] text-muted-foreground tabular-nums">
+                      {watchedInitialNotes.length}/500
+                    </span>
+                  </div>
                   <Textarea
                     {...register('initialNotes')}
                     onChange={toUpperOnChange('initialNotes')}
+                    maxLength={500}
                     rows={2}
                     placeholder="Nº FACTURA, GUÍA, OBSERVACIONES..."
                   />
@@ -624,6 +686,7 @@ function ItemForm({
           <Textarea
             {...register('description')}
             onChange={toUpperOnChange('description')}
+            maxLength={1000}
             rows={3}
             placeholder="Especificaciones técnicas, marca, características..."
           />
