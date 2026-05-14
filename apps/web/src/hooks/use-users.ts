@@ -30,11 +30,20 @@ export interface User {
   role: Role;
 }
 
+export type ContractStatus =
+  | 'NONE'
+  | 'VALID'
+  | 'EXPIRING_30D'
+  | 'EXPIRING_7D'
+  | 'EXPIRED';
+
 interface UsersQuery {
   page?: number;
   pageSize?: number;
   search?: string;
   active?: boolean;
+  roleId?: string;
+  contractStatus?: ContractStatus;
 }
 
 interface CreateUserDto {

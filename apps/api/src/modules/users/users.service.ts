@@ -52,13 +52,41 @@ export class UsersService {
     pageSize?: number;
     search?: string;
     active?: boolean;
+    roleId?: string;
+    contractStatus?: 'NONE' | 'VALID' | 'EXPIRING_30D' | 'EXPIRING_7D' | 'EXPIRED';
   }) {
-    const { page = 1, pageSize = 20, search, active } = query;
+    const { page = 1, pageSize = 20, search, active, roleId, contractStatus } = query;
     const skip = (page - 1) * pageSize;
+
+    // Filtro de contrato — compone where según proximidad a contractEndDate.
+    const now = new Date();
+    const in7d = new Date(now);
+    in7d.setDate(in7d.getDate() + 7);
+    const in30d = new Date(now);
+    in30d.setDate(in30d.getDate() + 30);
+
+    const contractWhere: Prisma.UserWhereInput | null = (() => {
+      switch (contractStatus) {
+        case 'NONE':
+          return { contractEndDate: null };
+        case 'EXPIRED':
+          return { contractEndDate: { lt: now } };
+        case 'EXPIRING_7D':
+          return { contractEndDate: { gte: now, lte: in7d } };
+        case 'EXPIRING_30D':
+          return { contractEndDate: { gte: now, lte: in30d } };
+        case 'VALID':
+          return { contractEndDate: { gt: in30d } };
+        default:
+          return null;
+      }
+    })();
 
     const where: Prisma.UserWhereInput = {
       deletedAt: null,
       ...(active !== undefined && { active }),
+      ...(roleId && { roleId }),
+      ...(contractWhere ?? {}),
       ...(search && {
         OR: [
           { firstName: { contains: search, mode: 'insensitive' } },

@@ -1,12 +1,21 @@
 import { Body, Controller, Get, Param, Patch, Post, Query } from '@nestjs/common';
 import { ApiTags } from '@nestjs/swagger';
-import { IsOptional } from 'class-validator';
+import { IsEnum, IsOptional, IsString } from 'class-validator';
 import { Transform, Type } from 'class-transformer';
 
 import { RequirePermissions } from '../auth/decorators/permissions.decorator';
 import { PaginationQueryDto } from '../../common/dto/pagination.dto';
 import { CreateUserDto, RenewContractDto, UpdateUserDto } from './dto/user.dto';
 import { UsersService } from './users.service';
+
+export const CONTRACT_STATUSES = [
+  'NONE',
+  'VALID',
+  'EXPIRING_30D',
+  'EXPIRING_7D',
+  'EXPIRED',
+] as const;
+export type ContractStatus = (typeof CONTRACT_STATUSES)[number];
 
 class UserQueryDto extends PaginationQueryDto {
   @IsOptional()
@@ -17,6 +26,14 @@ class UserQueryDto extends PaginationQueryDto {
     return undefined;
   })
   active?: boolean;
+
+  @IsOptional()
+  @IsString()
+  roleId?: string;
+
+  @IsOptional()
+  @IsEnum(CONTRACT_STATUSES)
+  contractStatus?: ContractStatus;
 }
 
 @ApiTags('users')

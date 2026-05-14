@@ -916,23 +916,71 @@ function RenewContractDialog({
   );
 }
 
+type ActiveFilter = '_active' | '_inactive' | '_all';
+type ContractFilter =
+  | '_all'
+  | 'NONE'
+  | 'VALID'
+  | 'EXPIRING_30D'
+  | 'EXPIRING_7D'
+  | 'EXPIRED';
+
+const ACTIVE_OPTIONS: { value: ActiveFilter; label: string }[] = [
+  { value: '_active', label: 'Solo activos' },
+  { value: '_inactive', label: 'Solo inactivos' },
+  { value: '_all', label: 'Todos los estados' },
+];
+
+const CONTRACT_FILTER_OPTIONS: { value: ContractFilter; label: string }[] = [
+  { value: '_all', label: 'Todos los contratos' },
+  { value: 'EXPIRING_7D', label: 'Urgentes (vence en 7d)' },
+  { value: 'EXPIRING_30D', label: 'Por vencer (vence en 30d)' },
+  { value: 'EXPIRED', label: 'Vencidos' },
+  { value: 'VALID', label: 'Vigentes (>30d)' },
+  { value: 'NONE', label: 'Sin contrato' },
+];
+
 export default function UsuariosPage() {
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(10);
   const [search, setSearch] = useState('');
+  const [activeFilter, setActiveFilter] = useState<ActiveFilter>('_active');
+  const [roleFilter, setRoleFilter] = useState<string>('_all');
+  const [contractFilter, setContractFilter] = useState<ContractFilter>('_all');
   const [showCreate, setShowCreate] = useState(false);
   const [editTarget, setEditTarget] = useState<User | null>(null);
   const [renewTarget, setRenewTarget] = useState<User | null>(null);
   const debouncedSearch = useDebounce(search, 300);
   const confirm = useConfirm();
 
+  // Lista de roles para el filtro (reusa la query de useRoles)
+  const { data: rolesList } = useRoles();
+
   const { data, isLoading } = useUsers({
     page,
     pageSize,
     search: debouncedSearch || undefined,
+    active:
+      activeFilter === '_all' ? undefined : activeFilter === '_active' ? true : false,
+    roleId: roleFilter === '_all' ? undefined : roleFilter,
+    contractStatus: contractFilter === '_all' ? undefined : contractFilter,
   });
   const setActive = useSetUserActive();
   const resetPassword = useResetUserPassword();
+
+  const hasActiveFilters =
+    !!debouncedSearch ||
+    activeFilter !== '_active' ||
+    roleFilter !== '_all' ||
+    contractFilter !== '_all';
+
+  const clearFilters = () => {
+    setSearch('');
+    setActiveFilter('_active');
+    setRoleFilter('_all');
+    setContractFilter('_all');
+    setPage(1);
+  };
 
   const handleToggleActive = async (user: User, checked: boolean) => {
     const ok = await confirm({
@@ -1086,15 +1134,87 @@ export default function UsuariosPage() {
         }
       />
 
-      <Input
-        placeholder="Buscar por nombre, documento o email..."
-        value={search}
-        onChange={(e) => {
-          setSearch(e.target.value);
-          setPage(1);
-        }}
-        className="max-w-xs"
-      />
+      {/* Toolbar de filtros */}
+      <div className="flex flex-wrap items-center gap-2">
+        <Input
+          placeholder="Buscar por nombre, documento o email..."
+          value={search}
+          onChange={(e) => {
+            setSearch(e.target.value);
+            setPage(1);
+          }}
+          className="w-full sm:w-64"
+        />
+        <Select
+          value={roleFilter}
+          onValueChange={(v) => {
+            setRoleFilter(v);
+            setPage(1);
+          }}
+        >
+          <SelectTrigger className="w-full sm:w-44">
+            <SelectValue placeholder="Rol" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="_all">Todos los roles</SelectItem>
+            {rolesList?.map((r) => (
+              <SelectItem key={r.id} value={r.id}>
+                {r.name}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+        <Select
+          value={activeFilter}
+          onValueChange={(v) => {
+            setActiveFilter(v as ActiveFilter);
+            setPage(1);
+          }}
+        >
+          <SelectTrigger className="w-full sm:w-44">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            {ACTIVE_OPTIONS.map((o) => (
+              <SelectItem key={o.value} value={o.value}>
+                {o.label}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+        <Select
+          value={contractFilter}
+          onValueChange={(v) => {
+            setContractFilter(v as ContractFilter);
+            setPage(1);
+          }}
+        >
+          <SelectTrigger className="w-full sm:w-52">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            {CONTRACT_FILTER_OPTIONS.map((o) => (
+              <SelectItem key={o.value} value={o.value}>
+                {o.label}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+        {hasActiveFilters && (
+          <Button
+            type="button"
+            variant="ghost"
+            size="sm"
+            onClick={clearFilters}
+            className="gap-1.5 text-muted-foreground"
+          >
+            <span>✕</span> Limpiar filtros
+          </Button>
+        )}
+        <span className="sm:ml-auto text-xs text-muted-foreground tabular-nums">
+          {data?.total ?? 0} {(data?.total ?? 0) === 1 ? 'usuario' : 'usuarios'}
+        </span>
+      </div>
 
       <DataTable
         columns={columns}
