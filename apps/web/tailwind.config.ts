@@ -22,6 +22,8 @@ const config: Config = {
       fontFamily: {
         sans: ['var(--font-geist-sans)', 'ui-sans-serif', 'system-ui'],
         mono: ['var(--font-geist-mono)', 'ui-monospace', 'monospace'],
+        // Display: Outfit — geométrica, redondeada, refinada. Para títulos y brand.
+        display: ['var(--font-display)', 'var(--font-geist-sans)', 'ui-sans-serif'],
       },
       colors: {
         border: 'hsl(var(--border))',

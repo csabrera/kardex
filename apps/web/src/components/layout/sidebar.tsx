@@ -133,23 +133,33 @@ export function AppSidebar() {
   return (
     <Sidebar collapsible="icon" variant="sidebar">
       <SidebarHeader>
-        <div className="flex items-center gap-2 px-2 py-1.5">
-          <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-md bg-sidebar-primary text-sidebar-primary-foreground">
-            <Building2 className="h-4 w-4" />
+        <Link
+          href="/dashboard"
+          className="group/brand flex items-center gap-2.5 px-2 py-2 rounded-md transition-base hover:bg-sidebar-accent/10"
+        >
+          {/* Brand mark — usa accent en lugar de primary para distinguirse del CTA negro */}
+          <div className="relative flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-gradient-to-br from-sidebar-accent to-sidebar-accent/80 text-sidebar-accent-foreground shadow-soft ring-1 ring-sidebar-accent/30 transition-base group-hover/brand:scale-105">
+            <Building2 className="h-[18px] w-[18px]" strokeWidth={2.25} />
           </div>
           <div className="flex min-w-0 flex-col group-data-[collapsible=icon]:hidden">
-            <span className="text-sm font-semibold leading-none">Kardex</span>
-            <span className="text-[11px] text-sidebar-foreground/70 leading-tight mt-0.5 truncate">
-              Inventario constructora
+            <span className="font-display text-[15px] font-bold leading-none tracking-tight">
+              Kardex
+            </span>
+            <span className="text-[10.5px] uppercase tracking-[0.08em] text-sidebar-foreground/55 leading-tight mt-1 truncate font-medium">
+              Inventario · Construcción
             </span>
           </div>
-        </div>
+        </Link>
       </SidebarHeader>
 
       <SidebarContent>
         {sections.map((section, idx) => (
           <SidebarGroup key={idx}>
-            {section.title && <SidebarGroupLabel>{section.title}</SidebarGroupLabel>}
+            {section.title && (
+              <SidebarGroupLabel className="font-display text-[10.5px] font-semibold uppercase tracking-[0.1em] text-sidebar-foreground/50 px-2">
+                {section.title}
+              </SidebarGroupLabel>
+            )}
             <SidebarGroupContent>
               <SidebarMenu>
                 {section.items.map((item) => {
@@ -163,7 +173,12 @@ export function AppSidebar() {
                     : pathname === item.href || pathname.startsWith(item.href + '/');
                   return (
                     <SidebarMenuItem key={item.label}>
-                      <SidebarMenuButton asChild isActive={isActive} tooltip={item.label}>
+                      <SidebarMenuButton
+                        asChild
+                        isActive={isActive}
+                        tooltip={item.label}
+                        className="transition-base hover:translate-x-0.5 data-[active=true]:font-semibold data-[active=true]:shadow-soft"
+                      >
                         <Link href={item.href}>
                           <item.icon />
                           <span>{item.label}</span>
@@ -179,9 +194,14 @@ export function AppSidebar() {
       </SidebarContent>
 
       <SidebarFooter>
-        <p className="text-[10px] text-sidebar-foreground/50 text-center px-2 py-1 group-data-[collapsible=icon]:hidden">
-          Kardex © {new Date().getFullYear()} · v0.1.0
-        </p>
+        <div className="px-2 py-1.5 group-data-[collapsible=icon]:hidden">
+          <p className="font-display text-[10px] tracking-[0.12em] uppercase text-sidebar-foreground/40 font-semibold">
+            Kardex
+          </p>
+          <p className="text-[10px] text-sidebar-foreground/35 mt-0.5 tabular-nums">
+            v0.1.0 · {new Date().getFullYear()}
+          </p>
+        </div>
       </SidebarFooter>
       {/* SidebarRail eliminado: el toggle ya está en topbar (<SidebarTrigger>)
           y con atajo Ctrl+B. El rail promete resize (cursor w-resize) pero

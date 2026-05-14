@@ -61,6 +61,21 @@
     --sidebar-ring: 217 85% 55%;
 
     --radius: 0.5rem;
+
+    /* Sombras tokenizadas — light mode usa sombras con tinte slate cool
+       en lugar del negro plano. Más profesional, más suave. */
+    --shadow-soft: 0 1px 2px 0 hsl(222 47% 11% / 0.04),
+      0 1px 3px 0 hsl(222 47% 11% / 0.06);
+    --shadow-elevated: 0 4px 6px -1px hsl(222 47% 11% / 0.06),
+      0 2px 4px -2px hsl(222 47% 11% / 0.04);
+    --shadow-floating: 0 10px 15px -3px hsl(222 47% 11% / 0.08),
+      0 4px 6px -4px hsl(222 47% 11% / 0.05);
+
+    /* Transitions tokenizadas — duraciones consistentes en todo el sistema */
+    --duration-fast: 120ms;
+    --duration-base: 200ms;
+    --duration-slow: 320ms;
+    --ease-out-quart: cubic-bezier(0.25, 1, 0.5, 1);
   }
 
   .dark {
@@ -112,6 +127,14 @@
     --sidebar-primary: 210 40% 98%;
     --sidebar-primary-foreground: 222 47% 11%;
     --sidebar-ring: 217 85% 62%;
+
+    /* Sombras dark mode: más sutiles, dependen más del borde que del shadow */
+    --shadow-soft: 0 1px 2px 0 hsl(0 0% 0% / 0.4),
+      0 1px 3px 0 hsl(0 0% 0% / 0.3);
+    --shadow-elevated: 0 4px 6px -1px hsl(0 0% 0% / 0.5),
+      0 2px 4px -2px hsl(0 0% 0% / 0.3);
+    --shadow-floating: 0 10px 15px -3px hsl(0 0% 0% / 0.6),
+      0 4px 6px -4px hsl(0 0% 0% / 0.4);
   }
 }
 
@@ -172,6 +195,39 @@
 @layer utilities {
   .text-balance {
     text-wrap: balance;
+  }
+
+  /* Display font — Outfit. Para títulos, brand, encabezados destacados.
+     Letter-spacing más tight + feature settings para look refinado. */
+  .font-display {
+    font-family: var(--font-display), var(--font-geist-sans), ui-sans-serif;
+    font-feature-settings: 'ss01' 1, 'cv01' 1;
+    letter-spacing: -0.02em;
+  }
+
+  /* Sombras tokenizadas — usar en lugar de shadow-sm/shadow-md ad-hoc */
+  .shadow-soft {
+    box-shadow: var(--shadow-soft);
+  }
+  .shadow-elevated {
+    box-shadow: var(--shadow-elevated);
+  }
+  .shadow-floating {
+    box-shadow: var(--shadow-floating);
+  }
+
+  /* Transition base — duración y easing consistentes. Para hover/focus interactions. */
+  .transition-base {
+    transition-property: color, background-color, border-color, box-shadow,
+      transform, opacity;
+    transition-duration: var(--duration-base);
+    transition-timing-function: var(--ease-out-quart);
+  }
+  .transition-fast {
+    transition-property: color, background-color, border-color, box-shadow,
+      transform, opacity;
+    transition-duration: var(--duration-fast);
+    transition-timing-function: var(--ease-out-quart);
   }
 
   /* Monospace for code-like content (document numbers, IDs, codes) */
