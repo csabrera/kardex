@@ -1,10 +1,11 @@
-import { Injectable, HttpStatus } from '@nestjs/common';
+import { Injectable, Logger, HttpStatus } from '@nestjs/common';
 import * as bcrypt from 'bcrypt';
 import { DocumentType, Prisma } from '@prisma/client';
 
 import { PrismaService } from '../../prisma/prisma.service';
 import { BusinessException } from '../../common/exceptions/business.exception';
-import { BusinessErrorCode } from '@kardex/types';
+import { BusinessErrorCode, WS_EVENTS, type SessionKilledPayload } from '@kardex/types';
+import { RealtimeService } from '../realtime/realtime.service';
 import type { ContractDuration, CreateUserDto, UpdateUserDto } from './dto/user.dto';
 
 const BCRYPT_ROUNDS = 12;
@@ -45,7 +46,12 @@ function addMonths(date: Date, months: number): Date {
 
 @Injectable()
 export class UsersService {
-  constructor(private readonly prisma: PrismaService) {}
+  private readonly logger = new Logger(UsersService.name);
+
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly realtime: RealtimeService,
+  ) {}
 
   async findAll(query: {
     page?: number;
@@ -272,21 +278,37 @@ export class UsersService {
     });
   }
 
-  async setActive(id: string, active: boolean) {
+  async setActive(id: string, active: boolean, actorUserId?: string) {
     await this.findOne(id);
+
+    // Self-protect: bloquear que un admin se auto-desactive (lock-out).
+    if (!active && actorUserId && actorUserId === id) {
+      throw new BusinessException(
+        BusinessErrorCode.INVALID_INPUT,
+        'No puedes desactivar tu propia cuenta',
+        HttpStatus.BAD_REQUEST,
+      );
+    }
 
     // Al desactivar, invalidar TODOS los refresh tokens del usuario: en su
     // próximo intento de refrescar la sesión será rechazado. El access token
-    // actual sigue válido hasta JWT_EXPIRES_IN (15m) — latencia aceptable.
+    // actual sigue válido hasta JWT_EXPIRES_IN (15m), pero el WebSocket
+    // SESSION_KILLED de abajo cierra la sesión activa al instante.
     if (!active) {
       await this.prisma.refreshToken.deleteMany({ where: { userId: id } });
     }
 
-    return this.prisma.user.update({
+    const updated = await this.prisma.user.update({
       where: { id },
       data: { active },
       select: USER_SELECT,
     });
+
+    if (!active) {
+      this.killSession(id, 'USER_DISABLED');
+    }
+
+    return updated;
   }
 
   /**
@@ -295,14 +317,50 @@ export class UsersService {
    * Pensado para que un admin recupere acceso de un usuario que olvidó la
    * contraseña y no tiene email registrado (no puede usar /forgot-password).
    */
-  async resetPassword(id: string) {
+  async resetPassword(id: string, actorUserId?: string) {
+    // Self-protect: si olvidaste tu propia pass, usa el flujo regular o pídele
+    // a otro admin que la resetee (evita el caso "me reseteo a mi mismo,
+    // pierdo el access token actual y me quedo afuera").
+    if (actorUserId && actorUserId === id) {
+      throw new BusinessException(
+        BusinessErrorCode.INVALID_INPUT,
+        'No puedes resetear tu propia contraseña — pídele a otro administrador',
+        HttpStatus.BAD_REQUEST,
+      );
+    }
+
     const user = await this.findOne(id);
     const passwordHash = await bcrypt.hash(user.documentNumber, BCRYPT_ROUNDS);
-    return this.prisma.user.update({
+
+    // Mismo patrón que desactivar: invalidar refresh tokens + emitir
+    // SESSION_KILLED para que el usuario sea expulsado inmediatamente.
+    await this.prisma.refreshToken.deleteMany({ where: { userId: id } });
+
+    const updated = await this.prisma.user.update({
       where: { id },
       data: { passwordHash, mustChangePassword: true },
       select: USER_SELECT,
     });
+
+    this.killSession(id, 'PASSWORD_RESET');
+
+    return updated;
+  }
+
+  /**
+   * Cierra inmediatamente la sesión activa del usuario emitiendo
+   * SESSION_KILLED por WebSocket. Best-effort: si el gateway falla, el flujo
+   * principal (deactivate/reset) sigue siendo válido — el usuario será
+   * expulsado al máximo en JWT_EXPIRES_IN (15m) cuando el access token caduque.
+   */
+  private killSession(userId: string, reason: SessionKilledPayload['reason']): void {
+    try {
+      this.realtime.emitToUser(userId, WS_EVENTS.SESSION_KILLED, {
+        reason,
+      } satisfies SessionKilledPayload);
+    } catch (err) {
+      this.logger.warn(`SESSION_KILLED emit failed for ${userId}: ${String(err)}`);
+    }
   }
 
   async getRoles() {

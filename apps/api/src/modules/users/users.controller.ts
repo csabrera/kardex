@@ -1,10 +1,11 @@
-import { Body, Controller, Get, Param, Patch, Post, Query } from '@nestjs/common';
+import { Body, Controller, Get, Param, Patch, Post, Query, Req } from '@nestjs/common';
 import { ApiTags } from '@nestjs/swagger';
 import { IsEnum, IsOptional, IsString } from 'class-validator';
 import { Transform, Type } from 'class-transformer';
 
 import { RequirePermissions } from '../auth/decorators/permissions.decorator';
 import { PaginationQueryDto } from '../../common/dto/pagination.dto';
+import type { AuthenticatedRequest } from '../../common/types/authenticated-request';
 import { CreateUserDto, RenewContractDto, UpdateUserDto } from './dto/user.dto';
 import { UsersService } from './users.service';
 
@@ -79,14 +80,14 @@ export class UsersController {
 
   @Patch(':id/deactivate')
   @RequirePermissions('users:activate')
-  deactivate(@Param('id') id: string) {
-    return this.service.setActive(id, false);
+  deactivate(@Param('id') id: string, @Req() req: AuthenticatedRequest) {
+    return this.service.setActive(id, false, req.user.sub);
   }
 
   @Patch(':id/reset-password')
   @RequirePermissions('users:update')
-  resetPassword(@Param('id') id: string) {
-    return this.service.resetPassword(id);
+  resetPassword(@Param('id') id: string, @Req() req: AuthenticatedRequest) {
+    return this.service.resetPassword(id, req.user.sub);
   }
 
   @Patch(':id/renew-contract')

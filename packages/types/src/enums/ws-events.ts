@@ -22,12 +22,25 @@ export const WS_EVENTS = {
   INVENTORY_COUNT_CLOSED: 'inventory_count.closed',
   INVENTORY_COUNT_CANCELLED: 'inventory_count.cancelled',
 
+  // Session
+  SESSION_KILLED: 'session.killed',
+
   // Connection
   CONNECTED: 'connected',
   DISCONNECTED: 'disconnected',
 } as const;
 
 export type WsEvent = (typeof WS_EVENTS)[keyof typeof WS_EVENTS];
+
+/**
+ * Razones por las que el backend puede cerrar una sesión por WebSocket.
+ * Mantiene en sync con `apps/api/src/modules/users/users.service.ts`.
+ */
+export type SessionKilledReason = 'USER_DISABLED' | 'PASSWORD_RESET';
+
+export interface SessionKilledPayload {
+  reason: SessionKilledReason;
+}
 
 export function wsRoomForUser(userId: string): string {
   return `user:${userId}`;

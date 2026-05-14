@@ -13,6 +13,7 @@ import {
 import { io, type Socket } from 'socket.io-client';
 import { toast } from 'sonner';
 
+import { apiClient } from '@/lib/api-client';
 import { useAuthStore } from '@/stores/use-auth-store';
 
 export const WS_EVENTS = {
@@ -24,6 +25,7 @@ export const WS_EVENTS = {
   TRANSFER_CANCELLED: 'transfer.cancelled',
   STOCK_CHANGED: 'stock.changed',
   ALERT_CREATED: 'alert.created',
+  SESSION_KILLED: 'session.killed',
   CONNECTED: 'connected',
   DISCONNECTED: 'disconnected',
 } as const;
@@ -69,9 +71,17 @@ const NOTIF_TITLES: Record<WsEvent, string> = {
   [WS_EVENTS.TRANSFER_CANCELLED]: 'Transferencia cancelada',
   [WS_EVENTS.STOCK_CHANGED]: 'Cambio de stock',
   [WS_EVENTS.ALERT_CREATED]: 'Nueva alerta',
+  [WS_EVENTS.SESSION_KILLED]: 'Sesión cerrada',
   [WS_EVENTS.CONNECTED]: '',
   [WS_EVENTS.DISCONNECTED]: '',
 };
+
+const SESSION_KILLED_MESSAGES = {
+  USER_DISABLED:
+    'Tu cuenta fue desactivada por el administrador. Contáctalo para más información.',
+  PASSWORD_RESET:
+    'Tu contraseña fue restablecida por el administrador. Inicia sesión con la nueva.',
+} as const;
 
 // socket.io-client convierte automáticamente http://→ws:// y https://→wss://.
 // Fallback a NEXT_PUBLIC_API_URL para no requerir una variable separada en deploy
@@ -83,8 +93,10 @@ const SOCKET_URL =
 
 export function SocketProvider({ children }: { children: ReactNode }): JSX.Element {
   const accessToken = useAuthStore((s) => s.accessToken);
+  const clearSession = useAuthStore((s) => s.clearSession);
   const queryClient = useQueryClient();
   const socketRef = useRef<Socket | null>(null);
+  const killingSessionRef = useRef(false);
   const [connected, setConnected] = useState(false);
   const [notifications, setNotifications] = useState<Notification[]>([]);
 
@@ -163,6 +175,26 @@ export function SocketProvider({ children }: { children: ReactNode }): JSX.Eleme
       }
     });
 
+    // Expulsión inmediata cuando admin desactiva al usuario o resetea pass.
+    // Sin esto, el access token actual seguiría válido hasta JWT_EXPIRES_IN (15m).
+    socket.on(
+      WS_EVENTS.SESSION_KILLED,
+      (payload: { reason?: 'USER_DISABLED' | 'PASSWORD_RESET' }) => {
+        if (killingSessionRef.current) return;
+        killingSessionRef.current = true;
+        const message =
+          (payload?.reason && SESSION_KILLED_MESSAGES[payload.reason]) ??
+          'Tu sesión fue cerrada por el administrador.';
+        toast.error(message, { duration: 8000 });
+        // Best-effort: limpiar la cookie de refresh del navegador. Si falla,
+        // igual limpiamos el store local y redirigimos al login.
+        void apiClient.post('/auth/logout').catch(() => {});
+        clearSession();
+        // Pequeño delay para que el toast sea visible antes de la redirección.
+        window.setTimeout(() => window.location.replace('/login'), 600);
+      },
+    );
+
     socketRef.current = socket;
 
     return () => {
@@ -170,7 +202,7 @@ export function SocketProvider({ children }: { children: ReactNode }): JSX.Eleme
       socketRef.current = null;
       setConnected(false);
     };
-  }, [accessToken, queryClient]);
+  }, [accessToken, queryClient, clearSession]);
 
   const markAsRead = useCallback((id: string) => {
     setNotifications((prev) => prev.map((n) => (n.id === id ? { ...n, read: true } : n)));
