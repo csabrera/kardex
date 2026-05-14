@@ -1,6 +1,7 @@
 import { Module } from '@nestjs/common';
 import { ConfigModule } from '@nestjs/config';
 import { APP_FILTER, APP_GUARD, APP_INTERCEPTOR } from '@nestjs/core';
+import { ScheduleModule } from '@nestjs/schedule';
 
 import { BootstrapService } from './bootstrap/bootstrap.service';
 import { AuditInterceptor } from './common/interceptors/audit.interceptor';
@@ -49,6 +50,7 @@ import { PrismaModule } from './prisma/prisma.module';
       validate: validateEnv,
       envFilePath: ['.env', '.env.local'],
     }),
+    ScheduleModule.forRoot(),
     PrismaModule,
     AuthModule,
     HealthModule,

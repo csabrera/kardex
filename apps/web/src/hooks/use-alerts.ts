@@ -3,18 +3,35 @@ import { toast } from 'sonner';
 
 import { apiClient } from '@/lib/api-client';
 
-export type AlertType = 'STOCK_BAJO' | 'STOCK_CRITICO' | 'TRANSFER_DISCREPANCIA';
+export type AlertType =
+  | 'STOCK_BAJO'
+  | 'STOCK_CRITICO'
+  | 'TRANSFER_DISCREPANCIA'
+  | 'LOAN_VENCIDO';
 
 export interface Alert {
   id: string;
   type: AlertType;
   message: string;
-  quantity: number;
-  threshold: number;
+  // quantity/threshold son obligatorios para alertas de stock y de
+  // discrepancia, NULL para LOAN_VENCIDO.
+  quantity: number | null;
+  threshold: number | null;
   read: boolean;
   createdAt: string;
   item: { id: string; code: string; name: string; unit: { abbreviation: string } };
   warehouse: { id: string; code: string; name: string };
+  // Presente solo cuando type === 'LOAN_VENCIDO'.
+  toolLoan?: {
+    id: string;
+    code: string;
+    expectedReturnAt: string;
+    borrowerWorker: {
+      firstName: string;
+      paternalLastName: string | null;
+      maternalLastName: string | null;
+    };
+  } | null;
 }
 
 const BASE = '/alerts';

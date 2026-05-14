@@ -25,6 +25,20 @@ export class AlertsService {
           },
         },
         warehouse: { select: { id: true, code: true, name: true } },
+        toolLoan: {
+          select: {
+            id: true,
+            code: true,
+            expectedReturnAt: true,
+            borrowerWorker: {
+              select: {
+                firstName: true,
+                paternalLastName: true,
+                maternalLastName: true,
+              },
+            },
+          },
+        },
       },
       orderBy: { createdAt: 'desc' },
       take: 100,

@@ -58,7 +58,12 @@ export default function DashboardPage() {
   // mientras el redirect se resuelve (previene warnings de Recharts con width=-1
   // y peticiones innecesarias a endpoints donde el residente no tiene permiso).
   const { data: stats, isLoading } = useDashboardStats({ enabled: !isResidente });
+  // Widget "Alertas recientes" del home está scoped a stock; las de tipo
+  // LOAN_VENCIDO y TRANSFER_DISCREPANCIA se ven en /dashboard/alertas.
   const alerts = useAlerts({ read: false, enabled: !isResidente });
+  const stockAlerts =
+    alerts.data?.filter((a) => a.type === 'STOCK_BAJO' || a.type === 'STOCK_CRITICO') ??
+    [];
   const overdueLoans = useToolLoans({
     overdueOnly: true,
     pageSize: 5,
@@ -575,7 +580,7 @@ export default function DashboardPage() {
               <div key={i} className="h-12 rounded-md bg-muted animate-pulse" />
             ))}
           </div>
-        ) : (alerts.data?.length ?? 0) === 0 ? (
+        ) : stockAlerts.length === 0 ? (
           <EmptyState
             icon={AlertTriangle}
             title="Sin alertas"
@@ -583,7 +588,7 @@ export default function DashboardPage() {
           />
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-2">
-            {alerts.data?.slice(0, 9).map((alert) => (
+            {stockAlerts.slice(0, 9).map((alert) => (
               <div
                 key={alert.id}
                 className={cn(

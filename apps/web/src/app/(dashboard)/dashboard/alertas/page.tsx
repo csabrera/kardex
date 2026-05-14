@@ -1,6 +1,6 @@
 'use client';
 
-import { AlertTriangle, Bell, CheckCheck, PackageMinus } from 'lucide-react';
+import { AlertTriangle, Bell, CheckCheck, Clock, PackageMinus } from 'lucide-react';
 import { useState } from 'react';
 
 import { PageHeader } from '@/components/layout/page-header';
@@ -37,6 +37,7 @@ const TYPE_META: Record<
     icon: AlertTriangle,
     tone: 'secondary',
   },
+  LOAN_VENCIDO: { label: 'Préstamo vencido', icon: Clock, tone: 'warning' },
 };
 
 export default function AlertasPage() {
@@ -103,6 +104,7 @@ export default function AlertasPage() {
               <SelectItem value="TRANSFER_DISCREPANCIA">
                 Discrepancia transferencia
               </SelectItem>
+              <SelectItem value="LOAN_VENCIDO">Préstamo vencido</SelectItem>
             </SelectContent>
           </Select>
         </div>
@@ -126,20 +128,20 @@ export default function AlertasPage() {
           const meta = TYPE_META[alert.type];
           const Icon = meta.icon;
           const isStock = alert.type === 'STOCK_BAJO' || alert.type === 'STOCK_CRITICO';
+          const iconColor =
+            alert.type === 'STOCK_CRITICO'
+              ? 'text-destructive'
+              : alert.type === 'TRANSFER_DISCREPANCIA'
+                ? 'text-orange-500'
+                : alert.type === 'LOAN_VENCIDO'
+                  ? 'text-amber-600'
+                  : 'text-amber-500';
           return (
             <div
               key={alert.id}
               className={`flex items-start gap-4 rounded-lg border p-4 ${alert.read ? 'bg-muted/30' : 'bg-card'}`}
             >
-              <Icon
-                className={`h-5 w-5 shrink-0 mt-0.5 ${
-                  alert.type === 'STOCK_CRITICO'
-                    ? 'text-destructive'
-                    : alert.type === 'TRANSFER_DISCREPANCIA'
-                      ? 'text-orange-500'
-                      : 'text-amber-500'
-                }`}
-              />
+              <Icon className={`h-5 w-5 shrink-0 mt-0.5 ${iconColor}`} />
               <div className="flex-1 min-w-0">
                 <div className="flex items-center gap-2 mb-1 flex-wrap">
                   <Badge variant={meta.tone} className="text-xs">
@@ -160,7 +162,7 @@ export default function AlertasPage() {
                 <p className="text-sm font-medium">{alert.message}</p>
                 <p className="text-xs text-muted-foreground mt-0.5">
                   Almacén: {alert.warehouse.name}
-                  {isStock && (
+                  {isStock && alert.quantity !== null && alert.threshold !== null && (
                     <>
                       {' '}
                       · Stock actual:{' '}
@@ -173,18 +175,30 @@ export default function AlertasPage() {
                       })}
                     </>
                   )}
-                  {alert.type === 'TRANSFER_DISCREPANCIA' && (
+                  {alert.type === 'TRANSFER_DISCREPANCIA' &&
+                    alert.quantity !== null &&
+                    alert.threshold !== null && (
+                      <>
+                        {' '}
+                        · Enviado:{' '}
+                        {Number(alert.threshold).toLocaleString('es-PE', {
+                          maximumFractionDigits: 3,
+                        })}{' '}
+                        · Recibido:{' '}
+                        {Number(alert.quantity).toLocaleString('es-PE', {
+                          maximumFractionDigits: 3,
+                        })}{' '}
+                        {alert.item.unit.abbreviation}
+                      </>
+                    )}
+                  {alert.type === 'LOAN_VENCIDO' && alert.toolLoan && (
                     <>
                       {' '}
-                      · Enviado:{' '}
-                      {Number(alert.threshold).toLocaleString('es-PE', {
-                        maximumFractionDigits: 3,
-                      })}{' '}
-                      · Recibido:{' '}
-                      {Number(alert.quantity).toLocaleString('es-PE', {
-                        maximumFractionDigits: 3,
-                      })}{' '}
-                      {alert.item.unit.abbreviation}
+                      · Préstamo {alert.toolLoan.code} · Esperado:{' '}
+                      {new Date(alert.toolLoan.expectedReturnAt).toLocaleDateString(
+                        'es-PE',
+                        { day: '2-digit', month: '2-digit', year: 'numeric' },
+                      )}
                     </>
                   )}
                 </p>
