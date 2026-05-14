@@ -2,7 +2,6 @@
 
 import { zodResolver } from '@hookform/resolvers/zod';
 import { Eye, EyeOff, Loader2, LogIn } from 'lucide-react';
-import Link from 'next/link';
 import { useState } from 'react';
 import { useForm } from 'react-hook-form';
 import { z } from 'zod';
@@ -118,15 +117,7 @@ export default function LoginPage() {
         )}
 
         <div className="space-y-1.5">
-          <div className="flex items-center justify-between">
-            <Label htmlFor="password">Contraseña</Label>
-            <Link
-              href="/recuperar-password"
-              className="text-xs text-muted-foreground hover:text-primary transition-colors"
-            >
-              ¿Olvidaste tu contraseña?
-            </Link>
-          </div>
+          <Label htmlFor="password">Contraseña</Label>
           <div className="relative">
             <Input
               id="password"
@@ -174,15 +165,25 @@ export default function LoginPage() {
         </Button>
       </form>
 
-      {/* Footer separator con cota — refuerza el lenguaje del layout */}
+      {/* Footer informativo — la recuperación es admin-mediated. No hay flujo
+          auto-servicio porque los usuarios de construcción típicamente no tienen
+          email registrado. */}
       <div className="pt-2 flex items-center gap-3 text-[10.5px] uppercase tracking-[0.18em] text-muted-foreground/70">
         <span className="h-px flex-1 bg-border" />
         <span>¿Sin acceso?</span>
         <span className="h-px flex-1 bg-border" />
       </div>
-      <p className="text-center text-xs text-muted-foreground leading-relaxed -mt-3">
-        Solicita tus credenciales al administrador del sistema.
-      </p>
+      <div className="-mt-3 space-y-1.5 text-center text-xs text-muted-foreground leading-relaxed">
+        <p>
+          Solicita tus credenciales al{' '}
+          <span className="font-medium text-foreground">administrador</span> de tu
+          empresa.
+        </p>
+        <p className="text-[11px]">
+          ¿Olvidaste tu contraseña? Pídele que la restablezca — la nueva será tu número de
+          documento.
+        </p>
+      </div>
     </div>
   );
 }

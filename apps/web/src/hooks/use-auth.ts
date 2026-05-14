@@ -22,17 +22,6 @@ interface LoginResponse {
   };
 }
 
-interface ForgotPasswordPayload {
-  documentType: string;
-  documentNumber: string;
-}
-
-interface ResetPasswordPayload {
-  token: string;
-  newPassword: string;
-  confirmPassword: string;
-}
-
 interface ChangePasswordPayload {
   oldPassword: string;
   newPassword: string;
@@ -82,35 +71,6 @@ export function useLogout() {
     onSettled: () => {
       clearSession();
       router.replace('/login');
-    },
-  });
-}
-
-export function useForgotPassword() {
-  return useMutation({
-    mutationFn: (payload: ForgotPasswordPayload) =>
-      apiClient.post<{ data: { token?: string; message: string } }>(
-        '/auth/forgot-password',
-        payload,
-      ),
-    onError: (error) => {
-      toast.error(getErrorMessage(error));
-    },
-  });
-}
-
-export function useResetPassword() {
-  const router = useRouter();
-
-  return useMutation({
-    mutationFn: ({ token, ...body }: ResetPasswordPayload) =>
-      apiClient.post(`/auth/reset-password/${token}`, body),
-    onSuccess: () => {
-      toast.success('Contraseña actualizada. Inicia sesión con tu nueva contraseña.');
-      router.replace('/login');
-    },
-    onError: (error) => {
-      toast.error(getErrorMessage(error));
     },
   });
 }
