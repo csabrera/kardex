@@ -197,16 +197,21 @@ describe('AuthService', () => {
   });
 
   describe('logout', () => {
-    it('deletes the refresh token from DB', async () => {
+    it('elimina TODOS los refresh tokens del usuario (logout multi-device)', async () => {
+      prismaMock.refreshToken.findUnique.mockResolvedValueOnce({
+        userId: 'user-1',
+        tokenHash: 'some-hash',
+      });
       await service.logout('some-raw-token');
       expect(prismaMock.refreshToken.deleteMany).toHaveBeenCalledWith({
-        where: { tokenHash: expect.any(String) as string },
+        where: { userId: 'user-1' },
       });
     });
 
-    it('is idempotent (token not found does not throw)', async () => {
-      prismaMock.refreshToken.deleteMany.mockResolvedValueOnce({ count: 0 });
+    it('es idempotente: si el token no se encuentra, no llama deleteMany', async () => {
+      prismaMock.refreshToken.findUnique.mockResolvedValueOnce(null);
       await expect(service.logout('nonexistent')).resolves.toBeUndefined();
+      expect(prismaMock.refreshToken.deleteMany).not.toHaveBeenCalled();
     });
   });
 

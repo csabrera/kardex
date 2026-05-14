@@ -2,6 +2,7 @@ import { Test, TestingModule } from '@nestjs/testing';
 import { TransferItemStatus, TransferStatus } from '@prisma/client';
 
 import { PrismaService } from '../../prisma/prisma.service';
+import { AttachmentsService } from '../attachments/attachments.service';
 import { RealtimeService } from '../realtime/realtime.service';
 import { TransfersService } from './transfers.service';
 
@@ -185,6 +186,11 @@ describe('TransfersService', () => {
       obra: {
         findUnique: jest.fn().mockResolvedValue({ responsibleUserId: 'resident-1' }),
       },
+      // Adjuntos polimórficos (Attachment) — el service hace findMany cuando
+      // arma respuestas de transfer. Por default sin adjuntos.
+      attachment: {
+        findMany: jest.fn().mockResolvedValue([]),
+      },
       $transaction: jest
         .fn()
         .mockImplementation(async (cb: (tx: any) => Promise<unknown>) => cb(txMock)),
@@ -197,11 +203,16 @@ describe('TransfersService', () => {
       emitToAll: jest.fn(),
     };
 
+    const attachmentsMock = {
+      attach: jest.fn().mockResolvedValue(undefined),
+    };
+
     const module: TestingModule = await Test.createTestingModule({
       providers: [
         TransfersService,
         { provide: PrismaService, useValue: prismaMock },
         { provide: RealtimeService, useValue: realtimeMock },
+        { provide: AttachmentsService, useValue: attachmentsMock },
       ],
     }).compile();
 

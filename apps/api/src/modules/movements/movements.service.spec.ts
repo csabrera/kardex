@@ -2,6 +2,7 @@ import { Test, TestingModule } from '@nestjs/testing';
 import { MovementSource, MovementType, WarehouseType } from '@prisma/client';
 
 import { PrismaService } from '../../prisma/prisma.service';
+import { AttachmentsService } from '../attachments/attachments.service';
 import { RealtimeService } from '../realtime/realtime.service';
 import { MovementsService } from './movements.service';
 import type { CreateMovementDto } from './dto/movement.dto';
@@ -152,11 +153,16 @@ describe('MovementsService', () => {
       emitToAll: jest.fn(),
     };
 
+    const attachmentsMock = {
+      attach: jest.fn().mockResolvedValue(undefined),
+    };
+
     const module: TestingModule = await Test.createTestingModule({
       providers: [
         MovementsService,
         { provide: PrismaService, useValue: prismaMock },
         { provide: RealtimeService, useValue: realtimeMock },
+        { provide: AttachmentsService, useValue: attachmentsMock },
       ],
     }).compile();
 
