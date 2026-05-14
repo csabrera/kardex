@@ -142,9 +142,18 @@ export class AuthService {
     return { accessToken };
   }
 
+  /**
+   * Logout multi-device: invalida TODOS los refresh tokens del usuario, no solo
+   * el actual. Si el mismo usuario tiene sesiones abiertas en otros navegadores
+   * o equipos, todas quedan invalidadas al hacer logout en cualquiera.
+   */
   async logout(rawToken: string): Promise<void> {
     const tokenHash = this.hashToken(rawToken);
-    await this.prisma.refreshToken.deleteMany({ where: { tokenHash } });
+    const stored = await this.prisma.refreshToken.findUnique({
+      where: { tokenHash },
+    });
+    if (!stored) return;
+    await this.prisma.refreshToken.deleteMany({ where: { userId: stored.userId } });
   }
 
   async forgotPassword(

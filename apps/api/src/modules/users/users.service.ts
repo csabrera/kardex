@@ -274,6 +274,14 @@ export class UsersService {
 
   async setActive(id: string, active: boolean) {
     await this.findOne(id);
+
+    // Al desactivar, invalidar TODOS los refresh tokens del usuario: en su
+    // próximo intento de refrescar la sesión será rechazado. El access token
+    // actual sigue válido hasta JWT_EXPIRES_IN (15m) — latencia aceptable.
+    if (!active) {
+      await this.prisma.refreshToken.deleteMany({ where: { userId: id } });
+    }
+
     return this.prisma.user.update({
       where: { id },
       data: { active },

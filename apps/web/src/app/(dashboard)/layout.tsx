@@ -4,6 +4,7 @@ import { usePathname } from 'next/navigation';
 import { Suspense, useEffect, useState } from 'react';
 
 import { CommandPaletteProvider } from '@/components/layout/command-palette';
+import { IdleTimer } from '@/components/layout/idle-timer';
 import { NavigationProgress } from '@/components/layout/navigation-progress';
 import { SessionInitializer } from '@/components/layout/session-initializer';
 import { AppSidebar } from '@/components/layout/sidebar';
@@ -45,6 +46,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
 
   return (
     <SessionInitializer>
+      <IdleTimer />
       <CommandPaletteProvider>
         <Suspense fallback={null}>
           <NavigationProgress />

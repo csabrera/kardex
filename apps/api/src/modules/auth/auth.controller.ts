@@ -25,6 +25,13 @@ import { BusinessErrorCode } from '@kardex/types';
 import type { JwtPayload } from './strategies/jwt.strategy';
 
 const REFRESH_COOKIE = 'refresh_token';
+// Session cookie — SIN maxAge ni expires. El navegador la elimina al cerrar.
+// Esto fuerza re-login cuando el usuario cierra el navegador completo, alineado
+// con el modelo de seguridad esperado por el cliente.
+//
+// Nota: el refresh token en BD sigue vigente JWT_REFRESH_EXPIRES_IN (7d por
+// default), así que múltiples tabs/ventanas del MISMO navegador comparten la
+// cookie y la sesión sigue viva entre ellas hasta cerrar todas las ventanas.
 const COOKIE_OPTIONS = {
   httpOnly: true,
   sameSite: 'lax' as const,
@@ -43,10 +50,8 @@ export class AuthController {
   @ApiOperation({ summary: 'Login con tipo + número de documento y contraseña' })
   async login(@Body() dto: LoginDto, @Res({ passthrough: true }) res: Response) {
     const result = await this.authService.login(dto);
-    res.cookie(REFRESH_COOKIE, result.refreshToken, {
-      ...COOKIE_OPTIONS,
-      maxAge: 7 * 24 * 60 * 60 * 1000,
-    });
+    // Session cookie: sin maxAge → se borra al cerrar navegador.
+    res.cookie(REFRESH_COOKIE, result.refreshToken, COOKIE_OPTIONS);
     return {
       accessToken: result.accessToken,
       user: result.user,
@@ -128,10 +133,8 @@ export class AuthController {
   @ApiOperation({ summary: 'Wizard de configuración inicial (crea primer Admin)' })
   async setup(@Body() dto: SetupDto, @Res({ passthrough: true }) res: Response) {
     const result = await this.authService.setup(dto);
-    res.cookie(REFRESH_COOKIE, result.refreshToken, {
-      ...COOKIE_OPTIONS,
-      maxAge: 7 * 24 * 60 * 60 * 1000,
-    });
+    // Session cookie: sin maxAge → se borra al cerrar navegador.
+    res.cookie(REFRESH_COOKIE, result.refreshToken, COOKIE_OPTIONS);
     return { accessToken: result.accessToken, user: result.user };
   }
 }
