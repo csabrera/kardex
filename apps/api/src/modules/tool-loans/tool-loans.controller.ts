@@ -12,6 +12,7 @@ import {
   MarkLostToolLoanDto,
   ReturnToolLoanDto,
 } from './dto/tool-loan.dto';
+import { LoanOverdueCron } from './loan-overdue.cron';
 import { ToolLoansService } from './tool-loans.service';
 
 class ToolLoanQueryDto extends PaginationQueryDto {
@@ -48,12 +49,21 @@ class ToolLoanQueryDto extends PaginationQueryDto {
 @ApiTags('tool-loans')
 @Controller('tool-loans')
 export class ToolLoansController {
-  constructor(private readonly service: ToolLoansService) {}
+  constructor(
+    private readonly service: ToolLoansService,
+    private readonly overdueCron: LoanOverdueCron,
+  ) {}
 
   @Get()
   @RequirePermissions('tools:read')
   findAll(@Query() query: ToolLoanQueryDto) {
     return this.service.findAll(query);
+  }
+
+  @Post('admin/check-overdue')
+  @RequirePermissions('system:configure')
+  checkOverdueManually() {
+    return this.overdueCron.checkOverdueLoans();
   }
 
   @Get('summary')
