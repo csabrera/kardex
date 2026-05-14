@@ -95,11 +95,16 @@ const schema = z
       .min(2, 'Mínimo 2 caracteres')
       .max(100, 'Máximo 100 caracteres')
       .regex(NAME_REGEX, 'Solo letras, espacios, tildes y guiones'),
-    lastName: z
+    paternalLastName: z
       .string()
       .min(2, 'Mínimo 2 caracteres')
       .max(100, 'Máximo 100 caracteres')
       .regex(NAME_REGEX, 'Solo letras, espacios, tildes y guiones'),
+    maternalLastName: z
+      .string()
+      .max(100, 'Máximo 100 caracteres')
+      .optional()
+      .or(z.literal('')),
     phone: z
       .string()
       .regex(/^9\d{8}$/, 'Celular Perú: 9 dígitos que empiece con 9 (ej. 987654321)'),
@@ -122,6 +127,22 @@ const schema = z
         code: z.ZodIssueCode.custom,
         path: ['documentNumber'],
         message: fmt.errorMsg,
+      });
+    }
+
+    // Apellido materno obligatorio si DNI.
+    if (data.documentType === 'DNI' && !data.maternalLastName?.trim()) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ['maternalLastName'],
+        message: 'Apellido materno obligatorio para empleados con DNI',
+      });
+    }
+    if (data.maternalLastName?.trim() && !NAME_REGEX.test(data.maternalLastName)) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ['maternalLastName'],
+        message: 'Solo letras, espacios, tildes y guiones',
       });
     }
 
@@ -233,7 +254,8 @@ export function WorkerFormDialog({ open, onClose, worker }: Props) {
       documentType: 'DNI',
       documentNumber: '',
       firstName: '',
-      lastName: '',
+      paternalLastName: '',
+      maternalLastName: '',
       phone: '',
       address: '',
       birthDate: '',
@@ -260,7 +282,12 @@ export function WorkerFormDialog({ open, onClose, worker }: Props) {
         documentType: worker.documentType as DocType,
         documentNumber: worker.documentNumber,
         firstName: worker.firstName.toUpperCase(),
-        lastName: worker.lastName.toUpperCase(),
+        paternalLastName: (
+          worker.paternalLastName ??
+          worker.lastName ??
+          ''
+        ).toUpperCase(),
+        maternalLastName: (worker.maternalLastName ?? '').toUpperCase(),
         phone: worker.phone,
         address: (worker.address ?? '').toUpperCase(),
         birthDate: worker.birthDate ? worker.birthDate.slice(0, 10) : '',
@@ -274,7 +301,8 @@ export function WorkerFormDialog({ open, onClose, worker }: Props) {
         documentType: 'DNI',
         documentNumber: '',
         firstName: '',
-        lastName: '',
+        paternalLastName: '',
+        maternalLastName: '',
         phone: '',
         address: '',
         birthDate: '',
@@ -308,7 +336,10 @@ export function WorkerFormDialog({ open, onClose, worker }: Props) {
 
   // Mayúsculas auto + maxLength en campos texto.
   const upperCaseHandler =
-    (field: 'firstName' | 'lastName' | 'address' | 'notes', max: number) =>
+    (
+      field: 'firstName' | 'paternalLastName' | 'maternalLastName' | 'address' | 'notes',
+      max: number,
+    ) =>
     (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
       let v = e.target.value.toUpperCase();
       if (v.length > max) v = v.slice(0, max);
@@ -320,7 +351,8 @@ export function WorkerFormDialog({ open, onClose, worker }: Props) {
       documentType: data.documentType,
       documentNumber: data.documentNumber.trim().toUpperCase(),
       firstName: data.firstName.trim(),
-      lastName: data.lastName.trim(),
+      paternalLastName: data.paternalLastName.trim(),
+      maternalLastName: data.maternalLastName?.trim() || undefined,
       phone: data.phone.trim(),
       address: data.address?.trim() || undefined,
       birthDate: data.birthDate || undefined,
@@ -463,8 +495,8 @@ export function WorkerFormDialog({ open, onClose, worker }: Props) {
             </div>
           </div>
 
-          {/* Nombres + Apellidos */}
-          <div className="grid grid-cols-2 gap-3">
+          {/* Nombres + Apellido paterno + Apellido materno */}
+          <div className="grid grid-cols-3 gap-3">
             <div className="space-y-1.5">
               <Label>
                 Nombres <span className="text-destructive">*</span>
@@ -482,17 +514,42 @@ export function WorkerFormDialog({ open, onClose, worker }: Props) {
             </div>
             <div className="space-y-1.5">
               <Label>
-                Apellidos <span className="text-destructive">*</span>
+                Apellido paterno <span className="text-destructive">*</span>
               </Label>
               <Input
-                {...register('lastName')}
-                onChange={upperCaseHandler('lastName', 100)}
-                placeholder="GARCÍA RODRÍGUEZ"
+                {...register('paternalLastName')}
+                onChange={upperCaseHandler('paternalLastName', 100)}
+                placeholder="GARCÍA"
                 maxLength={100}
                 autoCapitalize="characters"
               />
-              {errors.lastName && (
-                <p className="text-xs text-destructive">{errors.lastName.message}</p>
+              {errors.paternalLastName && (
+                <p className="text-xs text-destructive">
+                  {errors.paternalLastName.message}
+                </p>
+              )}
+            </div>
+            <div className="space-y-1.5">
+              <Label>
+                Apellido materno
+                {documentType === 'DNI' && <span className="text-destructive"> *</span>}
+              </Label>
+              <Input
+                {...register('maternalLastName')}
+                onChange={upperCaseHandler('maternalLastName', 100)}
+                placeholder="RODRÍGUEZ"
+                maxLength={100}
+                autoCapitalize="characters"
+              />
+              {documentType !== 'DNI' && (
+                <p className="text-[11px] text-muted-foreground">
+                  Opcional para {documentType}
+                </p>
+              )}
+              {errors.maternalLastName && (
+                <p className="text-xs text-destructive">
+                  {errors.maternalLastName.message}
+                </p>
               )}
             </div>
           </div>

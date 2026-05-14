@@ -30,11 +30,14 @@ import {
   useUsers,
   useRoles,
   useCreateUser,
+  useRenewContract,
   useResetUserPassword,
   useSetUserActive,
   useUpdateUser,
+  type ContractDuration,
   type User,
 } from '@/hooks/use-users';
+import { CalendarClock, RefreshCw } from 'lucide-react';
 
 const DOC_TYPES = ['DNI', 'CE', 'PASAPORTE'] as const;
 
@@ -71,6 +74,73 @@ const ROLE_DESCRIPTIONS: Record<string, string> = {
   RESIDENTE: 'Solo ve las obras a su cargo: recibe transferencias y presta herramientas',
 };
 
+// Filtros de input — restringen lo que el usuario puede escribir en tiempo real.
+const filterDigits = (max: number) => (e: React.FormEvent<HTMLInputElement>) => {
+  const el = e.currentTarget;
+  const v = el.value.replace(/\D/g, '').slice(0, max);
+  if (el.value !== v) el.value = v;
+};
+const filterAlphanumericUpper =
+  (max: number) => (e: React.FormEvent<HTMLInputElement>) => {
+    const el = e.currentTarget;
+    const v = el.value
+      .replace(/[^A-Za-z0-9]/g, '')
+      .toUpperCase()
+      .slice(0, max);
+    if (el.value !== v) el.value = v;
+  };
+// El input de documento por tipo: DNI solo dígitos máx 8; CE/Pasaporte alfanumérico
+// en mayúsculas máx 12.
+function getDocInputProps(docType: 'DNI' | 'CE' | 'PASAPORTE') {
+  if (docType === 'DNI') {
+    return { onInput: filterDigits(8), inputMode: 'numeric' as const, maxLength: 8 };
+  }
+  return {
+    onInput: filterAlphanumericUpper(12),
+    inputMode: 'text' as const,
+    maxLength: 12,
+  };
+}
+
+const CONTRACT_OPTIONS = [
+  { value: '_none', label: 'Sin contrato definido' },
+  { value: '3', label: '3 meses' },
+  { value: '6', label: '6 meses' },
+  { value: '12', label: '12 meses' },
+] as const;
+
+/** Para una contractEndDate da el badge según proximidad al vencimiento. */
+function getContractBadge(contractEndDate: string | null | undefined) {
+  if (!contractEndDate) return null;
+  const end = new Date(contractEndDate);
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  const diffMs = end.getTime() - today.getTime();
+  const days = Math.floor(diffMs / (1000 * 60 * 60 * 24));
+  const dateStr = end.toLocaleDateString('es-PE');
+  if (days < 0) {
+    return {
+      label: `Vencido hace ${Math.abs(days)} d`,
+      tone: 'destructive' as const,
+      dateStr,
+    };
+  }
+  if (days === 0) return { label: 'Vence hoy', tone: 'destructive' as const, dateStr };
+  if (days <= 7)
+    return {
+      label: `Vence en ${days} d`,
+      tone: 'destructive' as const,
+      dateStr,
+    };
+  if (days <= 30)
+    return {
+      label: `Vence en ${days} d`,
+      tone: 'warning' as const,
+      dateStr,
+    };
+  return { label: `Vence ${dateStr}`, tone: 'default' as const, dateStr };
+}
+
 const createSchema = z
   .object({
     documentType: z.enum(['DNI', 'CE', 'PASAPORTE'], {
@@ -82,11 +152,16 @@ const createSchema = z
       .min(2, 'Mínimo 2 caracteres')
       .max(100, 'Máximo 100 caracteres')
       .regex(NAME_REGEX, 'Solo letras, espacios, tildes y guiones'),
-    lastName: z
+    paternalLastName: z
       .string()
       .min(2, 'Mínimo 2 caracteres')
       .max(100, 'Máximo 100 caracteres')
       .regex(NAME_REGEX, 'Solo letras, espacios, tildes y guiones'),
+    maternalLastName: z
+      .string()
+      .max(100, 'Máximo 100 caracteres')
+      .optional()
+      .or(z.literal('')),
     email: z
       .string()
       .email('Email inválido (ej: usuario@empresa.com)')
@@ -99,6 +174,7 @@ const createSchema = z
       .optional()
       .or(z.literal('')),
     roleId: z.string().min(1, 'Selecciona un rol'),
+    contractDuration: z.enum(['_none', '3', '6', '12']).default('_none'),
   })
   .superRefine((data, ctx) => {
     const fmt = DOC_FORMAT[data.documentType];
@@ -107,6 +183,22 @@ const createSchema = z
         code: z.ZodIssueCode.custom,
         path: ['documentNumber'],
         message: fmt.errorMsg,
+      });
+    }
+    // Apellido materno obligatorio si DNI.
+    if (data.documentType === 'DNI' && !data.maternalLastName?.trim()) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ['maternalLastName'],
+        message: 'Apellido materno obligatorio para usuarios con DNI',
+      });
+    }
+    // Materno con regex de nombre si está presente.
+    if (data.maternalLastName?.trim() && !NAME_REGEX.test(data.maternalLastName)) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ['maternalLastName'],
+        message: 'Solo letras, espacios, tildes y guiones',
       });
     }
   });
@@ -132,20 +224,35 @@ function CreateUserDialog({ open, onClose }: { open: boolean; onClose: () => voi
       documentType: 'DNI',
       documentNumber: '',
       firstName: '',
-      lastName: '',
+      paternalLastName: '',
+      maternalLastName: '',
       email: '',
       phone: '',
       roleId: '',
+      contractDuration: '_none',
     },
   });
 
   const documentType = watch('documentType');
   const documentNumber = watch('documentNumber');
   const roleId = watch('roleId');
+  const contractDuration = watch('contractDuration');
   const selectedRole = roles?.find((r) => r.id === roleId);
+
+  // Helper para uppercase en nombres y apellidos (no afecta email).
+  const toUpperOnChange =
+    (field: 'firstName' | 'paternalLastName' | 'maternalLastName') =>
+    (e: React.ChangeEvent<HTMLInputElement>) =>
+      setValue(field, e.target.value.toUpperCase(), {
+        shouldValidate: isSubmitted,
+      });
 
   const onSubmit = (data: CreateForm) => {
     const trimmedDoc = data.documentNumber.trim();
+    const months =
+      data.contractDuration && data.contractDuration !== '_none'
+        ? (Number(data.contractDuration) as 3 | 6 | 12)
+        : undefined;
     mutation.mutate(
       {
         documentType: data.documentType,
@@ -154,10 +261,12 @@ function CreateUserDialog({ open, onClose }: { open: boolean; onClose: () => voi
         // el primer login (mustChangePassword: true en backend).
         password: trimmedDoc,
         firstName: data.firstName.trim(),
-        lastName: data.lastName.trim(),
+        paternalLastName: data.paternalLastName.trim(),
+        maternalLastName: data.maternalLastName?.trim() || undefined,
         email: data.email?.trim() || undefined,
         phone: data.phone?.trim() || undefined,
         roleId: data.roleId,
+        contractDurationMonths: months,
       },
       {
         onSuccess: (created) => {
@@ -249,7 +358,11 @@ function CreateUserDialog({ open, onClose }: { open: boolean; onClose: () => voi
               <Label>
                 Número <span className="text-destructive">*</span>
               </Label>
-              <Input {...register('documentNumber')} placeholder={fmt.placeholder} />
+              <Input
+                {...register('documentNumber')}
+                placeholder={fmt.placeholder}
+                {...getDocInputProps(documentType)}
+              />
               <p className="text-[11px] text-muted-foreground">{fmt.helper}</p>
               {errors.documentNumber && (
                 <p className="text-xs text-destructive">
@@ -259,24 +372,58 @@ function CreateUserDialog({ open, onClose }: { open: boolean; onClose: () => voi
             </div>
           </div>
 
-          {/* Nombres + Apellidos */}
-          <div className="grid grid-cols-2 gap-3">
+          {/* Nombres + Apellido paterno + Apellido materno */}
+          <div className="grid grid-cols-3 gap-3">
             <div className="space-y-1.5">
               <Label>
                 Nombres <span className="text-destructive">*</span>
               </Label>
-              <Input {...register('firstName')} placeholder="Pedro Antonio" />
+              <Input
+                {...register('firstName')}
+                placeholder="PEDRO ANTONIO"
+                onChange={toUpperOnChange('firstName')}
+                maxLength={100}
+              />
               {errors.firstName && (
                 <p className="text-xs text-destructive">{errors.firstName.message}</p>
               )}
             </div>
             <div className="space-y-1.5">
               <Label>
-                Apellidos <span className="text-destructive">*</span>
+                Apellido paterno <span className="text-destructive">*</span>
               </Label>
-              <Input {...register('lastName')} placeholder="García Rodríguez" />
-              {errors.lastName && (
-                <p className="text-xs text-destructive">{errors.lastName.message}</p>
+              <Input
+                {...register('paternalLastName')}
+                placeholder="GARCÍA"
+                onChange={toUpperOnChange('paternalLastName')}
+                maxLength={100}
+              />
+              {errors.paternalLastName && (
+                <p className="text-xs text-destructive">
+                  {errors.paternalLastName.message}
+                </p>
+              )}
+            </div>
+            <div className="space-y-1.5">
+              <Label>
+                Apellido materno
+                {documentType === 'DNI' && <span className="text-destructive"> *</span>}
+              </Label>
+              <Input
+                {...register('maternalLastName')}
+                placeholder="RODRÍGUEZ"
+                onChange={toUpperOnChange('maternalLastName')}
+                maxLength={100}
+              />
+              {documentType !== 'DNI' && (
+                <p className="text-[11px] text-muted-foreground">
+                  Opcional para {documentType}
+                </p>
+              )}
+              {errors.maternalLastName && (
+                <p className="text-xs text-destructive">
+                  {errors.maternalLastName.message}
+                </p>
               )}
             </div>
           </div>
@@ -342,6 +489,39 @@ function CreateUserDialog({ open, onClose }: { open: boolean; onClose: () => voi
             )}
           </div>
 
+          {/* Duración de contrato */}
+          <div className="space-y-1.5">
+            <Label>Duración del contrato</Label>
+            <Select
+              value={contractDuration ?? '_none'}
+              onValueChange={(v) =>
+                setValue('contractDuration', v as CreateForm['contractDuration'], {
+                  shouldValidate: false,
+                })
+              }
+            >
+              <SelectTrigger>
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {CONTRACT_OPTIONS.map((opt) => (
+                  <SelectItem key={opt.value} value={opt.value}>
+                    {opt.label}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            <p className="text-[11px] text-muted-foreground">
+              {contractDuration && contractDuration !== '_none'
+                ? `Vencerá el ${(() => {
+                    const d = new Date();
+                    d.setMonth(d.getMonth() + Number(contractDuration));
+                    return d.toLocaleDateString('es-PE');
+                  })()}. Te avisaremos 7 días antes.`
+                : 'Opcional · sin contrato definido no habrá alerta de vencimiento'}
+            </p>
+          </div>
+
           {/* Resumen previo a submit (solo si campos clave llenos) */}
           {documentNumber && (
             <div className="flex gap-2.5 rounded-md bg-muted/50 p-2.5 text-[11px]">
@@ -375,25 +555,45 @@ function CreateUserDialog({ open, onClose }: { open: boolean; onClose: () => voi
 
 // ─── Modal de edición — sin password ni documento (no editables) ────────────
 
-const editSchema = z.object({
-  firstName: z
-    .string()
-    .min(2, 'Mínimo 2 caracteres')
-    .max(100)
-    .regex(NAME_REGEX, 'Solo letras, espacios, tildes y guiones'),
-  lastName: z
-    .string()
-    .min(2, 'Mínimo 2 caracteres')
-    .max(100)
-    .regex(NAME_REGEX, 'Solo letras, espacios, tildes y guiones'),
-  email: z.string().email('Email inválido').max(120).optional().or(z.literal('')),
-  phone: z
-    .string()
-    .regex(/^9\d{8}$/, 'Celular Perú: 9 dígitos que empiece con 9')
-    .optional()
-    .or(z.literal('')),
-  roleId: z.string().min(1, 'Selecciona un rol'),
-});
+const editSchema = z
+  .object({
+    firstName: z
+      .string()
+      .min(2, 'Mínimo 2 caracteres')
+      .max(100)
+      .regex(NAME_REGEX, 'Solo letras, espacios, tildes y guiones'),
+    paternalLastName: z
+      .string()
+      .min(2, 'Mínimo 2 caracteres')
+      .max(100)
+      .regex(NAME_REGEX, 'Solo letras, espacios, tildes y guiones'),
+    maternalLastName: z.string().max(100).optional().or(z.literal('')),
+    email: z.string().email('Email inválido').max(120).optional().or(z.literal('')),
+    phone: z
+      .string()
+      .regex(/^9\d{8}$/, 'Celular Perú: 9 dígitos que empiece con 9')
+      .optional()
+      .or(z.literal('')),
+    roleId: z.string().min(1, 'Selecciona un rol'),
+    /** Solo para validar — el tipo de documento viene del usuario y no es editable. */
+    _docType: z.enum(['DNI', 'CE', 'PASAPORTE']),
+  })
+  .superRefine((data, ctx) => {
+    if (data._docType === 'DNI' && !data.maternalLastName?.trim()) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ['maternalLastName'],
+        message: 'Apellido materno obligatorio para usuarios con DNI',
+      });
+    }
+    if (data.maternalLastName?.trim() && !NAME_REGEX.test(data.maternalLastName)) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ['maternalLastName'],
+        message: 'Solo letras, espacios, tildes y guiones',
+      });
+    }
+  });
 
 type EditForm = z.infer<typeof editSchema>;
 
@@ -414,25 +614,36 @@ function EditUserDialog({ user, onClose }: { user: User | null; onClose: () => v
     mode: 'onBlur',
     defaultValues: {
       firstName: '',
-      lastName: '',
+      paternalLastName: '',
+      maternalLastName: '',
       email: '',
       phone: '',
       roleId: '',
+      _docType: 'DNI',
     },
   });
 
   const roleId = watch('roleId');
   const selectedRole = roles?.find((r) => r.id === roleId);
 
+  const toUpperOnChange =
+    (field: 'firstName' | 'paternalLastName' | 'maternalLastName') =>
+    (e: React.ChangeEvent<HTMLInputElement>) =>
+      setValue(field, e.target.value.toUpperCase(), {
+        shouldValidate: isSubmitted,
+      });
+
   // Pre-fill cuando el usuario cambia (open).
   useEffect(() => {
     if (!user) return;
     reset({
       firstName: user.firstName,
-      lastName: user.lastName,
+      paternalLastName: user.paternalLastName ?? user.lastName ?? '',
+      maternalLastName: user.maternalLastName ?? '',
       email: user.email ?? '',
       phone: user.phone ?? '',
       roleId: user.role.id,
+      _docType: user.documentType as 'DNI' | 'CE' | 'PASAPORTE',
     });
   }, [user, reset]);
 
@@ -443,7 +654,8 @@ function EditUserDialog({ user, onClose }: { user: User | null; onClose: () => v
         id: user.id,
         dto: {
           firstName: data.firstName.trim(),
-          lastName: data.lastName.trim(),
+          paternalLastName: data.paternalLastName.trim(),
+          maternalLastName: data.maternalLastName?.trim() || undefined,
           email: data.email?.trim() || undefined,
           phone: data.phone?.trim() || undefined,
           roleId: data.roleId,
@@ -489,23 +701,56 @@ function EditUserDialog({ user, onClose }: { user: User | null; onClose: () => v
         )}
 
         <form onSubmit={handleSubmit(onSubmit)} className="space-y-3">
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid grid-cols-3 gap-3">
             <div className="space-y-1.5">
               <Label>
                 Nombres <span className="text-destructive">*</span>
               </Label>
-              <Input {...register('firstName')} />
+              <Input
+                {...register('firstName')}
+                onChange={toUpperOnChange('firstName')}
+                maxLength={100}
+              />
               {errors.firstName && (
                 <p className="text-xs text-destructive">{errors.firstName.message}</p>
               )}
             </div>
             <div className="space-y-1.5">
               <Label>
-                Apellidos <span className="text-destructive">*</span>
+                Apellido paterno <span className="text-destructive">*</span>
               </Label>
-              <Input {...register('lastName')} />
-              {errors.lastName && (
-                <p className="text-xs text-destructive">{errors.lastName.message}</p>
+              <Input
+                {...register('paternalLastName')}
+                onChange={toUpperOnChange('paternalLastName')}
+                maxLength={100}
+              />
+              {errors.paternalLastName && (
+                <p className="text-xs text-destructive">
+                  {errors.paternalLastName.message}
+                </p>
+              )}
+            </div>
+            <div className="space-y-1.5">
+              <Label>
+                Apellido materno
+                {user?.documentType === 'DNI' && (
+                  <span className="text-destructive"> *</span>
+                )}
+              </Label>
+              <Input
+                {...register('maternalLastName')}
+                onChange={toUpperOnChange('maternalLastName')}
+                maxLength={100}
+              />
+              {user?.documentType !== 'DNI' && (
+                <p className="text-[11px] text-muted-foreground">
+                  Opcional para {user?.documentType}
+                </p>
+              )}
+              {errors.maternalLastName && (
+                <p className="text-xs text-destructive">
+                  {errors.maternalLastName.message}
+                </p>
               )}
             </div>
           </div>
@@ -594,6 +839,27 @@ export default function UsuariosPage() {
   });
   const setActive = useSetUserActive();
   const resetPassword = useResetUserPassword();
+  const renewContract = useRenewContract();
+
+  const handleRenewContract = async (user: User) => {
+    const months = window.prompt(
+      `Renovar contrato de ${user.firstName} ${user.lastName}.\n\nElige duración (3, 6 o 12 meses):`,
+      '6',
+    );
+    if (!months) return;
+    const m = Number(months) as ContractDuration;
+    if (![3, 6, 12].includes(m)) {
+      toast.error('Debe ser 3, 6 o 12');
+      return;
+    }
+    const ok = await confirm({
+      title: `¿Renovar contrato por ${m} meses?`,
+      description: `La nueva fecha de vencimiento será dentro de ${m} meses desde hoy.`,
+      confirmText: 'Renovar',
+    });
+    if (!ok) return;
+    renewContract.mutate({ id: user.id, months: m });
+  };
 
   const handleToggleActive = async (user: User) => {
     if (user.active) {
@@ -662,6 +928,34 @@ export default function UsuariosPage() {
       ),
     },
     {
+      id: 'contract',
+      header: 'Contrato',
+      size: 150,
+      cell: ({ row }) => {
+        const badge = getContractBadge(row.original.contractEndDate);
+        if (!badge) {
+          return <span className="text-xs text-muted-foreground">Sin contrato</span>;
+        }
+        const cls =
+          badge.tone === 'destructive'
+            ? 'bg-red-500/10 text-red-700 dark:text-red-300 border-red-500/30'
+            : badge.tone === 'warning'
+              ? 'bg-amber-500/10 text-amber-700 dark:text-amber-300 border-amber-500/30'
+              : 'bg-muted/40 text-muted-foreground border-border';
+        return (
+          <div className="space-y-0.5">
+            <span
+              className={`inline-flex items-center gap-1 text-[11px] font-medium px-2 py-0.5 rounded-full border ${cls}`}
+            >
+              <CalendarClock className="h-3 w-3" />
+              {badge.label}
+            </span>
+            <p className="text-[10px] text-muted-foreground font-mono">{badge.dateStr}</p>
+          </div>
+        );
+      },
+    },
+    {
       id: 'createdAt',
       header: 'Creado',
       cell: ({ row }) => new Date(row.original.createdAt).toLocaleDateString('es-PE'),
@@ -669,7 +963,7 @@ export default function UsuariosPage() {
     {
       id: 'actions',
       header: 'Acciones',
-      size: 160,
+      size: 200,
       cell: ({ row }) => (
         <div className="flex gap-1.5">
           <ActionButton
@@ -677,6 +971,13 @@ export default function UsuariosPage() {
             label="Editar usuario"
             tone="info"
             onClick={() => setEditTarget(row.original)}
+          />
+          <ActionButton
+            icon={RefreshCw}
+            label="Renovar contrato"
+            tone="info"
+            onClick={() => handleRenewContract(row.original)}
+            disabled={renewContract.isPending}
           />
           <ActionButton
             icon={KeyRound}

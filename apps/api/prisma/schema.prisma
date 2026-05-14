@@ -111,9 +111,16 @@ model User {
   documentNumber      String
   passwordHash        String
   firstName           String
+  // Apellidos separados (peruano: paterno + materno). `lastName` se mantiene como
+  // campo derivado computado por el service ("paterno materno") para que los
+  // lugares que lo muestran sin migrar sigan funcionando.
+  paternalLastName    String?
+  maternalLastName    String?
   lastName            String
   email               String?              @unique
   phone               String?
+  // Fin de contrato — opcional. Cuando faltan ≤7 días, la UI muestra alerta visual.
+  contractEndDate     DateTime?
   roleId              String
   role                Role                 @relation(fields: [roleId], references: [id])
   active              Boolean              @default(true)
@@ -721,6 +728,9 @@ model Worker {
   documentType   DocumentType
   documentNumber String
   firstName      String
+  // Apellidos separados (peruano). `lastName` queda derivado.
+  paternalLastName String?
+  maternalLastName String?
   lastName       String
   phone          String
   address        String?

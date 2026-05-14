@@ -9,17 +9,23 @@ export interface Role {
   description?: string;
 }
 
+export type ContractDuration = 3 | 6 | 12;
+
 export interface User {
   id: string;
   documentType: string;
   documentNumber: string;
   firstName: string;
+  paternalLastName?: string | null;
+  maternalLastName?: string | null;
+  /** Apellido completo derivado (paterno + materno). Backend lo computa. */
   lastName: string;
   email?: string | null;
   phone?: string | null;
   active: boolean;
   mustChangePassword: boolean;
   lastLoginAt?: string | null;
+  contractEndDate?: string | null;
   createdAt: string;
   role: Role;
 }
@@ -36,15 +42,18 @@ interface CreateUserDto {
   documentNumber: string;
   password: string;
   firstName: string;
-  lastName: string;
+  paternalLastName: string;
+  maternalLastName?: string;
   email?: string;
   phone?: string;
   roleId: string;
+  contractDurationMonths?: ContractDuration;
 }
 
 interface UpdateUserDto {
   firstName?: string;
-  lastName?: string;
+  paternalLastName?: string;
+  maternalLastName?: string;
   email?: string;
   phone?: string;
   roleId?: string;
@@ -104,6 +113,28 @@ export function useUpdateUser() {
  * en el siguiente login. Usado cuando el usuario olvida la contraseña y no
  * tiene email para auto-recuperar.
  */
+/**
+ * Renueva el contrato del usuario: setea `contractEndDate = hoy + N meses`.
+ * No extiende desde la fecha anterior — redefine desde hoy. Evita back-dating.
+ */
+export function useRenewContract() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, months }: { id: string; months: ContractDuration }) =>
+      apiClient
+        .patch(`${BASE}/${id}/renew-contract`, { months })
+        .then((r) => r.data.data as User),
+    onSuccess: (user) => {
+      qc.invalidateQueries({ queryKey: ['users'] });
+      const newDate = user.contractEndDate
+        ? new Date(user.contractEndDate).toLocaleDateString('es-PE')
+        : '—';
+      toast.success(`Contrato renovado · Nueva fecha de fin: ${newDate}`);
+    },
+    onError: () => toast.error('Error al renovar contrato'),
+  });
+}
+
 export function useResetUserPassword() {
   const qc = useQueryClient();
   return useMutation({

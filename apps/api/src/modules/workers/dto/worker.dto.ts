@@ -38,7 +38,15 @@ export class CreateWorkerDto {
   @IsString()
   @MinLength(2)
   @MaxLength(100)
-  lastName: string;
+  paternalLastName: string;
+
+  @ApiPropertyOptional({
+    description: 'Opcional para CE/Pasaporte. Backend valida obligatorio si DNI.',
+  })
+  @IsOptional()
+  @IsString()
+  @MaxLength(100)
+  maternalLastName?: string;
 
   @ApiProperty({ description: 'Celular Perú: 9 dígitos empezando con 9' })
   @IsString()
@@ -91,7 +99,13 @@ export class UpdateWorkerDto {
   @IsOptional()
   @IsString()
   @MaxLength(100)
-  lastName?: string;
+  paternalLastName?: string;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  @MaxLength(100)
+  maternalLastName?: string;
 
   @ApiPropertyOptional()
   @IsOptional()

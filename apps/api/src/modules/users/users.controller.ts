@@ -5,7 +5,7 @@ import { Transform, Type } from 'class-transformer';
 
 import { RequirePermissions } from '../auth/decorators/permissions.decorator';
 import { PaginationQueryDto } from '../../common/dto/pagination.dto';
-import { CreateUserDto, UpdateUserDto } from './dto/user.dto';
+import { CreateUserDto, RenewContractDto, UpdateUserDto } from './dto/user.dto';
 import { UsersService } from './users.service';
 
 class UserQueryDto extends PaginationQueryDto {
@@ -70,5 +70,11 @@ export class UsersController {
   @RequirePermissions('users:update')
   resetPassword(@Param('id') id: string) {
     return this.service.resetPassword(id);
+  }
+
+  @Patch(':id/renew-contract')
+  @RequirePermissions('users:update')
+  renewContract(@Param('id') id: string, @Body() dto: RenewContractDto) {
+    return this.service.renewContract(id, dto.months);
   }
 }

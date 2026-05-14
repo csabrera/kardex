@@ -112,12 +112,27 @@ export class WorkersService {
       }
     }
 
+    // Regla peruana: DNI requiere apellido materno. CE/Pasaporte pueden no tenerlo.
+    if (dto.documentType === 'DNI' && !dto.maternalLastName?.trim()) {
+      throw new BusinessException(
+        BusinessErrorCode.INVALID_INPUT,
+        'El apellido materno es obligatorio para empleados con DNI',
+        HttpStatus.BAD_REQUEST,
+      );
+    }
+
+    const paternal = dto.paternalLastName.trim();
+    const maternal = dto.maternalLastName?.trim();
+    const lastName = maternal ? `${paternal} ${maternal}` : paternal;
+
     return this.prisma.worker.create({
       data: {
         documentType: dto.documentType,
         documentNumber: dto.documentNumber.trim(),
         firstName: dto.firstName.trim(),
-        lastName: dto.lastName.trim(),
+        paternalLastName: paternal,
+        maternalLastName: maternal || null,
+        lastName,
         phone: dto.phone.trim(),
         address: dto.address?.trim(),
         birthDate: dto.birthDate ? new Date(dto.birthDate) : undefined,
@@ -159,11 +174,32 @@ export class WorkersService {
       }
     }
 
+    // Recompute lastName si se tocan paterno o materno.
+    const current = await this.findOne(id);
+    const willTouchNames =
+      dto.paternalLastName !== undefined || dto.maternalLastName !== undefined;
+    const finalPaternal = (dto.paternalLastName ?? current.paternalLastName ?? '').trim();
+    const finalMaternal = (dto.maternalLastName ?? current.maternalLastName ?? '').trim();
+
+    if (willTouchNames && current.documentType === 'DNI' && !finalMaternal) {
+      throw new BusinessException(
+        BusinessErrorCode.INVALID_INPUT,
+        'El apellido materno es obligatorio para empleados con DNI',
+        HttpStatus.BAD_REQUEST,
+      );
+    }
+
     return this.prisma.worker.update({
       where: { id },
       data: {
         ...(dto.firstName && { firstName: dto.firstName.trim() }),
-        ...(dto.lastName && { lastName: dto.lastName.trim() }),
+        ...(dto.paternalLastName !== undefined && { paternalLastName: finalPaternal }),
+        ...(dto.maternalLastName !== undefined && {
+          maternalLastName: finalMaternal || null,
+        }),
+        ...(willTouchNames && {
+          lastName: finalMaternal ? `${finalPaternal} ${finalMaternal}` : finalPaternal,
+        }),
         ...(dto.phone && { phone: dto.phone.trim() }),
         ...(dto.address !== undefined && { address: dto.address?.trim() }),
         ...(dto.birthDate !== undefined && {

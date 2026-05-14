@@ -1,11 +1,11 @@
 import { Injectable, HttpStatus } from '@nestjs/common';
 import * as bcrypt from 'bcrypt';
-import { Prisma } from '@prisma/client';
+import { DocumentType, Prisma } from '@prisma/client';
 
 import { PrismaService } from '../../prisma/prisma.service';
 import { BusinessException } from '../../common/exceptions/business.exception';
 import { BusinessErrorCode } from '@kardex/types';
-import type { CreateUserDto, UpdateUserDto } from './dto/user.dto';
+import type { ContractDuration, CreateUserDto, UpdateUserDto } from './dto/user.dto';
 
 const BCRYPT_ROUNDS = 12;
 
@@ -14,15 +14,34 @@ const USER_SELECT = {
   documentType: true,
   documentNumber: true,
   firstName: true,
+  paternalLastName: true,
+  maternalLastName: true,
   lastName: true,
   email: true,
   phone: true,
   active: true,
   mustChangePassword: true,
   lastLoginAt: true,
+  contractEndDate: true,
   createdAt: true,
   role: { select: { id: true, name: true, description: true } },
 } satisfies Prisma.UserSelect;
+
+/** Computa el `lastName` derivado a partir de paterno + materno. */
+function composeLastName(paternal: string, maternal?: string | null): string {
+  const p = paternal.trim();
+  const m = (maternal ?? '').trim();
+  return m ? `${p} ${m}` : p;
+}
+
+/** Suma N meses a una fecha respetando fin de mes (ej. 31 ene + 1 mes = 28/29 feb). */
+function addMonths(date: Date, months: number): Date {
+  const d = new Date(date);
+  const targetMonth = d.getMonth() + months;
+  d.setMonth(targetMonth);
+  // Si el día desbordó (31 ene → mar), JavaScript ya lo ajusta automáticamente.
+  return d;
+}
 
 @Injectable()
 export class UsersService {
@@ -114,6 +133,16 @@ export class UsersService {
       }
     }
 
+    // Regla peruana: si DNI, el apellido materno es obligatorio. CE/Pasaporte
+    // pueden no tener apellido materno (extranjeros).
+    if (dto.documentType === DocumentType.DNI && !dto.maternalLastName?.trim()) {
+      throw new BusinessException(
+        BusinessErrorCode.INVALID_INPUT,
+        'El apellido materno es obligatorio para usuarios con DNI',
+        HttpStatus.BAD_REQUEST,
+      );
+    }
+
     const role = await this.prisma.role.findUnique({ where: { id: dto.roleId } });
     if (!role) {
       throw new BusinessException(
@@ -124,6 +153,10 @@ export class UsersService {
     }
 
     const passwordHash = await bcrypt.hash(dto.password, BCRYPT_ROUNDS);
+    const lastName = composeLastName(dto.paternalLastName, dto.maternalLastName);
+    const contractEndDate = dto.contractDurationMonths
+      ? addMonths(new Date(), dto.contractDurationMonths)
+      : null;
 
     return this.prisma.user.create({
       data: {
@@ -131,10 +164,13 @@ export class UsersService {
         documentNumber: dto.documentNumber,
         passwordHash,
         firstName: dto.firstName,
-        lastName: dto.lastName,
+        paternalLastName: dto.paternalLastName,
+        maternalLastName: dto.maternalLastName || null,
+        lastName,
         email: dto.email,
         phone: dto.phone,
         roleId: dto.roleId,
+        contractEndDate,
         mustChangePassword: true,
       },
       select: USER_SELECT,
@@ -142,7 +178,7 @@ export class UsersService {
   }
 
   async update(id: string, dto: UpdateUserDto) {
-    await this.findOne(id);
+    const current = await this.findOne(id);
 
     if (dto.email) {
       const emailUsed = await this.prisma.user.findFirst({
@@ -157,15 +193,53 @@ export class UsersService {
       }
     }
 
+    // Si tocan paterno o materno, recomputamos lastName con los valores resultantes.
+    const willTouchNames =
+      dto.paternalLastName !== undefined || dto.maternalLastName !== undefined;
+    const finalPaternal = dto.paternalLastName ?? current.paternalLastName ?? '';
+    const finalMaternal = dto.maternalLastName ?? current.maternalLastName ?? '';
+
+    // Misma regla peruana en update: si DNI y se vacía el materno, rechazar.
+    if (
+      willTouchNames &&
+      current.documentType === DocumentType.DNI &&
+      !finalMaternal.trim()
+    ) {
+      throw new BusinessException(
+        BusinessErrorCode.INVALID_INPUT,
+        'El apellido materno es obligatorio para usuarios con DNI',
+        HttpStatus.BAD_REQUEST,
+      );
+    }
+
     return this.prisma.user.update({
       where: { id },
       data: {
         ...(dto.firstName && { firstName: dto.firstName }),
-        ...(dto.lastName && { lastName: dto.lastName }),
+        ...(dto.paternalLastName !== undefined && {
+          paternalLastName: dto.paternalLastName,
+        }),
+        ...(dto.maternalLastName !== undefined && {
+          maternalLastName: dto.maternalLastName || null,
+        }),
+        ...(willTouchNames && {
+          lastName: composeLastName(finalPaternal, finalMaternal),
+        }),
         ...(dto.email !== undefined && { email: dto.email }),
         ...(dto.phone !== undefined && { phone: dto.phone }),
         ...(dto.roleId && { roleId: dto.roleId }),
       },
+      select: USER_SELECT,
+    });
+  }
+
+  /** Renueva la ventana de contrato del usuario desde HOY + N meses. */
+  async renewContract(id: string, months: ContractDuration) {
+    await this.findOne(id);
+    const contractEndDate = addMonths(new Date(), months);
+    return this.prisma.user.update({
+      where: { id },
+      data: { contractEndDate },
       select: USER_SELECT,
     });
   }

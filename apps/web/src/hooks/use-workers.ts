@@ -8,6 +8,9 @@ export interface Worker {
   documentType: string;
   documentNumber: string;
   firstName: string;
+  paternalLastName?: string | null;
+  maternalLastName?: string | null;
+  /** Apellido completo derivado (paterno + materno). */
   lastName: string;
   phone: string;
   address?: string | null;
@@ -34,7 +37,8 @@ export interface CreateWorkerDto {
   documentType: string;
   documentNumber: string;
   firstName: string;
-  lastName: string;
+  paternalLastName: string;
+  maternalLastName?: string;
   phone: string;
   address?: string;
   birthDate?: string;
