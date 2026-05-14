@@ -55,6 +55,10 @@ const config: Config = {
           DEFAULT: 'hsl(var(--info))',
           foreground: 'hsl(var(--info-foreground))',
         },
+        construction: {
+          DEFAULT: 'hsl(var(--brand-construction))',
+          foreground: 'hsl(var(--brand-construction-foreground))',
+        },
         muted: {
           DEFAULT: 'hsl(var(--muted))',
           foreground: 'hsl(var(--muted-foreground))',

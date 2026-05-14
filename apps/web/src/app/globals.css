@@ -44,6 +44,12 @@
     --info: 217 85% 55%;
     --info-foreground: 0 0% 100%;
 
+    /* Brand secundario: naranja seguridad EPP. Identidad del rubro construcción.
+       Uso puntual como acento en login, brand marks, y elementos de identidad.
+       NO reemplaza --accent (azul) — coexisten: azul = sistema, naranja = marca. */
+    --brand-construction: 24 95% 53%;
+    --brand-construction-foreground: 0 0% 100%;
+
     /* Borders & focus rings */
     --border: 214 32% 91%;
     --input: 214 32% 91%;
@@ -113,6 +119,10 @@
 
     --info: 217 85% 62%;
     --info-foreground: 0 0% 100%;
+
+    /* Naranja un toque más luminoso en dark mode para legibilidad */
+    --brand-construction: 24 95% 58%;
+    --brand-construction-foreground: 0 0% 100%;
 
     --border: 217 33% 17%;
     --input: 217 33% 17%;

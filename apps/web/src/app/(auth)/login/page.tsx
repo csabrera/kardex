@@ -58,10 +58,17 @@ export default function LoginPage() {
   const config = DOCUMENT_CONFIGS[documentType];
 
   return (
-    <div className="space-y-6">
-      <div className="space-y-1.5">
-        <h1 className="text-3xl font-bold tracking-tight">Bienvenido</h1>
-        <p className="text-muted-foreground">
+    <div className="space-y-7">
+      <div className="space-y-2">
+        {/* Cota técnica como sub-eyebrow — reúsa el lenguaje del panel izq */}
+        <div className="flex items-center gap-2 text-[10.5px] uppercase tracking-[0.2em] text-construction font-medium">
+          <span className="h-px w-6 bg-construction" />
+          <span>Acceso</span>
+        </div>
+        <h1 className="font-display text-3xl font-bold tracking-tight leading-none">
+          Bienvenido
+        </h1>
+        <p className="text-sm text-muted-foreground leading-relaxed pt-1">
           Ingresa tus credenciales para acceder al sistema.
         </p>
       </div>
@@ -148,7 +155,11 @@ export default function LoginPage() {
           )}
         </div>
 
-        <Button type="submit" className="w-full h-11 gap-2" disabled={login.isPending}>
+        <Button
+          type="submit"
+          className="w-full h-11 gap-2 font-medium shadow-soft transition-base hover:shadow-elevated"
+          disabled={login.isPending}
+        >
           {login.isPending ? (
             <>
               <Loader2 className="h-4 w-4 animate-spin" />
@@ -163,8 +174,14 @@ export default function LoginPage() {
         </Button>
       </form>
 
-      <p className="text-center text-xs text-muted-foreground">
-        Si no tienes credenciales, solicítalas al administrador del sistema.
+      {/* Footer separator con cota — refuerza el lenguaje del layout */}
+      <div className="pt-2 flex items-center gap-3 text-[10.5px] uppercase tracking-[0.18em] text-muted-foreground/70">
+        <span className="h-px flex-1 bg-border" />
+        <span>¿Sin acceso?</span>
+        <span className="h-px flex-1 bg-border" />
+      </div>
+      <p className="text-center text-xs text-muted-foreground leading-relaxed -mt-3">
+        Solicita tus credenciales al administrador del sistema.
       </p>
     </div>
   );
