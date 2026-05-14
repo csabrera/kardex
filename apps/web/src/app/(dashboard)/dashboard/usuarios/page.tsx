@@ -2,7 +2,7 @@
 
 import { zodResolver } from '@hookform/resolvers/zod';
 import { type ColumnDef } from '@tanstack/react-table';
-import { Info, KeyRound, Pencil, Plus, UserCheck, Users, UserX } from 'lucide-react';
+import { Info, KeyRound, Pencil, Plus, Users } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { useForm } from 'react-hook-form';
 import { toast } from 'sonner';
@@ -37,6 +37,8 @@ import {
   type ContractDuration,
   type User,
 } from '@/hooks/use-users';
+import { Switch } from '@/components/ui/switch';
+import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
 import { CalendarClock, RefreshCw } from 'lucide-react';
 
 const DOC_TYPES = ['DNI', 'CE', 'PASAPORTE'] as const;
@@ -823,12 +825,104 @@ function EditUserDialog({ user, onClose }: { user: User | null; onClose: () => v
   );
 }
 
+// ─── Modal de renovación de contrato ───────────────────────────────────────
+
+function RenewContractDialog({
+  user,
+  onClose,
+}: {
+  user: User | null;
+  onClose: () => void;
+}) {
+  const mutation = useRenewContract();
+
+  const handlePick = (months: ContractDuration) => {
+    if (!user) return;
+    mutation.mutate(
+      { id: user.id, months },
+      {
+        onSuccess: () => onClose(),
+      },
+    );
+  };
+
+  // Preview de fechas para los 3 botones
+  const previewDate = (months: number) => {
+    const d = new Date();
+    d.setMonth(d.getMonth() + months);
+    return d.toLocaleDateString('es-PE');
+  };
+
+  return (
+    <Dialog open={!!user} onOpenChange={(v) => !v && onClose()}>
+      <DialogContent className="max-w-md">
+        <DialogHeader>
+          <DialogTitle>Renovar contrato</DialogTitle>
+        </DialogHeader>
+
+        {user && (
+          <>
+            <div className="flex items-start gap-2.5 rounded-md border bg-muted/30 p-3 text-sm">
+              <Info className="h-4 w-4 shrink-0 text-muted-foreground mt-0.5" />
+              <div>
+                <p className="font-medium">
+                  {user.firstName} {user.lastName}
+                </p>
+                <p className="text-xs text-muted-foreground mt-0.5">
+                  {user.contractEndDate
+                    ? `Vence actualmente el ${new Date(user.contractEndDate).toLocaleDateString('es-PE')}`
+                    : 'Sin contrato definido todavía'}
+                </p>
+              </div>
+            </div>
+
+            <p className="text-xs text-muted-foreground">
+              Elige cuántos meses extender. La nueva fecha se calcula{' '}
+              <strong>desde hoy</strong>, no desde la fecha de vencimiento anterior.
+            </p>
+
+            <div className="grid grid-cols-3 gap-2">
+              {([3, 6, 12] as const).map((m) => (
+                <button
+                  key={m}
+                  type="button"
+                  disabled={mutation.isPending}
+                  onClick={() => handlePick(m)}
+                  className="group flex flex-col items-center gap-1 rounded-lg border bg-card p-3 transition-colors hover:border-accent hover:bg-accent/5 disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  <span className="text-lg font-bold tabular-nums">{m}</span>
+                  <span className="text-[11px] text-muted-foreground">meses</span>
+                  <span className="text-[10px] text-muted-foreground/70 mt-1 tabular-nums">
+                    hasta {previewDate(m)}
+                  </span>
+                </button>
+              ))}
+            </div>
+
+            <div className="flex justify-end pt-2 border-t">
+              <Button
+                type="button"
+                variant="outline"
+                onClick={onClose}
+                disabled={mutation.isPending}
+              >
+                Cancelar
+              </Button>
+            </div>
+          </>
+        )}
+      </DialogContent>
+    </Dialog>
+  );
+}
+
 export default function UsuariosPage() {
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(10);
   const [search, setSearch] = useState('');
   const [showCreate, setShowCreate] = useState(false);
   const [editTarget, setEditTarget] = useState<User | null>(null);
+  const [renewTarget, setRenewTarget] = useState<User | null>(null);
   const debouncedSearch = useDebounce(search, 300);
   const confirm = useConfirm();
 
@@ -839,41 +933,20 @@ export default function UsuariosPage() {
   });
   const setActive = useSetUserActive();
   const resetPassword = useResetUserPassword();
-  const renewContract = useRenewContract();
 
-  const handleRenewContract = async (user: User) => {
-    const months = window.prompt(
-      `Renovar contrato de ${user.firstName} ${user.lastName}.\n\nElige duración (3, 6 o 12 meses):`,
-      '6',
-    );
-    if (!months) return;
-    const m = Number(months) as ContractDuration;
-    if (![3, 6, 12].includes(m)) {
-      toast.error('Debe ser 3, 6 o 12');
-      return;
-    }
+  const handleToggleActive = async (user: User, checked: boolean) => {
     const ok = await confirm({
-      title: `¿Renovar contrato por ${m} meses?`,
-      description: `La nueva fecha de vencimiento será dentro de ${m} meses desde hoy.`,
-      confirmText: 'Renovar',
+      title: checked
+        ? `Activar a ${user.firstName} ${user.lastName}`
+        : `Desactivar a ${user.firstName} ${user.lastName}`,
+      description: checked
+        ? 'El usuario podrá ingresar al sistema nuevamente.'
+        : 'El usuario perderá el acceso al sistema. Sus datos quedan registrados (no se elimina) y puedes reactivarlo más tarde.',
+      confirmText: checked ? 'Activar' : 'Desactivar',
+      tone: checked ? 'default' : 'destructive',
     });
     if (!ok) return;
-    renewContract.mutate({ id: user.id, months: m });
-  };
-
-  const handleToggleActive = async (user: User) => {
-    if (user.active) {
-      const ok = await confirm({
-        title: `¿Desactivar a ${user.firstName} ${user.lastName}?`,
-        description:
-          'El usuario perderá el acceso al sistema. Sus datos quedan registrados ' +
-          '(no se elimina) y puedes reactivarlo más tarde.',
-        confirmText: 'Desactivar',
-        tone: 'destructive',
-      });
-      if (!ok) return;
-    }
-    setActive.mutate({ id: user.id, active: !user.active });
+    setActive.mutate({ id: user.id, active: checked });
   };
 
   const handleResetPassword = async (user: User) => {
@@ -918,16 +991,6 @@ export default function UsuariosPage() {
       cell: ({ row }) => <Badge variant="outline">{row.original.role.name}</Badge>,
     },
     {
-      id: 'status',
-      header: 'Estado',
-      size: 90,
-      cell: ({ row }) => (
-        <Badge variant={row.original.active ? 'success' : 'secondary'}>
-          {row.original.active ? 'Activo' : 'Inactivo'}
-        </Badge>
-      ),
-    },
-    {
       id: 'contract',
       header: 'Contrato',
       size: 150,
@@ -963,48 +1026,50 @@ export default function UsuariosPage() {
     {
       id: 'actions',
       header: 'Acciones',
-      size: 200,
-      cell: ({ row }) => (
-        <div className="flex gap-1.5">
-          <ActionButton
-            icon={Pencil}
-            label="Editar usuario"
-            tone="info"
-            onClick={() => setEditTarget(row.original)}
-          />
-          <ActionButton
-            icon={RefreshCw}
-            label="Renovar contrato"
-            tone="info"
-            onClick={() => handleRenewContract(row.original)}
-            disabled={renewContract.isPending}
-          />
-          <ActionButton
-            icon={KeyRound}
-            label="Restablecer contraseña"
-            tone="warning"
-            onClick={() => handleResetPassword(row.original)}
-            disabled={resetPassword.isPending}
-          />
-          {row.original.active ? (
+      size: 180,
+      cell: ({ row }) => {
+        const user = row.original;
+        return (
+          <div className="flex items-center gap-2 justify-center">
             <ActionButton
-              icon={UserX}
-              label="Desactivar usuario"
-              tone="destructive"
-              onClick={() => handleToggleActive(row.original)}
-              disabled={setActive.isPending}
+              icon={Pencil}
+              label="Editar usuario"
+              tone="info"
+              onClick={() => setEditTarget(user)}
             />
-          ) : (
             <ActionButton
-              icon={UserCheck}
-              label="Activar usuario"
-              tone="success"
-              onClick={() => handleToggleActive(row.original)}
-              disabled={setActive.isPending}
+              icon={RefreshCw}
+              label="Renovar contrato"
+              tone="info"
+              onClick={() => setRenewTarget(user)}
             />
-          )}
-        </div>
-      ),
+            <ActionButton
+              icon={KeyRound}
+              label="Restablecer contraseña"
+              tone="warning"
+              onClick={() => handleResetPassword(user)}
+              disabled={resetPassword.isPending}
+            />
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <span>
+                  <Switch
+                    checked={user.active}
+                    onCheckedChange={(checked) => handleToggleActive(user, checked)}
+                    disabled={setActive.isPending}
+                    aria-label={user.active ? 'Desactivar usuario' : 'Activar usuario'}
+                  />
+                </span>
+              </TooltipTrigger>
+              <TooltipContent>
+                {user.active
+                  ? 'Activo · clic para desactivar'
+                  : 'Inactivo · clic para activar'}
+              </TooltipContent>
+            </Tooltip>
+          </div>
+        );
+      },
     },
   ];
 
@@ -1044,6 +1109,7 @@ export default function UsuariosPage() {
 
       <CreateUserDialog open={showCreate} onClose={() => setShowCreate(false)} />
       <EditUserDialog user={editTarget} onClose={() => setEditTarget(null)} />
+      <RenewContractDialog user={renewTarget} onClose={() => setRenewTarget(null)} />
     </div>
   );
 }
